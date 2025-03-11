@@ -1,0 +1,30 @@
+{
+  "name": "dry-utils",
+  "version": "0.1.0",
+  "description": "A tree-shakeable TypeScript utility library",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "pretest": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
