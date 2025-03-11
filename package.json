@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./winston": {
+      "types": "./dist/winston/index.d.ts",
+      "import": "./dist/winston/index.js",
+      "default": "./dist/winston/index.js"
     }
   },
   "files": [
@@ -23,6 +28,9 @@
   },
   "license": "MIT",
   "dependencies": {
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
     "@types/node": "^22.13.10",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
