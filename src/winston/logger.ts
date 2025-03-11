@@ -95,9 +95,13 @@ const formatPrint = (splatType: string) =>
  * Creates a custom logger instance with the specified configuration
  *
  * @param options - Configuration options for the logger
+ * @param omitInitMsg - Whether to omit the initialization message
  * @returns A configured Winston logger instance
  */
-export function createCustomLogger(options: LoggerConfig): Logger {
+export function createCustomLogger(
+  options: LoggerConfig = {},
+  omitInitMsg = false
+): Logger {
   const config = { ...DEFAULT_LOGGER_CONFIG, ...options };
   const start = new Date();
   const startTime = start.getTime();
@@ -121,49 +125,38 @@ export function createCustomLogger(options: LoggerConfig): Logger {
       }),
     ],
   });
-  logger.info(`Logger initialized @ ${start.toISOString()}`);
+
+  if (!omitInitMsg) {
+    logger.info("init", options);
+    logger.info(`Logger initialized @ ${start.toISOString()}`);
+  }
+
   return logger;
 }
 
-/**
- * Singleton class to manage a global logger instance
- */
-class LoggerSingleton {
-  private static _instance: Logger | null = null;
-  private static _config: LoggerConfig = {};
-
-  /**
-   * Configures the singleton logger with the specified options
-   *
-   * @param options - Configuration options for the logger
-   */
-  static configure(options: LoggerConfig): void {
-    this._config = options;
-    // Reset instance to apply new config
-    this._instance = null;
-  }
-
-  /**
-   * Gets the logger instance, creating it if it doesn't exist
-   */
-  static get instance(): Logger {
-    if (!this._instance) {
-      this._instance = createCustomLogger(this._config);
-    }
-    return this._instance;
-  }
-}
+// Create a lazy-loaded default logger that's only initialized when first accessed
+let _defaultLogger: Logger | undefined;
+let _defaultConfig: LoggerConfig = {};
 
 /**
  * Configures the global logger singleton
  *
  * @param options - Configuration options for the logger
  */
-export function configureLogger(options: LoggerConfig): void {
-  LoggerSingleton.configure(options);
+export function configureGlobal(options: LoggerConfig): void {
+  _defaultConfig = options;
+  // Reset instance to apply new config
+  _defaultLogger = undefined;
 }
 
 /**
  * The global logger instance
  */
-export const logger = LoggerSingleton.instance;
+export const logger = new Proxy({} as Logger, {
+  get(_, prop) {
+    if (!_defaultLogger) {
+      _defaultLogger = createCustomLogger(_defaultConfig);
+    }
+    return _defaultLogger[prop as keyof Logger];
+  },
+});

@@ -13,9 +13,9 @@
       "default": "./dist/index.js"
     },
     "./winston": {
-      "types": "./dist/winston/index.d.ts",
-      "import": "./dist/winston/index.js",
-      "default": "./dist/winston/index.js"
+      "types": "./dist/winston/logger.d.ts",
+      "import": "./dist/winston/logger.js",
+      "default": "./dist/winston/logger.js"
     }
   },
   "files": [
