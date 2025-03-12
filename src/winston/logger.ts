@@ -43,7 +43,7 @@ const DEFAULT_LOGGER_CONFIG: LoggerConfig = {
  */
 function getSimpleVal(val: unknown, depth = 0): unknown {
   // Handle null explicitly to avoid errors
-  if (val === null) return null;
+  if (val == null) return undefined;
 
   if (Array.isArray(val)) {
     return val.length > 10 || depth >= 2
@@ -55,7 +55,7 @@ function getSimpleVal(val: unknown, depth = 0): unknown {
     return val.toISOString();
   }
 
-  if (typeof val === "object" && val !== null) {
+  if (typeof val === "object") {
     if (depth >= 2) return "[Object]";
     try {
       return Object.fromEntries(
@@ -127,7 +127,6 @@ export function createCustomLogger(
   });
 
   if (!omitInitMsg) {
-    logger.info("init", options);
     logger.info(`Logger initialized @ ${start.toISOString()}`);
   }
 
