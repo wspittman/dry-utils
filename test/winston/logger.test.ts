@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { transports } from "winston";
-import { createCustomLogger } from "../../src/winston/logger";
+import {
+  configureGlobal,
+  createCustomLogger,
+  logger,
+} from "../../src/winston/logger";
 
 const testConfig = {
   level: "debug",
@@ -184,4 +188,21 @@ describe("Winston/Logger: file format", () => {
       });
     }
   );
+});
+
+describe("Winston/Logger: globals", () => {
+  test("globals", () => {
+    // You should see a log line in the test console also during default logger initialization
+    assert.equal(logger.level, "info");
+    assert.equal(logger.level, "info");
+
+    configureGlobal(testConfig);
+    assert.equal(logger.level, "debug");
+    assert.equal(logger.level, "debug");
+
+    configureGlobal({});
+    // You should see a log line in the test console also during default logger initialization
+    assert.equal(logger.level, "info");
+    assert.equal(logger.level, "info");
+  });
 });
