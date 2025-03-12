@@ -4,6 +4,11 @@
   "description": "A tree-shakeable TypeScript utility library",
   "type": "module",
   "exports": {
+    "./htmldown": {
+      "types": "./dist/htmldown.d.ts",
+      "import": "./dist/htmldown.js",
+      "default": "./dist/htmldown.js"
+    },
     "./winston": {
       "types": "./dist/winston/logger.d.ts",
       "import": "./dist/winston/logger.js",
@@ -20,10 +25,17 @@
   },
   "license": "MIT",
   "dependencies": {
+    "html-entities": "^2.5.2",
+    "sanitize-html": "^2.14.0",
+    "showdown": "^2.1.0",
+    "turndown": "^7.2.0",
     "winston": "^3.17.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
+    "@types/sanitize-html": "^2.13.0",
+    "@types/showdown": "^2.0.6",
+    "@types/turndown": "^5.0.5",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }
