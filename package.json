@@ -3,15 +3,7 @@
   "version": "0.1.0",
   "description": "A tree-shakeable TypeScript utility library",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
     "./winston": {
       "types": "./dist/winston/logger.d.ts",
       "import": "./dist/winston/logger.js",
