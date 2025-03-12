@@ -3,14 +3,29 @@ import { describe, test } from "node:test";
 import { transports } from "winston";
 import { createCustomLogger } from "../../src/winston/logger";
 
-describe("Winston / Logger Module", () => {
-  const testConfig = {
-    level: "debug",
-    filename: "custom.log",
-    consoleLevel: "warn",
-    fileLevel: "error",
-  };
+const testConfig = {
+  level: "debug",
+  filename: "custom.log",
+  consoleLevel: "warn",
+  fileLevel: "error",
+};
 
+const date = new Date("2023-01-01T12:00:00Z");
+const array = [1, 2, 3];
+const longArray = Array(20).fill(1);
+const deepArray = Array(5).fill(Array(5).fill(Array(5).fill(array)));
+const object = { name: "test", value: 123 };
+const deepObject = {
+  level1: {
+    level2: {
+      level3: {
+        deepValue: "too deep",
+      },
+    },
+  },
+};
+
+describe("Winston/Logger: createCustomLogger", () => {
   [undefined, testConfig].forEach((config) => {
     test(`createCustomLogger: ${config ? "custom" : "default"}`, () => {
       const logger = createCustomLogger(config, true);
@@ -43,62 +58,49 @@ describe("Winston / Logger Module", () => {
       );
     });
   });
+});
 
-  const date = new Date("2023-01-01T12:00:00Z");
-  const array = [1, 2, 3];
-  const longArray = Array(20).fill(1);
-  const deepArray = Array(5).fill(Array(5).fill(Array(5).fill(array)));
-  const object = { name: "test", value: 123 };
-  const deepObject = {
-    level1: {
-      level2: {
-        level3: {
-          deepValue: "too deep",
-        },
-      },
-    },
-  };
+const formatTestCases: Record<
+  string,
+  { val: unknown; simple?: unknown; collapse?: "Simple" | "Full" | "Both" }
+> = {
+  undefined: { val: undefined },
+  number: { val: 42 },
+  true: { val: true },
+  false: { val: false },
+  string: { val: "string" },
+  date: { val: date, simple: date.toISOString() },
+  "simple array": { val: array, collapse: "Both" },
+  "long array": {
+    val: longArray,
+    simple: "[Length = 20]",
+    collapse: "Full",
+  },
+  "deep array": {
+    val: deepArray,
+    simple: Array(5).fill(Array(5).fill("[Length = 5]")),
+  },
+  "simple object": { val: object },
+  "deep object": {
+    val: deepObject,
+    simple: { level1: { level2: "[Object]" } },
+  },
+};
 
-  const formatTestCases: Record<
-    string,
-    { val: unknown; simple?: unknown; collapse?: "Simple" | "Full" | "Both" }
-  > = {
-    undefined: { val: undefined },
-    number: { val: 42 },
-    true: { val: true },
-    false: { val: false },
-    string: { val: "string" },
-    date: { val: date, simple: date.toISOString() },
-    "simple array": { val: array, collapse: "Both" },
-    "long array": {
-      val: longArray,
-      simple: "[Length = 20]",
-      collapse: "Full",
-    },
-    "deep array": {
-      val: deepArray,
-      simple: Array(5).fill(Array(5).fill("[Length = 5]")),
-    },
-    "simple object": { val: object },
-    "deep object": {
-      val: deepObject,
-      simple: { level1: { level2: "[Object]" } },
-    },
-  };
+const getInitialInfo = (name: string, val: unknown) => ({
+  level: "info",
+  message: name,
+  [Symbol.for("splat")]: val == null ? val : [val],
+});
 
-  const getInitialInfo = (name: string, val: unknown) => ({
-    level: "info",
-    message: name,
-    [Symbol.for("splat")]: val == null ? val : [val],
-  });
+const getFullInfo = (name: string, val: unknown, simple: unknown) => ({
+  ...getInitialInfo(name, val),
+  timestamp: "00:00.000",
+  simpleSplat: simple,
+  fullSplat: val,
+});
 
-  const getFullInfo = (name: string, val: unknown, simple: unknown) => ({
-    ...getInitialInfo(name, val),
-    timestamp: "00:00.000",
-    simpleSplat: simple,
-    fullSplat: val,
-  });
-
+describe("Winston/Logger: format", () => {
   Object.entries(formatTestCases).forEach(([name, { val, simple = val }]) => {
     test(`format: ${name}`, () => {
       const input = getInitialInfo(name, val);
@@ -126,26 +128,28 @@ describe("Winston / Logger Module", () => {
       assert.deepEqual(result, expected);
     });
   });
+});
 
-  function getTransportTransform(
-    index: number,
-    name: string,
-    val: unknown,
-    simple: unknown
-  ) {
-    const input = getFullInfo(name, val, simple);
-    const logger = createCustomLogger(testConfig, true);
-    const out = logger.transports[index];
-    const result = out.format?.transform(input);
+function getTransportTransform(
+  index: number,
+  name: string,
+  val: unknown,
+  simple: unknown
+) {
+  const input = getFullInfo(name, val, simple);
+  const logger = createCustomLogger(testConfig, true);
+  const out = logger.transports[index];
+  const result = out.format?.transform(input);
 
-    if (typeof result !== "object") {
-      assert.fail("Should return an object from console format");
-    }
-
-    // For winston format objects, the final string is in the [Symbol.for('message')] property
-    return result[Symbol.for("message")];
+  if (typeof result !== "object") {
+    assert.fail("Should return an object from console format");
   }
 
+  // For winston format objects, the final string is in the [Symbol.for('message')] property
+  return result[Symbol.for("message")];
+}
+
+describe("Winston/Logger: console format", () => {
   Object.entries(formatTestCases).forEach(
     ([name, { val, simple = val, collapse }]) => {
       test(`console format: ${name}`, () => {
@@ -162,7 +166,9 @@ describe("Winston / Logger Module", () => {
       });
     }
   );
+});
 
+describe("Winston/Logger: file format", () => {
   Object.entries(formatTestCases).forEach(
     ([name, { val, simple = val, collapse }]) => {
       test(`file format: ${name}`, () => {
