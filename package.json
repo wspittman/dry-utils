@@ -9,10 +9,10 @@
       "import": "./dist/htmldown.js",
       "default": "./dist/htmldown.js"
     },
-    "./winston": {
-      "types": "./dist/winston/logger.d.ts",
-      "import": "./dist/winston/logger.js",
-      "default": "./dist/winston/logger.js"
+    "./logger": {
+      "types": "./dist/logger.d.ts",
+      "import": "./dist/logger.js",
+      "default": "./dist/logger.js"
     }
   },
   "files": [
