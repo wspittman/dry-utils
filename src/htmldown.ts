@@ -10,9 +10,10 @@ import TurndownService from "turndown";
  */
 export function standardizeUntrustedHtml(html: string): string {
   const decoded = decode(html);
+  const sanitized = sanitizeHtmlContent(decoded);
 
   const turndownService = new TurndownService();
-  const markdown = turndownService.turndown(decoded);
+  const markdown = turndownService.turndown(sanitized);
 
   return markdownToHtml(markdown);
 }
@@ -43,11 +44,14 @@ export function sanitizeHtmlContent(html: string): string {
     transformTags: {
       a: (tagName, attribs) => ({
         tagName,
-        attribs: {
-          ...attribs,
-          rel: "noopener noreferrer",
-          target: "_blank",
-        },
+        attribs:
+          attribs.href && attribs.href.startsWith("http")
+            ? {
+                ...attribs,
+                target: "_blank",
+                rel: "noopener noreferrer",
+              }
+            : attribs,
       }),
     },
   });
