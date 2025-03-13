@@ -15,7 +15,7 @@ export async function batch<T>(
   values: T[],
   fn: (value: T) => Promise<void>,
   size = 5
-) {
+): Promise<void> {
   if (!values.length) return;
 
   externalLog.log(`Begin_Batch_${name}`, values.length);
