@@ -4,6 +4,11 @@
   "description": "A tree-shakeable TypeScript utility library",
   "type": "module",
   "exports": {
+    "./async": {
+      "types": "./dist/async/index.d.ts",
+      "import": "./dist/async/index.js",
+      "default": "./dist/async/index.js"
+    },
     "./htmldown": {
       "types": "./dist/htmldown.d.ts",
       "import": "./dist/htmldown.js",
