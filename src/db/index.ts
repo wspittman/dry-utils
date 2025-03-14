@@ -3,6 +3,7 @@ import { connectDB, DBOptions } from "./dbInit";
 import { externalLog } from "./externalLog";
 
 export { Container } from "./container";
+export { Query } from "./Query";
 
 export const setDBLogging = externalLog.setFn;
 
