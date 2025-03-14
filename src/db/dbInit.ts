@@ -8,13 +8,13 @@ import fs from "fs";
 import https from "https";
 import { externalLog } from "./externalLog";
 
-interface ContainerOptions {
+export interface ContainerOptions {
   name: string;
   partitionKey: string;
   indexExclusions?: "none" | "all" | string[];
 }
 
-interface DBOptions {
+export interface DBOptions {
   endpoint: string;
   key: string;
   name: string;
@@ -66,7 +66,7 @@ export async function connectDB({
     throw new Error(`Failed to initialize containers: ${failures.join(", ")}`);
   }
 
-  externalLog.log("CosmosDB connected");
+  externalLog.log("ConnectDB", "CosmosDB connected");
 
   return containerMap;
 }
@@ -92,12 +92,13 @@ async function createContainer(
   } catch (error) {
     if (attempt < MAX_CREATE_ATTEMPTS) {
       externalLog.error(
+        "CreateContainer",
         `Failed to create container: ${name} (attempt ${attempt})`
       );
       return createContainer(database, options, attempt + 1);
     }
 
-    externalLog.error(`Failed to create container: ${name}`, error);
+    externalLog.error("CreateContainer", error);
     return;
   }
 }
