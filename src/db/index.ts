@@ -1,11 +1,13 @@
 import { Container } from "@azure/cosmos";
 import { connectDB, DBOptions } from "./dbInit";
-import { externalLog } from "./externalLog";
+import { externalLog, LogOptions } from "./externalLog";
 
 export { Container } from "./container";
 export { Query } from "./Query";
 
-export const setDBLogging = externalLog.setFn;
+export function setDBLogging(options: LogOptions) {
+  externalLog.setFn("DB", options);
+}
 
 export let containerMap: Record<string, Container> = {};
 

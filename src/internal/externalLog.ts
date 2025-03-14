@@ -1,4 +1,15 @@
-type LogFn = (msg: string, val?: unknown) => void;
+export type LogFn = (msg: string, val?: unknown) => void;
+
+export interface LogOptions {
+  logFn?: LogFn;
+  errorFn?: LogFn;
+}
+
+export interface AggregatorLogOptions extends LogOptions {
+  aggregatorFn?: () => Aggregator;
+  aggregateProps?: string[];
+  storeCalls?: boolean;
+}
 
 export interface Aggregator {
   count: number;
@@ -8,53 +19,40 @@ export interface Aggregator {
 }
 
 export class ExternalLog {
-  private _name: string | undefined;
-  private _logFn: LogFn | undefined;
-  private _errorFn: LogFn | undefined;
+  protected name: string | undefined;
+  protected opts: LogOptions = {};
 
-  setFn(name: string, logFn?: LogFn, errorFn?: LogFn) {
-    this._name = name;
-    this._logFn = logFn;
-    this._errorFn = errorFn;
+  setFn(name: string, options: LogOptions) {
+    this.name = name;
+    this.opts = options;
   }
 
   log(tag: string, val: unknown) {
-    this._logFn?.(`${this._name}_${tag}`, val);
+    this.opts.logFn?.(`${this.name}_${tag}`, val);
   }
 
   error(tag: string, err?: unknown) {
-    this._errorFn?.(`${this._name}_${tag}`, err);
+    this.opts.errorFn?.(`${this.name}_${tag}`, err);
   }
 }
 
 export class ExternalAggregatorLog extends ExternalLog {
-  private _aggregateProps: string[] | undefined;
-  private _aggregatorFn: (() => Aggregator) | undefined;
-  private _storeCalls: boolean | undefined;
+  protected opts: AggregatorLogOptions = {};
 
-  setFn(
-    name: string,
-    logFn?: LogFn,
-    errorFn?: LogFn,
-    aggregatorFn?: () => Aggregator,
-    aggregateProps?: string[],
-    storeCalls?: boolean
-  ) {
-    super.setFn(name, logFn, errorFn);
-    this._aggregatorFn = aggregatorFn;
-    this._aggregateProps = aggregateProps;
-    this._storeCalls = storeCalls;
+  setFn(name: string, options: AggregatorLogOptions) {
+    super.setFn(name, options);
+    this.opts = options;
   }
 
   aggregate(tag: string, log: Record<string, unknown>) {
-    const ag = this._aggregatorFn?.();
-    const props = this._aggregateProps;
+    const ag = this.opts.aggregatorFn?.();
+    const props = this.opts.aggregateProps;
 
     if (ag && props) {
       ag.count = (ag.count ?? 0) + 1;
       ag.counts[tag] = (ag.counts[tag] ?? 0) + 1;
 
-      if (this._storeCalls) {
+      if (this.opts.storeCalls) {
         ag.calls = ag.calls ?? [];
         if (ag.calls.length < 10) {
           ag.calls.push(log);
@@ -68,7 +66,7 @@ export class ExternalAggregatorLog extends ExternalLog {
         }
       });
 
-      if (!this._storeCalls) {
+      if (!this.opts.storeCalls) {
         super.log(tag, log);
       }
     }

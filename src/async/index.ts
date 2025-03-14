@@ -1,5 +1,7 @@
-import { externalLog } from "./externalLog";
+import { externalLog, LogOptions } from "./externalLog";
 
 export { batch } from "./batch";
 
-export const setAsyncLogging = externalLog.setFn;
+export function setAsyncLogging(options: LogOptions) {
+  externalLog.setFn("Async", options);
+}
