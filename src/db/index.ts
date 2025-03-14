@@ -4,7 +4,7 @@ import { externalLog } from "./externalLog";
 
 export { Container } from "./container";
 
-export const setAsyncLogging = externalLog.setFn;
+export const setDBLogging = externalLog.setFn;
 
 export let containerMap: Record<string, Container> = {};
 

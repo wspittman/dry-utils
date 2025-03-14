@@ -18,7 +18,7 @@ export async function batch<T>(
 ): Promise<void> {
   if (!values.length) return;
 
-  externalLog.log(`Begin_Batch_${name}`, values.length);
+  externalLog.log(`Batch_${name}`, values.length);
 
   for (let i = 0; i < values.length; i += size) {
     const batch = values.slice(i, i + size);
@@ -31,5 +31,5 @@ export async function batch<T>(
     });
   }
 
-  externalLog.log(`End_Batch_${name}`);
+  externalLog.log(`Batch_${name}`, "Complete");
 }
