@@ -7,7 +7,6 @@ export interface LogOptions {
 
 export interface AggregatorLogOptions extends LogOptions {
   aggregatorFn?: () => Aggregator;
-  aggregateProps?: string[];
   storeCalls?: boolean;
 }
 
@@ -44,9 +43,8 @@ export class ExternalAggregatorLog extends ExternalLog {
     this.opts = options;
   }
 
-  aggregate(tag: string, log: Record<string, unknown>) {
+  aggregate(tag: string, log: Record<string, unknown>, props: string[]) {
     const ag = this.opts.aggregatorFn?.();
-    const props = this.opts.aggregateProps;
 
     if (ag && props) {
       ag.count = (ag.count ?? 0) + 1;

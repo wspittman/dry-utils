@@ -160,7 +160,7 @@ function logDBAction(
       log.count = response.resources.length;
     }
 
-    externalLog.aggregate(action, log);
+    externalLog.aggregate(action, log, ["ru", "ms", "bytes"]);
   } catch (error) {
     externalLog.error("LogDBAction", error);
   }

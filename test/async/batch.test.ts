@@ -24,7 +24,7 @@ function mockTimers(context: TestContext) {
 describe("Async/Batch", () => {
   const logFn = mock.fn();
   const errorFn = mock.fn();
-  externalLog.setFn("BatchTest", logFn, errorFn);
+  externalLog.setFn("BatchTest", { logFn, errorFn });
   const batchFn = mock.fn(async (val: number) => {
     await timers.setTimeout(100);
     if (val < 0) throw new Error("Negative");
