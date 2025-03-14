@@ -9,6 +9,11 @@
       "import": "./dist/async/index.js",
       "default": "./dist/async/index.js"
     },
+    "./db": {
+      "types": "./dist/db/index.d.ts",
+      "import": "./dist/db/index.js",
+      "default": "./dist/db/index.js"
+    },
     "./htmldown": {
       "types": "./dist/htmldown.d.ts",
       "import": "./dist/htmldown.js",
