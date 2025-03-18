@@ -4,6 +4,11 @@
   "description": "A tree-shakeable TypeScript utility library",
   "type": "module",
   "exports": {
+    "./ai": {
+      "types": "./dist/ai/index.d.ts",
+      "import": "./dist/ai/index.js",
+      "default": "./dist/ai/index.js"
+    },
     "./async": {
       "types": "./dist/async/index.d.ts",
       "import": "./dist/async/index.js",
@@ -37,10 +42,12 @@
   "dependencies": {
     "@azure/cosmos": "^4.2.0",
     "html-entities": "^2.5.2",
+    "openai": "^4.87.3",
     "sanitize-html": "^2.14.0",
     "showdown": "^2.1.0",
     "turndown": "^7.2.0",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
