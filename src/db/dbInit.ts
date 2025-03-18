@@ -28,7 +28,7 @@ const MAX_CREATE_ATTEMPTS = 3;
  * Establishes connection to Cosmos DB and initializes containers
  * Creates database and containers if they don't exist
  * @throws {Error} If database connection fails
- * @returns Promise that resolves when all containers are initialized
+ * @returns Map of container names to container instances
  */
 export async function connectDB({
   endpoint,

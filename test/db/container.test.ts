@@ -9,11 +9,6 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { Container, setDBLogging } from "../../src/db/index";
 
-/*
-CosmosClient.databases.createIfNotExists
-Database.containers.createIfNotExists
-*/
-
 // #region Mock
 
 type ContainerFn = (c: Container<Entry>) => Promise<unknown>;
