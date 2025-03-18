@@ -84,14 +84,21 @@ export class Query {
 
   /**
    * Builds and returns the final SQL query specification.
+   * @param max - Optional maximum number of results to return
    * @returns Object containing the SQL query string and parameter definitions
    */
-  build(): SqlQuerySpec {
+  build(max?: number): SqlQuerySpec {
+    if (max != null && max < 1) {
+      throw new Error("Query: Max results must be greater than 0");
+    }
+
     const where = this.whereClauses.length
       ? `WHERE ${this.whereClauses.map((x) => `(${x})`).join(" AND ")}`
       : "";
+    const top = max != null ? ` TOP ${max}` : "";
+
     return {
-      query: `SELECT TOP 24 * FROM c ${where}`,
+      query: `SELECT${top} * FROM c ${where}`,
       parameters: Object.entries(this.params).map(([name, value]) => ({
         name,
         value,
