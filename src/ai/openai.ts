@@ -12,20 +12,19 @@ import type {
 import { z, ZodType } from "zod";
 import { externalLog } from "./externalLog";
 
-const client = new OpenAI();
 const MODEL = "gpt-4o-mini";
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
 
-interface CompletionOptions {
+export interface CompletionOptions {
   context?: {
     description: string;
-    content: Record<string, unknown>[];
+    content: Record<string, unknown>;
   }[];
   tools?: ChatCompletionTool[];
 }
 
-interface Response<T> {
+export interface CompletionResponse<T> {
   thread?: ChatCompletionMessageParam[];
   content?: T;
   toolCalls?: {
@@ -49,7 +48,7 @@ export async function proseCompletion(
   thread: ChatCompletionMessageParam[] | string,
   input: string | object,
   options?: CompletionOptions
-): Promise<Response<string>> {
+): Promise<CompletionResponse<string>> {
   return jsonCompletion(action, thread, input, z.string(), options);
 }
 
@@ -69,7 +68,7 @@ export async function jsonCompletion<T>(
   input: string | object,
   schema: ZodType<T>,
   options?: CompletionOptions
-): Promise<Response<T>> {
+): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
     thread = [{ role: "developer", content: thread }];
@@ -90,7 +89,7 @@ async function apiCall<T>(
   input: string,
   schema: ZodType<T>,
   { context, tools }: CompletionOptions = {}
-): Promise<Response<T>> {
+): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const messages = createMessages(thread, input, context);
   const body = {
@@ -103,7 +102,7 @@ async function apiCall<T>(
   while (true) {
     try {
       const start = Date.now();
-      const completion = await client.beta.chat.completions.parse(body);
+      const completion = await getClient().beta.chat.completions.parse(body);
       const duration = Date.now() - start;
 
       const response = completionToResponse(completion, messages);
@@ -117,6 +116,15 @@ async function apiCall<T>(
       attempt++;
     }
   }
+}
+
+let _client: OpenAI;
+function getClient() {
+  if (!_client) {
+    _client = new OpenAI();
+  }
+
+  return _client;
 }
 
 // #region Object Creation
@@ -143,7 +151,7 @@ function createMessages(
 function completionToResponse<T>(
   completion: ParsedChatCompletion<T>,
   thread: ChatCompletionMessageParam[]
-): Response<T> {
+): CompletionResponse<T> {
   const { finish_reason, message } = completion.choices[0] ?? {};
 
   if (message?.refusal) {
@@ -181,7 +189,7 @@ function extractToolCall({ function: fn }: ParsedFunctionToolCall) {
 function errorToResponse(
   error: unknown,
   attempt: number
-): Response<never> | undefined {
+): CompletionResponse<never> | undefined {
   const errorType = getErrorType(error);
 
   if (errorType === "Too Long") {
