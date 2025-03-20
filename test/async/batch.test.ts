@@ -3,7 +3,8 @@ import { beforeEach, describe, mock, test, TestContext } from "node:test";
 // Note: Destructuring functions such as import { setTimeout } from 'node:timers' is currently not supported by [Mock Timers] API.
 import timers from "node:timers/promises";
 import { batch } from "../../src/async/batch";
-import { externalLog } from "../../src/async/externalLog";
+import { setAsyncLogging } from "../../src/async/index";
+import { mockExternalLog } from "../testUtils";
 
 /**
  * Mocks timers for testing
@@ -22,23 +23,20 @@ function mockTimers(context: TestContext) {
 }
 
 describe("Async/Batch", () => {
-  const logFn = mock.fn();
-  const errorFn = mock.fn();
-  externalLog.setFn("BatchTest", { logFn, errorFn });
+  const { logOptions, logCounts, logReset } = mockExternalLog();
+  setAsyncLogging(logOptions);
   const batchFn = mock.fn(async (val: number) => {
     await timers.setTimeout(100);
     if (val < 0) throw new Error("Negative");
   });
 
   function callCounts(log: number, error: number, batch: number, msg = "") {
-    assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);
-    assert.equal(errorFn.mock.callCount(), error, `errorFn count ${msg}`);
+    logCounts({ log, error }, msg);
     assert.equal(batchFn.mock.callCount(), batch, `batchFn count ${msg}`);
   }
 
   beforeEach(() => {
-    logFn.mock.resetCalls();
-    errorFn.mock.resetCalls();
+    logReset();
     batchFn.mock.resetCalls();
   });
 

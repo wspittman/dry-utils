@@ -8,6 +8,7 @@ import {
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { Container, setDBLogging } from "../../src/db/index";
+import { mockExternalLog } from "../testUtils";
 
 // #region Mock
 
@@ -105,28 +106,11 @@ function getContainer() {
 // #endregion
 
 describe("DB: Container", () => {
-  const logFn = mock.fn();
-  const errorFn = mock.fn();
-  const aggregatorFn = mock.fn(() => ({ count: 0, counts: {} }));
-  setDBLogging({
-    logFn,
-    errorFn,
-    aggregatorFn,
-  });
-  function callCounts(ag: number, log: number, error: number, msg = "") {
-    assert.equal(
-      aggregatorFn.mock.callCount(),
-      ag,
-      `aggregatorFn count ${msg}`
-    );
-    assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);
-    assert.equal(errorFn.mock.callCount(), error, `errorFn count ${msg}`);
-  }
+  const { logOptions, logCounts, logReset } = mockExternalLog();
+  setDBLogging(logOptions);
 
   beforeEach(() => {
-    logFn.mock.resetCalls();
-    errorFn.mock.resetCalls();
-    aggregatorFn.mock.resetCalls();
+    logReset();
   });
 
   function testSuccess(fn: ContainerFn, expected: unknown) {
@@ -134,7 +118,7 @@ describe("DB: Container", () => {
       const c = getContainer();
       const result = await fn(c);
       assert.deepEqual(result, expected);
-      callCounts(1, 1, 0);
+      logCounts({ log: 1, ag: 1 });
     };
   }
 
@@ -142,7 +126,7 @@ describe("DB: Container", () => {
     return async () => {
       const c = getContainer();
       await assert.rejects(fn(c), { message: "Error Time" });
-      callCounts(0, 0, 1);
+      logCounts({ error: 1 });
     };
   }
 
