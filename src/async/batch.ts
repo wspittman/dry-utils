@@ -1,4 +1,4 @@
-import { externalLog } from "./externalLog";
+import { externalLog } from "./externalLog.ts";
 
 /**
  * Processes an array of values in batches using an async function.

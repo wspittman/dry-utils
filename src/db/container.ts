@@ -8,7 +8,7 @@ import {
   Resource,
   SqlQuerySpec,
 } from "@azure/cosmos";
-import { externalLog } from "./externalLog";
+import { externalLog } from "./externalLog.ts";
 
 /**
  * Generic container class for database operations

@@ -6,7 +6,7 @@ import {
 } from "@azure/cosmos";
 import fs from "fs";
 import https from "https";
-import { externalLog } from "./externalLog";
+import { externalLog } from "./externalLog.ts";
 
 export interface ContainerOptions {
   name: string;

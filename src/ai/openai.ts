@@ -10,7 +10,7 @@ import type {
   ParsedFunctionToolCall,
 } from "openai/resources/beta/chat/completions";
 import { z, ZodType } from "zod";
-import { externalLog } from "./externalLog";
+import { externalLog } from "./externalLog.ts";
 
 const MODEL = "gpt-4o-mini";
 const MAX_RETRIES = 3;

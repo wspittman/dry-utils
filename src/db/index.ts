@@ -1,9 +1,9 @@
 import { Container } from "@azure/cosmos";
-import { connectDB, DBOptions } from "./dbInit";
-import { externalLog, LogOptions } from "./externalLog";
+import { connectDB, DBOptions } from "./dbInit.ts";
+import { externalLog, LogOptions } from "./externalLog.ts";
 
-export { Container } from "./container";
-export { Query } from "./Query";
+export { Container } from "./container.ts";
+export { Query } from "./Query.ts";
 
 export function setDBLogging(options: LogOptions) {
   externalLog.setFn("DB", options);
