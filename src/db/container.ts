@@ -15,7 +15,10 @@ import { externalLog } from "./externalLog.ts";
  * @template Item The type of items stored in the container
  */
 export class Container<Item extends ItemDefinition> {
-  constructor(protected name: string, protected container: AzureContainer) {}
+  constructor(
+    protected readonly name: string,
+    public readonly container: AzureContainer
+  ) {}
 
   /**
    * Retrieves a single item from the container

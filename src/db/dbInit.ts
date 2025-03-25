@@ -1,11 +1,12 @@
 import {
-  Container,
   ContainerRequest,
   CosmosClient,
   Database,
+  ItemDefinition,
 } from "@azure/cosmos";
 import fs from "fs";
 import https from "https";
+import { Container } from "./container.ts";
 import { externalLog } from "./externalLog.ts";
 
 export interface ContainerOptions {
@@ -36,7 +37,7 @@ export async function connectDB({
   name,
   localCertPath,
   containers,
-}: DBOptions): Promise<Record<string, Container>> {
+}: DBOptions): Promise<Record<string, Container<ItemDefinition>>> {
   let agent;
   if (localCertPath) {
     agent = new https.Agent({ ca: fs.readFileSync(localCertPath) });
@@ -48,7 +49,7 @@ export async function connectDB({
     id: name,
   });
 
-  const containerMap: Record<string, Container> = {};
+  const containerMap: Record<string, Container<ItemDefinition>> = {};
 
   const containerPromises = containers.map((c) => createContainer(database, c));
   const results = await Promise.allSettled(containerPromises);
@@ -75,7 +76,7 @@ async function createContainer(
   database: Database,
   options: ContainerOptions,
   attempt = 1
-): Promise<Container | undefined> {
+): Promise<Container<ItemDefinition> | undefined> {
   const { name, partitionKey, indexExclusions = "none" } = options;
   try {
     const details: ContainerRequest = {
@@ -87,8 +88,9 @@ async function createContainer(
       details.indexingPolicy = getIndexingPolicy(indexExclusions);
     }
 
-    const { container } = await database.containers.createIfNotExists(details);
-    return container;
+    const { container: internalContainer } =
+      await database.containers.createIfNotExists(details);
+    return new Container(name, internalContainer);
   } catch (error) {
     if (attempt < MAX_CREATE_ATTEMPTS) {
       externalLog.error(
