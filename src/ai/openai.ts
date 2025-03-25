@@ -9,8 +9,9 @@ import type {
   ParsedChatCompletion,
   ParsedFunctionToolCall,
 } from "openai/resources/beta/chat/completions";
-import { z, ZodType } from "zod";
+import { ZodType } from "zod";
 import { externalLog } from "./externalLog.ts";
+import { zObj, zString } from "./zod.ts";
 
 const MODEL = "gpt-4o-mini";
 const MAX_RETRIES = 3;
@@ -49,7 +50,14 @@ export async function proseCompletion(
   input: string | object,
   options?: CompletionOptions
 ): Promise<CompletionResponse<string>> {
-  return jsonCompletion(action, thread, input, z.string(), options);
+  const schema = zObj("A wrapper around the completion content", {
+    content: zString("The completion content"),
+  });
+  const result = await jsonCompletion(action, thread, input, schema, options);
+  return {
+    ...result,
+    content: result.content?.content ?? undefined,
+  };
 }
 
 /**
@@ -62,7 +70,7 @@ export async function proseCompletion(
  * @param options Optional object containing context and tool definitions
  * @returns An object containing response information
  */
-export async function jsonCompletion<T>(
+export async function jsonCompletion<T extends object>(
   action: string,
   thread: ChatCompletionMessageParam[] | string,
   input: string | object,
@@ -82,7 +90,7 @@ export async function jsonCompletion<T>(
   return await apiCall(MODEL, action, thread, input, schema, options);
 }
 
-async function apiCall<T>(
+async function apiCall<T extends object>(
   model: string,
   action: string,
   thread: ChatCompletionMessageParam[],
