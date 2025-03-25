@@ -16,6 +16,7 @@ import {
   CompletionOptions,
   CompletionResponse,
   jsonCompletion,
+  proseCompletion,
 } from "../../src/ai/openai";
 import { mockExternalLog } from "../testUtils";
 
@@ -33,16 +34,30 @@ type Mode = MockError | MockReason | "errRateTemp" | "refusal";
 
 const prompt = "system prompt";
 const userInput = "user input";
-const parsedString = "string content";
-const encodedString = JSON.stringify(parsedString);
+const parsedOutput = {
+  key1: "value1",
+  key2: "value2",
+};
+const encodedOutput = JSON.stringify(parsedOutput);
+const parsedProseOutput = { content: "prose" };
+const encodedProseOutput = JSON.stringify(parsedProseOutput);
+const schema = z.object({
+  key1: z.string(),
+  key2: z.string(),
+});
 
 const msgMap: Record<string, Message> = {
   prompt: { role: "developer", content: prompt },
   userInput: { role: "user", name: "Agent", content: userInput },
-  stringContent: {
+  assistantOutput: {
     role: "assistant",
-    parsed: parsedString,
-    content: encodedString,
+    parsed: parsedOutput,
+    content: encodedOutput,
+  },
+  proseOutput: {
+    role: "assistant",
+    parsed: parsedProseOutput,
+    content: encodedProseOutput,
   },
   toolUse: {
     content: "[]",
@@ -64,22 +79,27 @@ interface CompletionParams {
 const defaultParams: Required<CompletionParams> = {
   thread: prompt,
   input: userInput,
-  schema: z.string(),
+  schema,
   context: [],
   tools: [],
   mode: "stop",
-  parsedOutput: parsedString,
+  parsedOutput,
 };
 
 const defaultResponse: CompletionResponse<unknown> = {
-  thread: [msgMap.prompt, msgMap.userInput, msgMap.stringContent],
-  content: parsedString,
+  thread: [msgMap.prompt, msgMap.userInput, msgMap.assistantOutput],
+  content: parsedOutput,
+};
+
+const toolResponse: CompletionResponse<unknown> = {
+  thread: [msgMap.prompt, msgMap.userInput, msgMap.toolUse],
+  toolCalls: [],
 };
 
 const fullParams: Required<CompletionParams> = {
   thread: [msgMap.prompt, msgMap.userInput],
-  input: { content: parsedString },
-  schema: z.string(),
+  input: { content: userInput },
+  schema,
   context: [
     { description: "one", content: { val: 1 } },
     { description: "two", content: { val: 2 } },
@@ -89,7 +109,7 @@ const fullParams: Required<CompletionParams> = {
     { type: "function", function: { name: "tool2" } },
   ],
   mode: "stop",
-  parsedOutput: parsedString,
+  parsedOutput,
 };
 
 // #region Mock
@@ -114,22 +134,22 @@ function checkError(action: Mode) {
   }
 }
 
-function getChoice(action: Mode, content: string) {
+function getChoice(action: Mode, encodedOutput: string) {
   let reason: string = action;
   let message: Record<string, unknown> = {};
 
   if (action === "stop" || action === "errRateTemp") {
     reason = "stop";
-    message = { content, parsed: JSON.parse(content) };
+    message = { content: encodedOutput, parsed: JSON.parse(encodedOutput) };
   }
 
   if (action === "refusal") {
     reason = "stop";
-    message = { refusal: content };
+    message = { refusal: encodedOutput };
   }
 
   if (action === "tool_calls") {
-    message = { tool_calls: JSON.parse(content) };
+    message = { tool_calls: JSON.parse(encodedOutput) };
   }
 
   return { reason, message };
@@ -141,10 +161,10 @@ const mockParse = mock.method(
   function ({ response_format }) {
     // We stuffed what we wanted in the action parameter, which becomes name here
     const stuffed = response_format.json_schema.name as string;
-    const [action, content] = stuffed.split("~") as [Mode, string];
+    const [action, encodedOutput] = stuffed.split("~") as [Mode, string];
 
     checkError(action);
-    const { reason, message } = getChoice(action, content);
+    const { reason, message } = getChoice(action, encodedOutput);
 
     return {
       choices: [
@@ -153,7 +173,7 @@ const mockParse = mock.method(
           index: 0,
           message: {
             role: "assistant",
-            content: content,
+            content: encodedOutput,
             ...message,
           },
         },
@@ -214,7 +234,7 @@ describe("AI: OpenAI", () => {
     expected: CompletionResponse<unknown>
   ) {
     assert.deepEqual(response.thread, expected.thread);
-    assert.equal(response.content, expected.content);
+    assert.deepEqual(response.content, expected.content);
     assert.equal(response.error, expected.error);
     assert.deepEqual(response.toolCalls, expected.toolCalls);
   }
@@ -224,7 +244,10 @@ describe("AI: OpenAI", () => {
     return str.length > 50 ? str.slice(0, 47) + "..." : str;
   }
 
-  async function runJsonCompletion(params: CompletionParams = {}) {
+  async function runCompletion(
+    params: CompletionParams = {},
+    useProse = false
+  ) {
     const msg = msgString(params);
     let { thread, input, schema, context, tools, mode, parsedOutput } = {
       ...defaultParams,
@@ -243,7 +266,9 @@ describe("AI: OpenAI", () => {
         `Useful context: ${description}\n${JSON.stringify(content)}`
     );
 
-    const result = await jsonCompletion(action, thread, input, schema, options);
+    const result = useProse
+      ? await proseCompletion(action, thread, input, options)
+      : await jsonCompletion(action, thread, input, schema, options);
 
     validateParams([...contents, ...contextIn, inputIn], tools, msg);
 
@@ -266,19 +291,19 @@ describe("AI: OpenAI", () => {
 
   paramCases.forEach(([name, params]) => {
     test(`jsonCompletion params: ${name}`, async () => {
-      await runJsonCompletion(params);
+      await runCompletion(params);
       callCounts(defaultLog);
     });
   });
 
   test("jsonCompletion params: rolling threads", async () => {
-    let result = await runJsonCompletion();
+    let result = await runCompletion();
     clearCounts();
 
-    result = await runJsonCompletion({ thread: result.thread });
+    result = await runCompletion({ thread: result.thread });
     clearCounts();
 
-    result = await runJsonCompletion({ thread: result.thread });
+    result = await runCompletion({ thread: result.thread });
   });
 
   const cases: [
@@ -290,17 +315,14 @@ describe("AI: OpenAI", () => {
     ["errLarge", errLog, "OpenAI Context Too Long"],
     ["errLong", errLog, "OpenAI Context Too Long"],
     ["error", errLog, "OpenAI Non-Backoff Error"],
-    ["refusal", defaultLog, `Refusal: ${encodedString}`],
+    ["refusal", defaultLog, `Refusal: ${encodedOutput}`],
     ["unknown", defaultLog, "Unexpected Finish Reason: unknown"],
     [{}, defaultLog, defaultResponse],
     ["errRateTemp", { ag: 1, log: 2 }, defaultResponse],
     [
       { mode: "tool_calls", tools: fullParams.tools, parsedOutput: [] },
       defaultLog,
-      {
-        thread: [msgMap.prompt, msgMap.userInput, msgMap.toolUse],
-        toolCalls: [],
-      },
+      toolResponse,
     ],
   ];
 
@@ -309,7 +331,36 @@ describe("AI: OpenAI", () => {
       expected = typeof expected === "string" ? { error: expected } : expected;
       params = typeof params === "string" ? { mode: params } : params;
 
-      const resp = await runJsonCompletion(params);
+      const resp = await runCompletion(params);
+
+      callCounts(logParams);
+      validateResponse(resp, expected);
+    });
+  });
+
+  const proseCases: typeof cases = [
+    ["error", errLog, "OpenAI Non-Backoff Error"],
+    [
+      { parsedOutput: parsedProseOutput },
+      defaultLog,
+      {
+        thread: [msgMap.prompt, msgMap.userInput, msgMap.proseOutput],
+        content: parsedProseOutput.content,
+      },
+    ],
+    [
+      { mode: "tool_calls", tools: fullParams.tools, parsedOutput: [] },
+      defaultLog,
+      toolResponse,
+    ],
+  ];
+
+  proseCases.forEach(([params, logParams, expected]) => {
+    test(`proseCompletion response: ${msgString(params)}`, async () => {
+      expected = typeof expected === "string" ? { error: expected } : expected;
+      params = typeof params === "string" ? { mode: params } : params;
+
+      const resp = await runCompletion(params, true);
 
       callCounts(logParams);
       validateResponse(resp, expected);
