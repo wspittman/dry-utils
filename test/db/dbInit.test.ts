@@ -133,7 +133,7 @@ describe("DB: DBInit", () => {
       assert.equal(Object.keys(result).length, 1, "ContainerMap");
       callCounts(1, 0, name);
       // The mock hacks the container ID to include the id, pkey, and index exclusions
-      assert.equal(result["id"].id, expected, "Container ID");
+      assert.equal(result["id"].container.id, expected, "Container ID");
     });
   });
 });
