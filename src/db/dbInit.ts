@@ -1,9 +1,5 @@
-import {
-  ContainerRequest,
-  CosmosClient,
-  Database,
-  ItemDefinition,
-} from "@azure/cosmos";
+import type { ContainerRequest, Database, ItemDefinition } from "@azure/cosmos";
+import { CosmosClient } from "@azure/cosmos";
 import fs from "fs";
 import https from "https";
 import { Container } from "./container.ts";
@@ -56,10 +52,11 @@ export async function connectDB({
   const failures: string[] = [];
 
   results.forEach((r, i) => {
-    if (r.status === "fulfilled" && r.value) {
-      containerMap[containers[i].name] = r.value;
+    const name = containers[i]?.name;
+    if (name && r.status === "fulfilled" && r.value) {
+      containerMap[name] = r.value;
     } else {
-      failures.push(containers[i].name);
+      failures.push(name ?? `No container name at index ${i}`);
     }
   });
 

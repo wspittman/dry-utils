@@ -1,5 +1,5 @@
 import type { TransformableInfo } from "logform";
-import { createLogger, format, Logger, transports } from "winston";
+import { createLogger, format, type Logger, transports } from "winston";
 
 /**
  * Extended interface for logger info objects with additional splat properties
@@ -151,7 +151,7 @@ export function configureGlobal(options: LoggerConfig): void {
 /**
  * The global logger instance
  */
-export const logger = new Proxy({} as Logger, {
+export const logger: Logger = new Proxy({} as Logger, {
   get(_, prop) {
     if (!_defaultLogger) {
       _defaultLogger = createCustomLogger(_defaultConfig);

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "A tree-shakeable TypeScript utility library",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     "./ai": {
       "types": "./dist/ai/index.d.ts",

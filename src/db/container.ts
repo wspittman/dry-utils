@@ -1,4 +1,4 @@
-import {
+import type {
   Container as AzureContainer,
   FeedOptions,
   FeedResponse,
@@ -15,10 +15,13 @@ import { externalLog } from "./externalLog.ts";
  * @template Item The type of items stored in the container
  */
 export class Container<Item extends ItemDefinition> {
-  constructor(
-    protected readonly name: string,
-    public readonly container: AzureContainer
-  ) {}
+  protected readonly name: string;
+  public readonly container: AzureContainer;
+
+  constructor(name: string, container: AzureContainer) {
+    this.name = name;
+    this.container = container;
+  }
 
   /**
    * Retrieves a single item from the container
@@ -26,7 +29,10 @@ export class Container<Item extends ItemDefinition> {
    * @param partitionKey The partition key for the item
    * @returns The requested item or undefined if not found
    */
-  async getItem(id: string, partitionKey: string) {
+  async getItem(
+    id: string,
+    partitionKey: string
+  ): Promise<(Item & Resource) | undefined> {
     try {
       const response = await this.container.item(id, partitionKey).read<Item>();
       logDBAction("READ", this.name, response, partitionKey);
@@ -42,7 +48,9 @@ export class Container<Item extends ItemDefinition> {
    * @param partitionKey The partition key to query
    * @returns Array of items in the partition
    */
-  async getItemsByPartitionKey(partitionKey: string) {
+  async getItemsByPartitionKey(
+    partitionKey: string
+  ): Promise<(Item & Resource)[]> {
     try {
       const response = await this.container.items
         .readAll<Item & Resource>({ partitionKey })
@@ -60,7 +68,7 @@ export class Container<Item extends ItemDefinition> {
    * @param partitionKey The partition key to query
    * @returns Array of item IDs in the partition
    */
-  async getIdsByPartitionKey(partitionKey: string) {
+  async getIdsByPartitionKey(partitionKey: string): Promise<string[]> {
     const result = await this.query<{ id: string }>("SELECT c.id FROM c", {
       partitionKey,
     });
@@ -71,7 +79,7 @@ export class Container<Item extends ItemDefinition> {
    * Gets the total count of items in the container
    * @returns The total number of items
    */
-  async getCount() {
+  async getCount(): Promise<number | undefined> {
     const response = await this.query<number>("SELECT VALUE COUNT(1) FROM c");
     return response[0];
   }
@@ -82,7 +90,10 @@ export class Container<Item extends ItemDefinition> {
    * @param options Optional feed options including partition key
    * @returns Query results
    */
-  async query<T>(query: string | SqlQuerySpec, options?: FeedOptions) {
+  async query<T>(
+    query: string | SqlQuerySpec,
+    options?: FeedOptions
+  ): Promise<T[]> {
     try {
       const response = await this.container.items
         .query<T>(query, options)
@@ -99,7 +110,7 @@ export class Container<Item extends ItemDefinition> {
    * Creates or updates an item in the container
    * @param item The item to upsert
    */
-  async upsertItem(item: Item) {
+  async upsertItem(item: Item): Promise<void> {
     try {
       const response = await this.container.items.upsert(item);
       logDBAction("UPSERT", this.name, response);
@@ -114,7 +125,7 @@ export class Container<Item extends ItemDefinition> {
    * @param id The unique identifier of the item
    * @param partitionKey The partition key for the item
    */
-  async deleteItem(id: string, partitionKey: string) {
+  async deleteItem(id: string, partitionKey: string): Promise<void> {
     try {
       const response = await this.container.item(id, partitionKey).delete();
       logDBAction("DELETE", this.name, response, partitionKey);
@@ -152,15 +163,15 @@ function logDBAction(
     };
 
     if (pkey) {
-      log.pkey = pkey;
+      log["pkey"] = pkey;
     }
 
     if (query) {
-      log.query = typeof query === "string" ? query : query.query;
+      log["query"] = typeof query === "string" ? query : query.query;
     }
 
-    if (response instanceof FeedResponse) {
-      log.count = response.resources.length;
+    if ("resources" in response) {
+      log["count"] = response.resources.length;
     }
 
     externalLog.aggregate(action, log, ["ru", "ms", "bytes"]);

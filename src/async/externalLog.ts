@@ -1,7 +1,7 @@
 import {
   ExternalLog,
-  LogOptions as InternalLogOptions,
+  type LogOptions as InternalLogOptions,
 } from "../internal/externalLog.ts";
 
 export type LogOptions = InternalLogOptions;
-export const externalLog = new ExternalLog();
+export const externalLog: ExternalLog = new ExternalLog();

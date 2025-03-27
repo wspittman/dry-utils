@@ -9,7 +9,7 @@ import type {
   ParsedChatCompletion,
   ParsedFunctionToolCall,
 } from "openai/resources/beta/chat/completions";
-import { ZodType } from "zod";
+import type { ZodType } from "zod";
 import { externalLog } from "./externalLog.ts";
 import { zObj, zString } from "./zod.ts";
 
@@ -56,7 +56,7 @@ export async function proseCompletion(
   const result = await jsonCompletion(action, thread, input, schema, options);
   return {
     ...result,
-    content: result.content?.content ?? undefined,
+    content: result.content?.["content"] ?? undefined,
   };
 }
 
@@ -167,17 +167,21 @@ function completionToResponse<T>(
   }
 
   if (finish_reason === "tool_calls") {
-    return {
-      toolCalls: message.tool_calls?.map(extractToolCall),
-      thread: [...thread, message],
-    };
+    return !message
+      ? { error: "Finish reason tool_calls, but message is empty" }
+      : {
+          toolCalls: message.tool_calls?.map(extractToolCall),
+          thread: [...thread, message],
+        };
   }
 
   if (finish_reason === "stop") {
-    return {
-      content: message.parsed ?? undefined,
-      thread: [...thread, message],
-    };
+    return !message
+      ? { error: "Finish reason stop, but message is empty" }
+      : {
+          content: message.parsed ?? undefined,
+          thread: [...thread, message],
+        };
   }
 
   return { error: `Unexpected Finish Reason: ${finish_reason}` };
@@ -269,15 +273,15 @@ function logLLMAction(
     };
 
     if (finish_reason !== "stop") {
-      log.finishReason = finish_reason;
+      log["finishReason"] = finish_reason;
     }
 
     if (message?.refusal) {
-      log.refusal = message.refusal;
+      log["refusal"] = message.refusal;
     }
 
     if (result) {
-      log.out = result;
+      log["out"] = result;
     }
 
     externalLog.aggregate(action, log, [

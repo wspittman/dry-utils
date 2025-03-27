@@ -21,29 +21,29 @@ export class ExternalLog {
   protected name: string | undefined;
   protected opts: LogOptions = {};
 
-  setFn(name: string, options: LogOptions) {
+  setFn(name: string, options: LogOptions): void {
     this.name = name;
     this.opts = options;
   }
 
-  log(tag: string, val: unknown) {
+  log(tag: string, val: unknown): void {
     this.opts.logFn?.(`${this.name}_${tag}`, val);
   }
 
-  error(tag: string, err?: unknown) {
+  error(tag: string, err?: unknown): void {
     this.opts.errorFn?.(`${this.name}_${tag}`, err);
   }
 }
 
 export class ExternalAggregatorLog extends ExternalLog {
-  protected opts: AggregatorLogOptions = {};
+  protected override opts: AggregatorLogOptions = {};
 
-  setFn(name: string, options: AggregatorLogOptions) {
+  override setFn(name: string, options: AggregatorLogOptions): void {
     super.setFn(name, options);
     this.opts = options;
   }
 
-  aggregate(tag: string, log: Record<string, unknown>, props: string[]) {
+  aggregate(tag: string, log: Record<string, unknown>, props: string[]): void {
     const ag = this.opts.aggregatorFn?.();
 
     if (ag && props) {

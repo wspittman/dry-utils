@@ -1,12 +1,12 @@
 import type { ItemDefinition } from "@azure/cosmos";
 import { Container } from "./container.ts";
-import { connectDB, DBOptions } from "./dbInit.ts";
-import { externalLog, LogOptions } from "./externalLog.ts";
+import { connectDB, type DBOptions } from "./dbInit.ts";
+import { externalLog, type LogOptions } from "./externalLog.ts";
 
 export { Query } from "./Query.ts";
 export { Container };
 
-export function setDBLogging(options: LogOptions) {
+export function setDBLogging(options: LogOptions): void {
   externalLog.setFn("DB", options);
 }
 

@@ -45,7 +45,7 @@ export function sanitizeHtmlContent(html: string): string {
       a: (tagName, attribs) => ({
         tagName,
         attribs:
-          attribs.href && attribs.href.startsWith("http")
+          attribs["href"] && attribs["href"].startsWith("http")
             ? {
                 ...attribs,
                 target: "_blank",

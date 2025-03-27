@@ -26,17 +26,27 @@ const mockDB: Entry[] = [
   { id: "3", pkey: "item", val: 789 },
 ];
 
-const mockResponse = (resource: unknown) => ({
-  resource,
-  resources: resource,
-  requestCharge: 1,
-  diagnostics: {
-    clientSideRequestStatistics: {
-      requestDurationInMs: 100,
-      totalResponsePayloadLengthInBytes: 123,
+const mockResponse = (resource: unknown) => {
+  const response: Record<string, unknown> = {
+    requestCharge: 1,
+    diagnostics: {
+      clientSideRequestStatistics: {
+        requestDurationInMs: 100,
+        totalResponsePayloadLengthInBytes: 123,
+      },
     },
-  },
-});
+  };
+
+  if (resource) {
+    if (Array.isArray(resource)) {
+      response.resources = resource;
+    } else {
+      response.resource = resource;
+    }
+  }
+
+  return response;
+};
 
 function stringifyQuery(q: string | SqlQuerySpec) {
   if (typeof q === "string") return q;
@@ -106,7 +116,7 @@ function getContainer() {
 // #endregion
 
 describe("DB: Container", () => {
-  const { logOptions, logCounts, logReset } = mockExternalLog();
+  const { logOptions, logCounts, logReset, debug } = mockExternalLog();
   setDBLogging(logOptions);
 
   beforeEach(() => {
