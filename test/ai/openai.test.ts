@@ -302,6 +302,7 @@ describe("AI: OpenAI", () => {
       result.error,
       `Invalid action name "${action}". Must match pattern ^[a-zA-Z0-9_-]+$`
     );
+    logCounts({ error: 1 });
   });
 
   const paramCases: [string, CompletionParams][] = [

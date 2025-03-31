@@ -206,6 +206,7 @@ function extractToolCall({ function: fn }: ParsedFunctionToolCall) {
 function validateAction(action: string) {
   // This regex comes from OpenAI, as required by response_format.json_schema.name
   if (!/^[a-zA-Z0-9_-]+$/.test(action)) {
+    externalLog.error("OpenAI Invalid Action Name", action);
     return {
       error: `Invalid action name "${action}". Must match pattern ^[a-zA-Z0-9_-]+$`,
     };
