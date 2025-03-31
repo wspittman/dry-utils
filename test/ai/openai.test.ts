@@ -155,13 +155,32 @@ function getChoice(action: Mode, encodedOutput: string) {
   return { reason, message };
 }
 
+function stuffAction(input: string) {
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function unstuffAction(input: string) {
+  const padding = "=".repeat((4 - (input.length % 4)) % 4);
+  return Buffer.from(
+    input.replace(/-/g, "+").replace(/_/g, "/") + padding,
+    "base64"
+  ).toString("utf8");
+}
+
 const mockParse = mock.method(
   Completions.prototype,
   "parse",
   function ({ response_format }) {
     // We stuffed what we wanted in the action parameter, which becomes name here
     const stuffed = response_format.json_schema.name as string;
-    const [action, encodedOutput] = stuffed.split("~") as [Mode, string];
+    const [action, encodedOutput] = unstuffAction(stuffed).split("~") as [
+      Mode,
+      string
+    ];
 
     checkError(action);
     const { reason, message } = getChoice(action, encodedOutput);
@@ -254,7 +273,7 @@ describe("AI: OpenAI", () => {
       ...params,
     };
 
-    const action = [mode, JSON.stringify(parsedOutput)].join("~");
+    const action = stuffAction([mode, JSON.stringify(parsedOutput)].join("~"));
     const options = { context, tools };
     const contents =
       typeof thread === "string"
@@ -274,6 +293,16 @@ describe("AI: OpenAI", () => {
 
     return result;
   }
+
+  test("jsonCompletion: bad action format", async () => {
+    const action = "bad action format";
+    const { thread, input, schema } = fullParams;
+    const result = await jsonCompletion(action, thread, input, schema);
+    assert.equal(
+      result.error,
+      `Invalid action name "${action}". Must match pattern ^[a-zA-Z0-9_-]+$`
+    );
+  });
 
   const paramCases: [string, CompletionParams][] = [
     ["defaults", {}],
