@@ -38,7 +38,7 @@ export interface CompletionResponse<T> {
 /**
  * Makes an OpenAI prose completion request.
  * Includes automatic retries with exponential backoff for rate limiting.
- * @param action The name of the action for logging purposes
+ * @param action The name of the action for logging purposes. Must satisfy pattern: ^[a-zA-Z0-9_-]+$
  * @param thread The conversation thread as returned by a *Completion function, or the initial developer prompt
  * @param input The input for generating the completion
  * @param options Optional object containing context and tool definitions
@@ -63,7 +63,7 @@ export async function proseCompletion(
 /**
  * Makes an OpenAI json completion request.
  * Includes automatic retries with exponential backoff for rate limiting.
- * @param action The name of the action for logging purposes
+ * @param action The name of the action for logging purposes. Must satisfy pattern: ^[a-zA-Z0-9_-]+$
  * @param thread The conversation thread as returned by a *Completion function, or the initial developer prompt
  * @param input The input for generating the completion
  * @param schema The Zod schema for the completion response
@@ -77,6 +77,11 @@ export async function jsonCompletion<T extends object>(
   schema: ZodType<T>,
   options?: CompletionOptions
 ): Promise<CompletionResponse<T>> {
+  const actionError = validateAction(action);
+  if (actionError) {
+    return actionError;
+  }
+
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
     thread = [{ role: "developer", content: thread }];
@@ -197,6 +202,16 @@ function extractToolCall({ function: fn }: ParsedFunctionToolCall) {
 // #endregion
 
 // #region Errors
+
+function validateAction(action: string) {
+  // This regex comes from OpenAI, as required by response_format.json_schema.name
+  if (!/^[a-zA-Z0-9_-]+$/.test(action)) {
+    return {
+      error: `Invalid action name "${action}". Must match pattern ^[a-zA-Z0-9_-]+$`,
+    };
+  }
+  return undefined;
+}
 
 function errorToResponse(
   error: unknown,
