@@ -153,7 +153,7 @@ function createMessages(
       ({ description, content }) =>
         ({
           role: "user",
-          name: "Context Provider",
+          name: "Context_Provider",
           content: `Useful context: ${description}\n${JSON.stringify(content)}`,
         } as ChatCompletionMessageParam)
     ),
