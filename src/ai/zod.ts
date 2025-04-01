@@ -26,7 +26,7 @@ export const zString = (desc: string): ZString =>
 export const zObj = <T extends ZObj>(
   desc: string,
   schema: T
-): ReturnType<typeof z.object> => z.object(schema).describe(desc);
+): ReturnType<typeof z.object<T>> => z.object(schema).describe(desc);
 
 /** Creates a Zod array schema containing objects, with a description. */
 export const zObjArray = <T extends ZObj>(
