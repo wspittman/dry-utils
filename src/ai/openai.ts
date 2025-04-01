@@ -264,12 +264,12 @@ async function backoff(action: string, attempt: number) {
 
 // #region Telemetry
 
-function logLLMAction(
+function logLLMAction<T>(
   action: string,
   input: string,
   duration: number,
   { usage, choices }: OpenAI.ChatCompletion,
-  result?: unknown
+  response?: CompletionResponse<T>
 ) {
   try {
     if (!usage) return;
@@ -296,8 +296,14 @@ function logLLMAction(
       log["refusal"] = message.refusal;
     }
 
-    if (result) {
-      log["out"] = result;
+    if (response) {
+      /*
+      For now, discard the thread to decrease the size of the log and stay under Azure limits.
+      A better long-term solutions would be to give the user more control via the storeCalls option.
+      They should be able to add to the same log, log separate with logFn or provide a separate logging function.
+      */
+      const { thread, ...rest } = response;
+      log["out"] = rest;
     }
 
     externalLog.aggregate(action, log, [
