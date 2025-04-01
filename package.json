@@ -1,7 +1,7 @@
 {
   "name": "dry-utils",
   "version": "0.1.0",
-  "description": "A tree-shakeable TypeScript utility library",
+  "description": "A personal, specific, tree-shakeable utility library",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -34,6 +34,18 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wspittman/dry-utils.git"
+  },
+  "author": "William Pittman",
+  "homepage": "https://github.com/wspittman/dry-utils#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "node --import tsx/esm --test test/**/*.test.ts",
