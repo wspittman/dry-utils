@@ -1,3 +1,4 @@
+import { mockExternalLog } from "@dry-utils/shared";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { APIError } from "openai";
@@ -11,14 +12,13 @@ import {
   ParsedChatCompletionMessage,
 } from "openai/resources/beta/chat/completions";
 import { z } from "zod";
-import { setAILogging } from "../../src/ai/index";
+import { setAILogging } from "../src/index";
 import {
   CompletionOptions,
   CompletionResponse,
   jsonCompletion,
   proseCompletion,
-} from "../../src/ai/openai";
-import { mockExternalLog } from "../testUtils";
+} from "../src/openai";
 
 process.env.OPENAI_API_KEY = "mock_openai_key";
 

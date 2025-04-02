@@ -1,0 +1,51 @@
+{
+  "name": "@dry-utils/openai",
+  "version": "0.1.0",
+  "description": "OpenAI API utilities",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wspittman/dry-utils.git",
+    "directory": "packages/openai"
+  },
+  "author": "William Pittman",
+  "homepage": "https://github.com/wspittman/dry-utils/tree/main/packages/openai#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "pretest": "tsc --noEmit",
+    "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "prepublishOnly": "npm run build && npm run test",
+    "publish-package": "npm publish --access public"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^4.87.3",
+    "zod": "^3.24.2",
+    "@dry-utils/shared": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
