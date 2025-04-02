@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { transports } from "winston";
-import { configureGlobal, createCustomLogger, logger } from "../src/logger";
+import { configureGlobal, createCustomLogger, logger } from "../src/index";
 
 const testConfig = {
   level: "debug",
