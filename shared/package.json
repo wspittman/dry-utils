@@ -5,5 +5,11 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
-  "license": "MIT"
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
 }

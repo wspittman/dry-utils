@@ -1,38 +1,12 @@
 {
-  "name": "dry-utils",
+  "name": "dry-utils-monorepo",
   "version": "0.1.0",
-  "description": "A personal, specific, tree-shakeable utility library",
+  "description": "A collection of specific utility packages",
+  "private": true,
   "type": "module",
-  "sideEffects": false,
-  "exports": {
-    "./ai": {
-      "types": "./dist/ai/index.d.ts",
-      "import": "./dist/ai/index.js",
-      "default": "./dist/ai/index.js"
-    },
-    "./async": {
-      "types": "./dist/async/index.d.ts",
-      "import": "./dist/async/index.js",
-      "default": "./dist/async/index.js"
-    },
-    "./db": {
-      "types": "./dist/db/index.d.ts",
-      "import": "./dist/db/index.js",
-      "default": "./dist/db/index.js"
-    },
-    "./htmldown": {
-      "types": "./dist/htmldown.d.ts",
-      "import": "./dist/htmldown.js",
-      "default": "./dist/htmldown.js"
-    },
-    "./logger": {
-      "types": "./dist/logger.d.ts",
-      "import": "./dist/logger.js",
-      "default": "./dist/logger.js"
-    }
-  },
-  "files": [
-    "dist"
+  "workspaces": [
+    "packages/*",
+    "shared"
   ],
   "repository": {
     "type": "git",
@@ -43,31 +17,10 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "test": "node --import tsx/esm --test test/**/*.test.ts",
-    "pretest": "tsc --noEmit"
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "publish-packages": "npm run publish-package --workspaces"
   },
-  "license": "MIT",
-  "dependencies": {
-    "@azure/cosmos": "^4.2.0",
-    "html-entities": "^2.5.2",
-    "openai": "^4.87.3",
-    "sanitize-html": "^2.14.0",
-    "showdown": "^2.1.0",
-    "turndown": "^7.2.0",
-    "winston": "^3.17.0",
-    "zod": "^3.24.2"
-  },
-  "devDependencies": {
-    "@types/node": "^22.13.10",
-    "@types/sanitize-html": "^2.13.0",
-    "@types/showdown": "^2.0.6",
-    "@types/turndown": "^5.0.5",
-    "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
-  }
+  "license": "MIT"
 }
