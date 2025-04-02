@@ -9,8 +9,8 @@ import {
 } from "@azure/cosmos";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
-import { setDBLogging } from "../../src/db";
-import { connectDB, ContainerOptions } from "../../src/db/dbInit";
+import { connectDB, ContainerOptions } from "../src/dbInit";
+import { setDBLogging } from "../src/index";
 
 // #region Mock
 

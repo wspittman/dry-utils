@@ -1,7 +1,7 @@
 import {
   type AggregatorLogOptions,
   ExternalAggregatorLog,
-} from "../internal/externalLog.ts";
+} from "@dry-utils/shared";
 
 export type LogOptions = AggregatorLogOptions;
 export const externalLog: ExternalAggregatorLog = new ExternalAggregatorLog();

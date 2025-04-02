@@ -5,10 +5,10 @@ import {
   QueryIterator,
   SqlQuerySpec,
 } from "@azure/cosmos";
+import { mockExternalLog } from "@dry-utils/shared";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
-import { Container, setDBLogging } from "../../src/db/index";
-import { mockExternalLog } from "../testUtils";
+import { Container, setDBLogging } from "../src/index";
 
 // #region Mock
 
