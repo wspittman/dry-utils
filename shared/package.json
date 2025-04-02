@@ -1,0 +1,9 @@
+{
+  "name": "@dry-utils/shared",
+  "version": "0.1.0",
+  "description": "internal shared package",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT"
+}
