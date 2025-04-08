@@ -34,6 +34,8 @@
     "build": "tsc -p tsconfig.json",
     "pretest": "tsc --noEmit",
     "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "link": "npm link",
+    "unlink": "npm unlink --global",
     "prepublishOnly": "npm run build && npm run test",
     "publish-package": "npm publish --access public"
   },

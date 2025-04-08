@@ -20,6 +20,8 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
+    "link": "npm run link --workspaces",
+    "unlink": "npm run unlink --workspaces",
     "publish-packages": "npm run publish-package --workspaces"
   },
   "license": "MIT"
