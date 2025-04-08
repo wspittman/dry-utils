@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { type Mock, mock } from "node:test";
 import type { Aggregator } from "./externalLog.ts";
 
-type MockFn = Mock<Function>;
+type MockFn = Mock<(msg: string, val?: unknown) => void>;
 
 function dir(fn: MockFn) {
   console.dir(
@@ -12,9 +12,11 @@ function dir(fn: MockFn) {
 }
 
 export function mockExternalLog(): {
-  logFn: MockFn;
-  errorFn: MockFn;
-  aggregatorFn: Mock<() => Aggregator>;
+  logOptions: {
+    logFn: MockFn;
+    errorFn: MockFn;
+    aggregatorFn: Mock<() => Aggregator>;
+  };
   logCounts: (
     { log, error, ag }: Partial<Record<"log" | "error" | "ag", number>>,
     msg?: string
@@ -27,9 +29,11 @@ export function mockExternalLog(): {
   const aggregatorFn = mock.fn((): Aggregator => ({ count: 0, counts: {} }));
 
   return {
-    logFn,
-    errorFn,
-    aggregatorFn,
+    logOptions: {
+      logFn,
+      errorFn,
+      aggregatorFn,
+    },
     logCounts: ({ log, error, ag }, msg = "") => {
       const check = (name: string, fn: MockFn, count: number = 0) => {
         assert.equal(fn.mock.callCount(), count, `${name} count ${msg}`);

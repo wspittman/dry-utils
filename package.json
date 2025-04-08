@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*",
-    "shared"
+    "shared",
+    "packages/*"
   ],
   "repository": {
     "type": "git",

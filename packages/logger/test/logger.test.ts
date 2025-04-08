@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { transports } from "winston";
-import { configureGlobal, createCustomLogger, logger } from "../src/index";
+import { configureGlobal, createCustomLogger, logger } from "../src/index.ts";
 
 const testConfig = {
   level: "debug",
@@ -112,18 +112,18 @@ describe("Winston/Logger: format", () => {
         assert.fail("Should return an object");
       }
 
-      if (typeof result.timestamp !== "string") {
+      if (typeof result["timestamp"] !== "string") {
         assert.fail("Should add timestamp");
       }
 
       assert.match(
-        result.timestamp,
+        result["timestamp"],
         /\d{2}:\d{2}.\d{3}/,
         "Should match timestamp format"
       );
 
       // To make sure it doesn't fail on the next assertion
-      result.timestamp = expected.timestamp;
+      result["timestamp"] = expected.timestamp;
 
       assert.deepEqual(result, expected);
     });
@@ -139,7 +139,7 @@ function getTransportTransform(
   const input = getFullInfo(name, val, simple);
   const logger = createCustomLogger(testConfig, true);
   const out = logger.transports[index];
-  const result = out.format?.transform(input);
+  const result = out?.format?.transform(input);
 
   if (typeof result !== "object") {
     assert.fail("Should return an object from console format");

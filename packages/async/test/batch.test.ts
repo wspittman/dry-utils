@@ -3,8 +3,8 @@ import { beforeEach, describe, mock, test, TestContext } from "node:test";
 // Note: Destructuring functions such as import { setTimeout } from 'node:timers' is currently not supported by [Mock Timers] API.
 import { mockExternalLog } from "@dry-utils/shared";
 import timers from "node:timers/promises";
-import { batch } from "../src/batch";
-import { setAsyncLogging } from "../src/index";
+import { batch } from "../src/batch.ts";
+import { setAsyncLogging } from "../src/index.ts";
 
 /**
  * Mocks timers for testing

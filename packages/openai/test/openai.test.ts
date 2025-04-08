@@ -3,24 +3,25 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { APIError } from "openai";
 import type {
+  ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources";
 import {
-  ChatCompletionParseParams,
+  type ChatCompletionParseParams,
   Completions,
-  ParsedChatCompletionMessage,
+  type ParsedChatCompletionMessage,
 } from "openai/resources/beta/chat/completions";
 import { z } from "zod";
-import { setAILogging } from "../src/index";
+import { setAILogging } from "../src/index.ts";
 import {
-  CompletionOptions,
-  CompletionResponse,
+  type CompletionOptions,
+  type CompletionResponse,
   jsonCompletion,
   proseCompletion,
-} from "../src/openai";
+} from "../src/openai.ts";
 
-process.env.OPENAI_API_KEY = "mock_openai_key";
+process.env["OPENAI_API_KEY"] = "mock_openai_key";
 
 type Message =
   | ChatCompletionMessageParam
@@ -46,7 +47,10 @@ const schema = z.object({
   key2: z.string(),
 });
 
-const msgMap: Record<string, Message> = {
+const msgMap: Record<
+  "prompt" | "userInput" | "assistantOutput" | "proseOutput" | "toolUse",
+  Message
+> = {
   prompt: { role: "developer", content: prompt },
   userInput: { role: "user", name: "Agent", content: userInput },
   assistantOutput: {
@@ -129,8 +133,8 @@ function checkError(action: Mode) {
     action = "errRate";
   }
 
-  if (errMap[action]) {
-    throw errMap[action];
+  if (errMap[action as MockError]) {
+    throw errMap[action as MockError];
   }
 }
 
@@ -174,9 +178,13 @@ function unstuffAction(input: string) {
 const mockParse = mock.method(
   Completions.prototype,
   "parse",
-  function ({ response_format }) {
+  function ({ response_format }: ChatCompletionCreateParamsNonStreaming) {
+    if (!response_format || !("json_schema" in response_format)) {
+      assert.fail("Invalid response_format");
+    }
+
     // We stuffed what we wanted in the action parameter, which becomes name here
-    const stuffed = response_format.json_schema.name as string;
+    const stuffed = response_format.json_schema.name;
     const [action, encodedOutput] = unstuffAction(stuffed).split("~") as [
       Mode,
       string
@@ -239,6 +247,10 @@ describe("AI: OpenAI", () => {
     expectedTools?: Tool[],
     msg?: string
   ) {
+    if (!mockParse.mock.calls[0]) {
+      assert.fail("No calls to mockParse");
+    }
+
     const { model, messages, tools } = mockParse.mock.calls[0]
       .arguments[0] as ParseParams;
     const contents = messages.map((x) => x.content);

@@ -5,7 +5,7 @@ import {
   markdownToHtml,
   sanitizeHtmlContent,
   standardizeUntrustedHtml,
-} from "../src/index";
+} from "../src/index.ts";
 
 const html = {
   text: "Text",

@@ -3,12 +3,12 @@ import {
   Item,
   Items,
   QueryIterator,
-  SqlQuerySpec,
+  type SqlQuerySpec,
 } from "@azure/cosmos";
 import { mockExternalLog } from "@dry-utils/shared";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
-import { Container, setDBLogging } from "../src/index";
+import { Container, setDBLogging } from "../src/index.ts";
 
 // #region Mock
 
@@ -39,9 +39,9 @@ const mockResponse = (resource: unknown) => {
 
   if (resource) {
     if (Array.isArray(resource)) {
-      response.resources = resource;
+      response["resources"] = resource;
     } else {
-      response.resource = resource;
+      response["resource"] = resource;
     }
   }
 
@@ -62,6 +62,7 @@ function stringifyQuery(q: string | SqlQuerySpec) {
 }
 
 mock.method(Item.prototype, "read", function () {
+  // @ts-ignore
   let { id, partitionKey: pkey } = this;
   pkey = Array.isArray(pkey) ? pkey[0] : pkey;
 
@@ -72,6 +73,7 @@ mock.method(Item.prototype, "read", function () {
 });
 
 mock.method(QueryIterator.prototype, "fetchAll", function () {
+  // @ts-ignore
   const { query, options: { partitionKey: pkey } = {} } = this;
 
   if (pkey === "err") throw new Error("Error Time");
@@ -94,12 +96,13 @@ mock.method(QueryIterator.prototype, "fetchAll", function () {
   return mockResponse(result);
 });
 
-mock.method(Items.prototype, "upsert", function (item) {
+mock.method(Items.prototype, "upsert", function (item: { id: string }) {
   if (item.id === "err") throw new Error("Error Time");
   return mockResponse(item);
 });
 
 mock.method(Item.prototype, "delete", function () {
+  // @ts-ignore
   if (this.id === "err") throw new Error("Error Time");
   return mockResponse({});
 });
