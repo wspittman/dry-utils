@@ -1,7 +1,7 @@
 {
   "name": "dry-utils-monorepo",
   "version": "0.1.0",
-  "description": "A collection of specific utility packages",
+  "description": "Personal, hyper-specific collection of utility packages",
   "private": true,
   "type": "module",
   "workspaces": [
