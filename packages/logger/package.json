@@ -1,0 +1,51 @@
+{
+  "name": "@dry-utils/logger",
+  "version": "0.1.0",
+  "description": "A Winston wrapper logger for Node.js applications",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wspittman/dry-utils.git",
+    "directory": "packages/logger"
+  },
+  "author": "William Pittman",
+  "homepage": "https://github.com/wspittman/dry-utils/tree/main/packages/logger#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "pretest": "tsc --noEmit",
+    "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "link": "npm link",
+    "unlink": "npm unlink --global",
+    "prepublishOnly": "npm run build && npm run test",
+    "publish-package": "npm publish --access public"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
