@@ -1,5 +1,5 @@
 {
-  "name": "@dry-utils/text",
+  "name": "dry-utils-text",
   "version": "0.1.0",
   "description": "HTML and Markdown conversion utilities",
   "type": "module",

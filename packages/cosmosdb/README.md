@@ -1,4 +1,4 @@
-# @dry-utils/cosmosdb
+# dry-utils-cosmosdb
 
 CosmosDB abstractions for simplified database interactions.
 
@@ -7,7 +7,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 ## Installation
 
 ```bash
-npm install @dry-utils/cosmosdb
+npm install dry-utils-cosmosdb
 ```
 
 ## Prerequisites
@@ -41,7 +41,7 @@ CosmosDB has a local emulator that you can use for development. These instructio
 Connect to your database and initialize containers:
 
 ```typescript
-import { dbConnect } from "@dry-utils/cosmosdb";
+import { dbConnect } from "dry-utils-cosmosdb";
 
 const db = await dbConnect({
   endpoint: "https://your-cosmos-instance.documents.azure.com:443/",
@@ -71,7 +71,7 @@ const productsContainer = db.products;
 Build SQL queries with best practices for performance:
 
 ```typescript
-import { Query } from "@dry-utils/cosmosdb";
+import { Query } from "dry-utils-cosmosdb";
 
 // Create a query to find active premium users
 const query = new Query()
@@ -114,7 +114,7 @@ const activeUsers = await container.query(
 Set up custom logging for database operations:
 
 ```typescript
-import { setDBLogging } from "@dry-utils/cosmosdb";
+import { setDBLogging } from "dry-utils-cosmosdb";
 
 // Configure custom logging
 setDBLogging({

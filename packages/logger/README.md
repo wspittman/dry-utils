@@ -1,4 +1,4 @@
-# @dry-utils/logger
+# dry-utils-logger
 
 A Winston wrapper logger for Node.js applications with simplified configuration and smart formatting for development and production environments.
 
@@ -7,7 +7,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 ## Installation
 
 ```bash
-npm install @dry-utils/logger
+npm install dry-utils-logger
 ```
 
 ## Features
@@ -25,7 +25,7 @@ npm install @dry-utils/logger
 Use the global logger instance:
 
 ```typescript
-import { logger } from "@dry-utils/logger";
+import { logger } from "dry-utils-logger";
 
 // Simple message logging
 logger.info("Application started");
@@ -46,7 +46,7 @@ try {
 Create a custom logger with specific configuration:
 
 ```typescript
-import { createCustomLogger } from "@dry-utils/logger";
+import { createCustomLogger } from "dry-utils-logger";
 
 const logger = createCustomLogger({
   level: "debug",
@@ -63,7 +63,7 @@ logger.info("Custom logger initialized");
 Configure the global logger instance:
 
 ```typescript
-import { configureGlobal, logger } from "@dry-utils/logger";
+import { configureGlobal, logger } from "dry-utils-logger";
 
 // Set global configuration
 configureGlobal({

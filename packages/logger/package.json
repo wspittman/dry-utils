@@ -1,5 +1,5 @@
 {
-  "name": "@dry-utils/logger",
+  "name": "dry-utils-logger",
   "version": "0.1.0",
   "description": "A Winston wrapper logger for Node.js applications",
   "type": "module",

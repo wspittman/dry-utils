@@ -18,6 +18,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "clean": "git clean -dxf",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
     "link": "npm run link --workspaces",

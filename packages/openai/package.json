@@ -1,5 +1,5 @@
 {
-  "name": "@dry-utils/openai",
+  "name": "dry-utils-openai",
   "version": "0.1.0",
   "description": "OpenAI API utilities",
   "type": "module",
@@ -43,7 +43,7 @@
   "dependencies": {
     "openai": "^4.87.3",
     "zod": "^3.24.2",
-    "@dry-utils/shared": "*"
+    "dry-utils-shared": "*"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

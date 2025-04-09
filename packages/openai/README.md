@@ -1,4 +1,4 @@
-# @dry-utils/openai
+# dry-utils-openai
 
 A collection of utilities for working with the OpenAI API, focusing on structured responses, error handling, and logging.
 
@@ -7,7 +7,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 ## Installation
 
 ```bash
-npm install @dry-utils/openai
+npm install dry-utils-openai
 ```
 
 ## Prerequisites
@@ -29,7 +29,7 @@ When using OpenAI, you will need to set up an OpenAI account and create an API k
 Generate structured responses with schema validation:
 
 ```typescript
-import { jsonCompletion, z } from "@dry-utils/openai";
+import { jsonCompletion, z } from "dry-utils-openai";
 
 // Define a schema for the response
 const recipeSchema = z
@@ -59,7 +59,7 @@ if (result.content) {
 Generate simple text responses:
 
 ```typescript
-import { proseCompletion } from "@dry-utils/openai";
+import { proseCompletion } from "dry-utils-openai";
 
 // Make a prose completion request
 const result = await proseCompletion(
@@ -78,7 +78,7 @@ if (result.content) {
 Create Zod schemas with descriptions for OpenAI:
 
 ```typescript
-import { zObj, zString, zNumber, zBoolean, zObjArray } from "@dry-utils/openai";
+import { zObj, zString, zNumber, zBoolean, zObjArray } from "dry-utils-openai";
 
 // Create a schema with helper functions
 const userSchema = zObj("User information", {
@@ -98,7 +98,7 @@ const userSchema = zObj("User information", {
 Configure how API calls are logged:
 
 ```typescript
-import { setAILogging } from "@dry-utils/openai";
+import { setAILogging } from "dry-utils-openai";
 
 // Use custom logging function
 setAILogging({

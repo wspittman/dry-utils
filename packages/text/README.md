@@ -1,4 +1,4 @@
-# @dry-utils/text
+# dry-utils-text
 
 HTML and Markdown conversion utilities with sanitization for safe rendering.
 
@@ -7,7 +7,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 ## Installation
 
 ```bash
-npm install @dry-utils/text
+npm install dry-utils-text
 ```
 
 ## Features
@@ -23,7 +23,7 @@ npm install @dry-utils/text
 Convert Markdown content to sanitized HTML with proper security measures:
 
 ```typescript
-import { markdownToHtml } from "@dry-utils/text";
+import { markdownToHtml } from "dry-utils-text";
 
 const markdown = "# Hello World\n\nThis is **bold** and this is *italic*.";
 const html = markdownToHtml(markdown);
@@ -35,7 +35,7 @@ const html = markdownToHtml(markdown);
 Safely clean HTML content to remove potentially dangerous elements:
 
 ```typescript
-import { sanitizeHtmlContent } from "@dry-utils/text";
+import { sanitizeHtmlContent } from "dry-utils-text";
 
 const unsafeHtml = "<div>Safe content <script>alert('xss')</script></div>";
 const safeHtml = sanitizeHtmlContent(unsafeHtml);
@@ -47,7 +47,7 @@ const safeHtml = sanitizeHtmlContent(unsafeHtml);
 Process untrusted HTML by converting it to Markdown and back to sanitized HTML:
 
 ```typescript
-import { standardizeUntrustedHtml } from "@dry-utils/text";
+import { standardizeUntrustedHtml } from "dry-utils-text";
 
 const untrustedHtml =
   "<div style='dangerous-style'>Text with <script>badcode()</script></div>";

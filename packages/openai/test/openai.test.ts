@@ -1,4 +1,4 @@
-import { mockExternalLog } from "@dry-utils/shared";
+import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { APIError } from "openai";

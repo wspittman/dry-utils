@@ -8,11 +8,11 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 This repository is structured as a monorepo containing several packages:
 
-- [@dry-utils/async](#dry-utilsasync) - Utilities for handling common asynchronous programming patterns
-- [@dry-utils/cosmosdb](#dry-utilscosmosdb) - CosmosDB abstractions for simplified database interactions
-- [@dry-utils/logger](#dry-utilslogger) - Winston wrapper logger with simplified configuration
-- [@dry-utils/openai](#dry-utilsopenai) - Utilities for working with the OpenAI API
-- [@dry-utils/text](#dry-utilstext) - HTML and Markdown conversion utilities with sanitization
+- [dry-utils-async](#dry-utilsasync) - Utilities for handling common asynchronous programming patterns
+- [dry-utils-cosmosdb](#dry-utilscosmosdb) - CosmosDB abstractions for simplified database interactions
+- [dry-utils-logger](#dry-utilslogger) - Winston wrapper logger with simplified configuration
+- [dry-utils-openai](#dry-utilsopenai) - Utilities for working with the OpenAI API
+- [dry-utils-text](#dry-utilstext) - HTML and Markdown conversion utilities with sanitization
 
 ## Installation
 
@@ -20,16 +20,16 @@ dry-utils packages are available on [npm](https://www.npmjs.com/package/dry-util
 
 ```sh
 # Install the specific package you need
-npm install @dry-utils/async
-npm install @dry-utils/cosmosdb
-npm install @dry-utils/logger
-npm install @dry-utils/openai
-npm install @dry-utils/text
+npm install dry-utils-async
+npm install dry-utils-cosmosdb
+npm install dry-utils-logger
+npm install dry-utils-openai
+npm install dry-utils-text
 ```
 
 ## Package Details
 
-### @dry-utils/async
+### dry-utils-async
 
 A collection of async utilities for handling common asynchronous programming patterns.
 
@@ -38,9 +38,9 @@ A collection of async utilities for handling common asynchronous programming pat
 - Batch Processing: Process arrays of items in controlled batches with built-in error handling
 - Logging: Configurable logging for async operations
 
-[View @dry-utils/async documentation](./packages/async/README.md)
+[View dry-utils-async documentation](./packages/async/README.md)
 
-### @dry-utils/cosmosdb
+### dry-utils-cosmosdb
 
 CosmosDB abstractions for simplified database interactions.
 
@@ -51,9 +51,9 @@ CosmosDB abstractions for simplified database interactions.
 - CRUD Operations: Streamlined item operations (create, read, update, delete)
 - Logging: Built-in logging for database operations with RU consumption tracking
 
-[View @dry-utils/cosmosdb documentation](./packages/cosmosdb/README.md)
+[View dry-utils-cosmosdb documentation](./packages/cosmosdb/README.md)
 
-### @dry-utils/logger
+### dry-utils-logger
 
 A Winston wrapper logger for Node.js applications with simplified configuration.
 
@@ -64,9 +64,9 @@ A Winston wrapper logger for Node.js applications with simplified configuration.
 - Smart Formatting: Automatically simplifies complex objects for console output
 - Configurable: Customize log levels for different transport methods
 
-[View @dry-utils/logger documentation](./packages/logger/README.md)
+[View dry-utils-logger documentation](./packages/logger/README.md)
 
-### @dry-utils/openai
+### dry-utils-openai
 
 Utilities for working with the OpenAI API, focusing on structured responses, error handling, and logging.
 
@@ -77,9 +77,9 @@ Utilities for working with the OpenAI API, focusing on structured responses, err
 - Automatic Retries: Built-in exponential backoff for rate limiting
 - Error Handling: Comprehensive error handling for common API issues
 
-[View @dry-utils/openai documentation](./packages/openai/README.md)
+[View dry-utils-openai documentation](./packages/openai/README.md)
 
-### @dry-utils/text
+### dry-utils-text
 
 HTML and Markdown conversion utilities with sanitization for safe rendering.
 
@@ -89,7 +89,7 @@ HTML and Markdown conversion utilities with sanitization for safe rendering.
 - HTML Sanitization: Clean and sanitize HTML content for secure rendering
 - HTML Standardization: Normalize untrusted HTML through a Markdown conversion cycle
 
-[View @dry-utils/text documentation](./packages/text/README.md)
+[View dry-utils-text documentation](./packages/text/README.md)
 
 ## Prerequisites
 

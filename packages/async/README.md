@@ -1,4 +1,4 @@
-# @dry-utils/async
+# dry-utils-async
 
 A collection of async utilities for handling common asynchronous programming patterns.
 
@@ -7,7 +7,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 ## Installation
 
 ```bash
-npm install @dry-utils/async
+npm install dry-utils-async
 ```
 
 ## Features
@@ -22,7 +22,7 @@ npm install @dry-utils/async
 Process an array of items in batches with controlled concurrency:
 
 ```typescript
-import { batch } from "@dry-utils/async";
+import { batch } from "dry-utils-async";
 
 // Example: Process user IDs in batches of 3
 const userIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -44,7 +44,7 @@ await batch(
 Configure how async operations are logged:
 
 ```typescript
-import { setAsyncLogging } from "@dry-utils/async";
+import { setAsyncLogging } from "dry-utils-async";
 
 // Use custom logging function
 setAsyncLogging({
