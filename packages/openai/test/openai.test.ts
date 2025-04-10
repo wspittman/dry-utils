@@ -220,7 +220,7 @@ const mockParse = mock.method(
 // #endregion
 
 describe("AI: OpenAI", () => {
-  const { logOptions, logCounts, logReset, debug } = mockExternalLog();
+  const { logOptions, logCounts, logReset } = mockExternalLog();
   setAILogging(logOptions);
 
   type LogParams = Parameters<typeof logCounts>[0];

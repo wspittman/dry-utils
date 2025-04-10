@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { Condition, Query } from "../src/Query";
+import { type Condition, Query } from "../src/Query.ts";
 
 describe("DB: Query", () => {
   const conditionCases: [...Condition, string][] = [
