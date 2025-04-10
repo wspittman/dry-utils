@@ -1,3 +1,6 @@
+cosmosdbcert.cer
+.env
+
 # Dependency directories
 node_modules/
 
