@@ -6,6 +6,12 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 ## Installation
 
+Prerequisites:
+
+- Node.js >=22.0.0
+
+Install:
+
 ```bash
 npm install dry-utils-logger
 ```
@@ -85,7 +91,3 @@ logger.info("Using reconfigured global logger");
 | `filename`     | Path to log file             | `"logs/app.log"` |
 | `consoleLevel` | Log level for console output | `"info"`         |
 | `fileLevel`    | Log level for file output    | `"debug"`        |
-
-## Requirements
-
-- Node.js >=22.0.0

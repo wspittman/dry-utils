@@ -4,14 +4,9 @@ CosmosDB abstractions for simplified database interactions.
 
 I do not anticipate that you will find this repository useful. It is hyper-specific to my needs. If you do find something useful, feel free to use it, fork it, or liberally copy code out into your own projects.
 
-## Installation
-
-```bash
-npm install dry-utils-cosmosdb
-```
-
 ## Prerequisites
 
+- Node.js >=22.0.0
 - [Azure CosmosDB Emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/local-emulator)
 - [Azure CosmosDB Account](https://azure.microsoft.com/en-us/services/cosmos-db/)
 
@@ -26,6 +21,12 @@ CosmosDB has a local emulator that you can use for development. These instructio
   - No, do not export the private key
   - Base-64 encoded X.509 (.CER)
   - Save the file
+
+## Installation
+
+```bash
+npm install dry-utils-cosmosdb
+```
 
 ## Features
 
@@ -126,7 +127,3 @@ setDBLogging({
   },
 });
 ```
-
-## Requirements
-
-- Node.js >=22.0.0

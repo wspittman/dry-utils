@@ -6,13 +6,16 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 ## Installation
 
+Prerequisites:
+
+- Node.js >=22.0.0
+- When using OpenAI, you will need to set up an OpenAI account and create an API key. The OpenAI code expect .env to contain OPENAI_API_KEY, which is referenced directly in the OpenAI SDK.
+
+Install:
+
 ```bash
 npm install dry-utils-openai
 ```
-
-## Prerequisites
-
-When using OpenAI, you will need to set up an OpenAI account and create an API key. The OpenAI code expect .env to contain OPENAI_API_KEY, which is referenced directly in the OpenAI SDK.
 
 ## Features
 
@@ -108,10 +111,5 @@ setAILogging({
   errorFn: (label, ...data) => {
     console.error(`[AI-ERROR-${label}]`, ...data);
   },
-  aggregateInterval: 60000, // Aggregate logs every minute
 });
 ```
-
-## Requirements
-
-- Node.js >=22.0.0

@@ -14,9 +14,34 @@ This repository is structured as a monorepo containing several packages:
 - [dry-utils-openai](#dry-utilsopenai) - Utilities for working with the OpenAI API
 - [dry-utils-text](#dry-utilstext) - HTML and Markdown conversion utilities with sanitization
 
+## Prerequisites
+
+All packages require Node.js >=22.0.0
+
+### OpenAI
+
+When using OpenAI, you will need to set up an OpenAI account and create an API key. The OpenAI code expect .env to contain OPENAI_API_KEY, which is referenced directly in the OpenAI SDK.
+
+### CosmosDB
+
+- [Azure CosmosDB Emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/local-emulator)
+- [Azure CosmosDB Account](https://azure.microsoft.com/en-us/services/cosmos-db/)
+
+CosmosDB has a local emulator that you can use for development. These instructions have been used on a direct-install emulator on Windows 10. A similar process should work on other versions of Windows or using the Docker-hosted emulator.
+
+- Install the [Azure CosmosDB Emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator)
+- Export the Azure CosmosDB Emulator certificate
+  - Open the Windows Certificate Manager
+  - Navigate to `Trusted Root Certification Authorities` > `Certificates`
+  - Find the certificate for Issued To: `localhost`, Friendly Name: `DocumentDbEmulatorCertificate`
+  - Right-click the certificate and select `All Tasks` > `Export...`
+  - No, do not export the private key
+  - Base-64 encoded X.509 (.CER)
+  - Save the file
+
 ## Installation
 
-dry-utils packages are available on [npm](https://www.npmjs.com/package/dry-utils).
+dry-utils packages are available on npm.
 
 ```sh
 # Install the specific package you need
@@ -91,29 +116,13 @@ HTML and Markdown conversion utilities with sanitization for safe rendering.
 
 [View dry-utils-text documentation](./packages/text/README.md)
 
-## Prerequisites
+## Development Scripts
 
-### OpenAI
+This monorepo provides several npm scripts to help with development:
 
-When using OpenAI, you will need to set up an OpenAI account and create an API key. The OpenAI code expect .env to contain OPENAI_API_KEY, which is referenced directly in the OpenAI SDK.
-
-### CosmosDB
-
-- [Azure CosmosDB Emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/local-emulator)
-- [Azure CosmosDB Account](https://azure.microsoft.com/en-us/services/cosmos-db/)
-
-CosmosDB has a local emulator that you can use for development. These instructions have been used on a direct-install emulator on Windows 10. A similar process should work on other versions of Windows or using the Docker-hosted emulator.
-
-- Install the [Azure CosmosDB Emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-develop-emulator)
-- Export the Azure CosmosDB Emulator certificate
-  - Open the Windows Certificate Manager
-  - Navigate to `Trusted Root Certification Authorities` > `Certificates`
-  - Find the certificate for Issued To: `localhost`, Friendly Name: `DocumentDbEmulatorCertificate`
-  - Right-click the certificate and select `All Tasks` > `Export...`
-  - No, do not export the private key
-  - Base-64 encoded X.509 (.CER)
-  - Save the file
-
-## Requirements
-
-All packages require Node.js >=22.0.0
+- `npm run clean` - Clean the repository by removing all untracked files and directories
+- `npm run build` - Build all packages in the monorepo
+- `npm run test` - Run tests for all packages
+- `npm run link` - Create symbolic links for all packages to use them locally
+- `npm run unlink` - Remove symbolic links created by the link command
+- `npm run publish-packages` - Publish packages to npm registry
