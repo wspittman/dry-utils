@@ -21,6 +21,7 @@
     "clean": "git clean -dxf",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
+    "e2e": "npm run e2e --workspaces",
     "link": "npm run link --workspaces",
     "unlink": "npm run unlink --workspaces",
     "publish-packages": "npm run publish-package --workspaces"
