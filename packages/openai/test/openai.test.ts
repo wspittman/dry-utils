@@ -5,7 +5,6 @@ import { APIError } from "openai";
 import type {
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam,
-  ChatCompletionTool,
 } from "openai/resources";
 import {
   type ChatCompletionParseParams,
@@ -19,6 +18,7 @@ import {
   type CompletionResponse,
   jsonCompletion,
   proseCompletion,
+  type Tool,
 } from "../src/openai.ts";
 
 process.env["OPENAI_API_KEY"] = "mock_openai_key";
@@ -26,7 +26,6 @@ process.env["OPENAI_API_KEY"] = "mock_openai_key";
 type Message =
   | ChatCompletionMessageParam
   | ParsedChatCompletionMessage<unknown>;
-type Tool = ChatCompletionTool;
 type ParseParams = ChatCompletionParseParams;
 
 type MockError = "errRate" | "errLarge" | "errLong" | "error";
@@ -109,8 +108,8 @@ const fullParams: Required<CompletionParams> = {
     { description: "two", content: { val: 2 } },
   ],
   tools: [
-    { type: "function", function: { name: "tool1" } },
-    { type: "function", function: { name: "tool2" } },
+    { name: "tool1", description: "tool1 description", parameters: schema },
+    { name: "tool2", description: "tool2 description" },
   ],
   mode: "stop",
   parsedOutput,
@@ -244,7 +243,7 @@ describe("AI: OpenAI", () => {
 
   function validateParams(
     expectedContents: string[],
-    expectedTools?: Tool[],
+    expectedTools: Tool[] = [],
     msg?: string
   ) {
     if (!mockParse.mock.calls[0]) {
@@ -257,7 +256,23 @@ describe("AI: OpenAI", () => {
 
     assert.equal(model, "gpt-4o-mini", `input model match ${msg}`);
     assert.deepEqual(contents, expectedContents, `input contents match ${msg}`);
-    assert.deepEqual(tools, expectedTools, `input tools match ${msg}`);
+    assert.equal(
+      tools?.length,
+      expectedTools.length,
+      `input tools length ${msg}`
+    );
+
+    assert.deepEqual(
+      tools?.map((x) => x.function.name),
+      expectedTools.map((x) => x.name),
+      `input tools name ${msg}`
+    );
+
+    assert.deepEqual(
+      tools?.map((x) => x.function.description),
+      expectedTools.map((x) => x.description),
+      `input tools description ${msg}`
+    );
   }
 
   function validateResponse(

@@ -38,7 +38,7 @@
     "unlink": "npm unlink --global",
     "prepublishOnly": "npm run build && npm run test",
     "publish-package": "npm publish --access public",
-    "e2e": "node --import tsx/esm --test e2e/**/*.test.ts"
+    "e2e": "node --env-file=.env --import tsx/esm --test e2e/**/*.test.ts"
   },
   "license": "MIT",
   "dependencies": {
