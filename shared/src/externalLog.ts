@@ -7,7 +7,7 @@ export interface LogOptions {
 
 export interface AggregatorLogOptions extends LogOptions {
   aggregatorFn?: () => Aggregator;
-  storeCalls?: boolean;
+  storeCalls?: boolean | LogFn;
 }
 
 export interface Aggregator {
@@ -50,11 +50,13 @@ export class ExternalAggregatorLog extends ExternalLog {
       ag.count = (ag.count ?? 0) + 1;
       ag.counts[tag] = (ag.counts[tag] ?? 0) + 1;
 
-      if (this.opts.storeCalls) {
+      if (this.opts.storeCalls === true) {
         ag.calls = ag.calls ?? [];
         if (ag.calls.length < 10) {
           ag.calls.push(log);
         }
+      } else if (this.opts.storeCalls) {
+        this.opts.storeCalls(`${this.name}_${tag}`, log);
       }
 
       props.forEach((key) => {
