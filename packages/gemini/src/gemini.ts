@@ -4,7 +4,10 @@ import {
   type Content,
 } from "@google/genai";
 import { setTimeout } from "node:timers/promises";
+import type { ZodType } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { externalLog } from "./externalLog.ts";
+import { zObj, zString } from "./zod.ts";
 
 const MODEL = "gemini-2.0-flash";
 const MAX_RETRIES = 3;
@@ -19,15 +22,35 @@ export interface CompletionOptions {
   context?: Context[];
 }
 
-export interface CompletionResponse {
+export interface CompletionResponse<T> {
   thread?: Content[];
-  content?: string;
+  content?: T;
   error?: string;
 }
 
-/*export async function proseCompletion(): Promise<unknown> {
-  return await jsonCompletion();
-}8/
+export async function proseCompletion(
+  action: string,
+  thread: Content[] | string,
+  input: string | object,
+  options?: CompletionOptions
+): Promise<CompletionResponse<string>> {
+  const schema = zObj("A wrapper around the completion content", {
+    content: zString("The completion content"),
+  });
+  const { content, ...rest } = await jsonCompletion(
+    action,
+    thread,
+    input,
+    schema,
+    options
+  );
+
+  if (content) {
+    return { ...rest, content: content["content"] ?? undefined };
+  }
+
+  return rest;
+}
 
 /**
  * Makes a Gemini json completion request.
@@ -39,12 +62,13 @@ export interface CompletionResponse {
  * @param options Optional object containing context and tool definitions
  * @returns An object containing response information
  */
-export async function jsonCompletion(
+export async function jsonCompletion<T>(
   action: string,
   thread: Content[] | string,
   input: string | object,
+  schema: ZodType<T>,
   { context }: CompletionOptions = {}
-): Promise<CompletionResponse> {
+): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
     thread = [createContent(thread)];
@@ -55,18 +79,18 @@ export async function jsonCompletion(
     input = JSON.stringify(input);
   }
 
-  return await apiCall(MODEL, action, thread, input, context ?? []);
+  return await apiCall(MODEL, action, thread, input, schema, context ?? []);
 }
 
-async function apiCall(
+async function apiCall<T>(
   model: string,
   action: string,
   thread: Content[],
   input: string,
-  //schema: ZodType<T>,
+  schema: ZodType<T>,
   context: Context[]
   //simpleTools: Required<Tool>[]
-): Promise<CompletionResponse> {
+): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const [systemPrompt, ...restOfThread] = thread;
   const messages = createMessages(restOfThread, input, context);
@@ -77,6 +101,11 @@ async function apiCall(
     contents: messages,
     config: {
       systemInstruction: systemPrompt,
+      responseMimeType: "application/json",
+      responseSchema: zodToJsonSchema(schema, {
+        name: action,
+        target: "openApi3",
+      }).definitions![action],
     },
   };
 
@@ -86,7 +115,7 @@ async function apiCall(
       const completion = await getClient().models.generateContent(body);
       const duration = Date.now() - start;
 
-      const response = completionToResponse(completion, newThread);
+      const response = completionToResponse(completion, newThread, schema);
       logLLMAction(action, input, duration, completion, response);
       return response;
     } catch (error) {
@@ -135,10 +164,11 @@ function createMessages(
   ];
 }
 
-function completionToResponse(
+function completionToResponse<T>(
   completion: GenerateContentResponse,
-  thread: Content[]
-): CompletionResponse {
+  thread: Content[],
+  schema: ZodType<T>
+): CompletionResponse<T> {
   const { content, finishReason, finishMessage } =
     completion.candidates?.[0] ?? {};
 
@@ -151,12 +181,23 @@ function completionToResponse(
   }
 
   if (finishReason === "STOP") {
-    return !content
-      ? { error: "Finish reason STOP, but content is empty" }
-      : {
-          content: completion.text,
-          thread: [...thread, content],
-        };
+    if (!content) {
+      return { error: "Finish reason STOP, but content is empty" };
+    }
+
+    const rawText = completion.text;
+
+    if (!rawText) {
+      return { error: "Finish reason STOP, but no text provided" };
+    }
+
+    const parsed = JSON.parse(rawText);
+    const moreParsed = schema.parse(parsed);
+
+    return {
+      content: moreParsed,
+      thread: [...thread, content],
+    };
   }
 
   return {
@@ -171,7 +212,7 @@ function completionToResponse(
 function errorToResponse(
   error: unknown,
   attempt: number
-): CompletionResponse | undefined {
+): CompletionResponse<never> | undefined {
   const errorType = getErrorType(error);
 
   if (errorType === "Too Long") {

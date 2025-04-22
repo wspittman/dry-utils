@@ -2,7 +2,8 @@ import type { Content } from "@google/genai";
 import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
 import { afterEach, describe, test } from "node:test";
-import { jsonCompletion, setAILogging } from "../src/index.ts";
+import { proseCompletion } from "../src/gemini.ts";
+import { setAILogging } from "../src/index.ts";
 
 // GEMINI_API_KEY present in .env, referenced directly in Gemini SDK
 
@@ -24,7 +25,7 @@ describe("Gemini E2E Flow", () => {
   });
 
   test("proseCompletion: minimal", async () => {
-    const response = await jsonCompletion(
+    const response = await proseCompletion(
       "Test_Simple",
       "Follow the user's instructions explicitly",
       "Repeat the word 'complete' back to me, only that single word"
@@ -47,7 +48,7 @@ describe("Gemini E2E Flow", () => {
   });
 
   test("proseCompletion: full", async () => {
-    const response = await jsonCompletion(
+    const response = await proseCompletion(
       "Test_Full",
       history,
       {
