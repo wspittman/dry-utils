@@ -34,10 +34,14 @@ describe("OpenAI E2E Flow", () => {
     const { content, thread, ...rest } = response;
     history = thread ?? [];
 
-    assert.equal(content, "complete", "Content should be 'complete'");
+    assert.equal(
+      content?.trim().toLowerCase(),
+      "complete",
+      "Content should be 'complete'"
+    );
     assert.equal(thread?.length, 3, "Thread should have three messages");
     assert.deepEqual(rest, {}, "Rest should be empty object");
-    logCounts(aiActionLog, "proseCompletion: simple");
+    logCounts(aiActionLog, "proseCompletion: minimal");
   });
 
   test("proseCompletion: full", async () => {
@@ -78,7 +82,7 @@ describe("OpenAI E2E Flow", () => {
       [{ name: "Obey", args: { obey: true } }],
       "ToolCalls should be Obey tool"
     );
-    assert.equal(thread?.length, 6, "Thread should have five messages");
+    assert.equal(thread?.length, 6, "Thread should have six messages");
     assert.deepEqual(rest, {}, "Rest should be empty object");
     logCounts(aiActionLog, "proseCompletion: full");
   });

@@ -341,7 +341,7 @@ function logLLMAction<T>(
       "ms",
     ]);
   } catch (error) {
-    externalLog.error("OpenAI_LogLLMAction", error);
+    externalLog.error("LogLLMAction", error);
   }
 }
 
