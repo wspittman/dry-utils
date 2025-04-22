@@ -248,20 +248,21 @@ function errorToResponse(
   const errorType = getErrorType(error);
 
   if (errorType === "Too Long") {
-    externalLog.error("OpenAI Context Too Long", error);
+    externalLog.error("Context Too Long", error);
     return { error: "OpenAI Context Too Long" };
   }
 
   if (errorType !== "429") {
-    externalLog.error("OpenAI Non-Backoff Error", error);
+    externalLog.error("Non-Backoff Error", error);
     return { error: "OpenAI Non-Backoff Error" };
   }
 
   if (attempt >= MAX_RETRIES) {
-    externalLog.error("OpenAI Back Off Limit Exceeded", error);
+    externalLog.error("Back Off Limit Exceeded", error);
     return { error: "OpenAI Back Off Limit Exceeded" };
   }
 
+  // Retry
   return;
 }
 
