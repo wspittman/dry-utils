@@ -10,7 +10,6 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { externalLog } from "./externalLog.ts";
 import { zObj, zString } from "./zod.ts";
 
-const MODEL = "gemini-2.0-flash";
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
 
@@ -28,6 +27,7 @@ export interface Tool {
 export interface CompletionOptions {
   context?: Context[];
   tools?: Tool[];
+  model?: string;
 }
 
 export interface CompletionResponse<T> {
@@ -88,7 +88,7 @@ export async function jsonCompletion<T extends object>(
   thread: Content[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context, tools }: CompletionOptions = {}
+  { context, tools, model = "gemini-2.0-flash" }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
@@ -101,7 +101,7 @@ export async function jsonCompletion<T extends object>(
   }
 
   return await apiCall(
-    MODEL,
+    model,
     action,
     thread,
     input,

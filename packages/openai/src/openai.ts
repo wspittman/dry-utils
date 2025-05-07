@@ -10,7 +10,6 @@ import type { ZodType } from "zod";
 import { externalLog } from "./externalLog.ts";
 import { zObj, zString } from "./zod.ts";
 
-const MODEL = "gpt-4o-mini";
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
 
@@ -28,6 +27,7 @@ export interface Tool {
 export interface CompletionOptions {
   context?: Context[];
   tools?: Tool[];
+  model?: string;
 }
 
 export interface CompletionResponse<T> {
@@ -88,7 +88,7 @@ export async function jsonCompletion<T extends object>(
   thread: ChatCompletionMessageParam[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context, tools }: CompletionOptions = {}
+  { context, tools, model = "gpt-4o-mini" }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   const actionError = validateAction(action);
   if (actionError) {
@@ -106,7 +106,7 @@ export async function jsonCompletion<T extends object>(
   }
 
   return await apiCall(
-    MODEL,
+    model,
     action,
     thread,
     input,

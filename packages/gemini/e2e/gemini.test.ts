@@ -10,7 +10,7 @@ const aiActionLog = { log: 1, ag: 1 };
 
 describe("Gemini E2E Flow", () => {
   // Note: Each test is dependent on the previous one
-  const { logOptions, logCounts, logReset, debug } = mockExternalLog();
+  const { logOptions, logCounts, logReset } = mockExternalLog();
   let history: Content[] = [];
 
   afterEach(() => {
@@ -30,8 +30,6 @@ describe("Gemini E2E Flow", () => {
       "Repeat the word 'complete' back to me, only that single word"
     );
     assert.ok(response, "Should return a response from proseCompletion");
-
-    debug();
 
     const { content, thread, ...rest } = response;
     history = thread ?? [];
@@ -75,8 +73,6 @@ describe("Gemini E2E Flow", () => {
       }
     );
     assert.ok(response, "Should return a response from proseCompletion");
-
-    debug();
 
     const { toolCalls, thread, ...rest } = response;
     history = thread ?? [];
