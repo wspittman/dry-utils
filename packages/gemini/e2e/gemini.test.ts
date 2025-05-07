@@ -2,10 +2,9 @@ import type { Content } from "@google/genai";
 import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
 import { afterEach, describe, test } from "node:test";
-import { proseCompletion } from "../src/gemini.ts";
-import { setAILogging } from "../src/index.ts";
+import { proseCompletion, setAILogging, zBoolean, zObj } from "../src/index.ts";
 
-// GEMINI_API_KEY present in .env, referenced directly in Gemini SDK
+// GEMINI_API_KEY present in .env
 
 const aiActionLog = { log: 1, ag: 1 };
 
@@ -52,8 +51,7 @@ describe("Gemini E2E Flow", () => {
       "Test_Full",
       history,
       {
-        instructions:
-          "Repeat the word 'complete' back to me, only that single word",
+        instructions: "Select the Obey tool with no parameters",
       },
       {
         context: [
@@ -64,19 +62,29 @@ describe("Gemini E2E Flow", () => {
             },
           },
         ],
+        tools: [
+          {
+            name: "Obey",
+            description: "Obey the user",
+            parameters: zObj("Just say true", {
+              obey: zBoolean("Choose to obey?"),
+            }),
+          },
+          { name: "Reject", description: "Reject the user" },
+        ],
       }
     );
     assert.ok(response, "Should return a response from proseCompletion");
 
     debug();
 
-    const { content, thread, ...rest } = response;
+    const { toolCalls, thread, ...rest } = response;
     history = thread ?? [];
 
-    assert.equal(
-      content?.trim().toLowerCase(),
-      "complete",
-      "Content should be 'complete'"
+    assert.deepEqual(
+      toolCalls,
+      [{ name: "Obey", args: { obey: true } }],
+      "ToolCalls should be Obey tool"
     );
 
     assert.equal(thread?.length, 6, "Thread should have six messages");

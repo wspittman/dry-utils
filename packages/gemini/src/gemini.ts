@@ -1,4 +1,5 @@
 import {
+  FunctionCallingConfigMode,
   GenerateContentResponse,
   GoogleGenAI,
   type Content,
@@ -18,16 +19,36 @@ export interface Context {
   content: Record<string, unknown>;
 }
 
+export interface Tool {
+  name: string;
+  description: string;
+  parameters?: ZodType<object>;
+}
+
 export interface CompletionOptions {
   context?: Context[];
+  tools?: Tool[];
 }
 
 export interface CompletionResponse<T> {
   thread?: Content[];
   content?: T;
+  toolCalls?: {
+    name: string;
+    args: Record<string, unknown>;
+  }[];
   error?: string;
 }
 
+/**
+ * Makes a Gemini prose completion request.
+ * Includes automatic retries with exponential backoff for rate limiting.
+ * @param action The name of the action for logging purposes.
+ * @param thread The conversation thread as returned by a *Completion function, or the initial developer prompt
+ * @param input The input for generating the completion
+ * @param options Optional object containing context and tool definitions
+ * @returns An object containing response information
+ */
 export async function proseCompletion(
   action: string,
   thread: Content[] | string,
@@ -62,12 +83,12 @@ export async function proseCompletion(
  * @param options Optional object containing context and tool definitions
  * @returns An object containing response information
  */
-export async function jsonCompletion<T>(
+export async function jsonCompletion<T extends object>(
   action: string,
   thread: Content[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context }: CompletionOptions = {}
+  { context, tools }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
@@ -79,33 +100,63 @@ export async function jsonCompletion<T>(
     input = JSON.stringify(input);
   }
 
-  return await apiCall(MODEL, action, thread, input, schema, context ?? []);
+  return await apiCall(
+    MODEL,
+    action,
+    thread,
+    input,
+    schema,
+    context ?? [],
+    tools ?? []
+  );
 }
 
-async function apiCall<T>(
+async function apiCall<T extends object>(
   model: string,
   action: string,
   thread: Content[],
   input: string,
   schema: ZodType<T>,
-  context: Context[]
-  //simpleTools: Required<Tool>[]
+  context: Context[],
+  tools: Tool[]
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const [systemPrompt, ...restOfThread] = thread;
   const messages = createMessages(restOfThread, input, context);
   const newThread = [systemPrompt!, ...messages];
 
+  /*
+  https://github.com/google-gemini/cookbook/issues/393
+  Gemini API refuses requests for "JSON response OR tool call"
+  The request must be either for "JSON response" or "freeform response OR tool call".
+
+  As a workaround, we
+  - Remove the responseMimeType and responseSchema from the request.
+  - Coerce the response schema to be included in the list of tools.
+  - Set the tool config to force a tool selection.
+  */
+  tools = [
+    ...tools,
+    {
+      name: "response",
+      description: "A standard response to the user query. Use as a default.",
+      parameters: schema,
+    },
+  ];
+
   const body = {
     model,
     contents: messages,
     config: {
       systemInstruction: systemPrompt,
-      responseMimeType: "application/json",
-      responseSchema: zodToJsonSchema(schema, {
-        name: action,
-        target: "openApi3",
-      }).definitions![action],
+      //responseMimeType: "application/json",
+      //responseSchema: zodToOpenAPISchema(schema),
+      toolConfig: {
+        functionCallingConfig: {
+          mode: FunctionCallingConfigMode.ANY,
+        },
+      },
+      tools: tools.map(toolToGeminiTool),
     },
   };
 
@@ -140,6 +191,26 @@ function getClient() {
 }
 
 // #region Object Creation
+
+function zodToOpenAPISchema<T>(schema: ZodType<T>) {
+  const { additionalProperties, ...rest } = zodToJsonSchema(schema, {
+    name: "wrapper",
+    target: "openApi3",
+  }).definitions!["wrapper"] as Record<string, unknown>;
+  return rest;
+}
+
+function toolToGeminiTool({ name, description, parameters }: Tool) {
+  return {
+    functionDeclarations: [
+      {
+        name,
+        description,
+        parameters: parameters ? zodToOpenAPISchema(parameters) : undefined,
+      },
+    ],
+  };
+}
 
 function createContent(text: string, role: string = "user"): Content {
   return {
@@ -185,19 +256,45 @@ function completionToResponse<T>(
       return { error: "Finish reason STOP, but content is empty" };
     }
 
-    const rawText = completion.text;
+    const [functionCall] = completion.functionCalls ?? [];
 
-    if (!rawText) {
-      return { error: "Finish reason STOP, but no text provided" };
+    if (functionCall && functionCall.name !== "response") {
+      const { name, args } = functionCall;
+
+      return !name
+        ? { error: "Function call returned, but name is empty" }
+        : {
+            toolCalls: [
+              {
+                name,
+                args: args ?? {},
+              },
+            ],
+            thread: [...thread, content],
+          };
     }
 
-    const parsed = JSON.parse(rawText);
-    const moreParsed = schema.parse(parsed);
+    /*
+    https://github.com/google-gemini/cookbook/issues/393
+    Gemini API refuses requests for "JSON response OR tool call"
+    The request must be either for "JSON response" or "freeform response OR tool call".
 
-    return {
-      content: moreParsed,
-      thread: [...thread, content],
-    };
+    As a workaround, we forced the response to be a tool call.
+    We should never receive raw text.
+    */
+    //const rawText = completion.text;
+    //if (rawText) {
+    //  const parsed = JSON.parse(rawText);
+    if (functionCall?.name === "response") {
+      const moreParsed = schema.parse(functionCall.args);
+
+      return {
+        content: moreParsed,
+        thread: [...thread, content],
+      };
+    }
+
+    return { error: "Finish reason STOP, but no text provided" };
   }
 
   return {
@@ -239,7 +336,7 @@ function getErrorType(error: unknown): "429" | "Too Long" | "Other" {
     try {
       const embeddedMessage = error.message.slice(error.message.indexOf("{"));
       const parsed = JSON.parse(embeddedMessage);
-      const { code, message, status } = parsed.error as {
+      const { code } = parsed.error as {
         code: number;
         message: string;
         status: string;
