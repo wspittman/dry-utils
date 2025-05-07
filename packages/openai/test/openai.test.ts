@@ -158,7 +158,7 @@ function getChoice(action: Mode, encodedOutput: string) {
   return { reason, message };
 }
 
-function stuffAction(input: string) {
+function stuffModel(input: string) {
   return Buffer.from(input)
     .toString("base64")
     .replace(/\+/g, "-")
@@ -166,7 +166,7 @@ function stuffAction(input: string) {
     .replace(/=+$/, "");
 }
 
-function unstuffAction(input: string) {
+function unstuffModel(input: string) {
   const padding = "=".repeat((4 - (input.length % 4)) % 4);
   return Buffer.from(
     input.replace(/-/g, "+").replace(/_/g, "/") + padding,
@@ -177,14 +177,16 @@ function unstuffAction(input: string) {
 const mockParse = mock.method(
   Completions.prototype,
   "parse",
-  function ({ response_format }: ChatCompletionCreateParamsNonStreaming) {
+  function ({
+    response_format,
+    model,
+  }: ChatCompletionCreateParamsNonStreaming) {
     if (!response_format || !("json_schema" in response_format)) {
       assert.fail("Invalid response_format");
     }
 
-    // We stuffed what we wanted in the action parameter, which becomes name here
-    const stuffed = response_format.json_schema.name;
-    const [action, encodedOutput] = unstuffAction(stuffed).split("~") as [
+    // We stuffed what we wanted in the model parameter
+    const [action, encodedOutput] = unstuffModel(model).split("~") as [
       Mode,
       string
     ];
@@ -250,11 +252,10 @@ describe("AI: OpenAI", () => {
       assert.fail("No calls to mockParse");
     }
 
-    const { model, messages, tools } = mockParse.mock.calls[0]
+    const { messages, tools } = mockParse.mock.calls[0]
       .arguments[0] as ParseParams;
     const contents = messages.map((x) => x.content);
 
-    assert.equal(model, "gpt-4o-mini", `input model match ${msg}`);
     assert.deepEqual(contents, expectedContents, `input contents match ${msg}`);
     assert.equal(
       tools?.length,
@@ -300,8 +301,8 @@ describe("AI: OpenAI", () => {
       ...params,
     };
 
-    const action = stuffAction([mode, JSON.stringify(parsedOutput)].join("~"));
-    const options = { context, tools };
+    const model = stuffModel([mode, JSON.stringify(parsedOutput)].join("~"));
+    const options = { context, tools, model };
     const contents =
       typeof thread === "string"
         ? [thread]
@@ -313,8 +314,8 @@ describe("AI: OpenAI", () => {
     );
 
     const result = useProse
-      ? await proseCompletion(action, thread, input, options)
-      : await jsonCompletion(action, thread, input, schema, options);
+      ? await proseCompletion("test", thread, input, options)
+      : await jsonCompletion("test", thread, input, schema, options);
 
     validateParams([...contents, ...contextIn, inputIn], tools, msg);
 
