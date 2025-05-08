@@ -190,6 +190,14 @@ function getClient() {
   return _client;
 }
 
+/**
+ * For testing purposes only.
+ * Sets the client to a mock or test client.
+ */
+export function setTestClient(client: unknown): void {
+  _client = client as GoogleGenAI;
+}
+
 // #region Object Creation
 
 function zodToOpenAPISchema<T>(schema: ZodType<T>) {
