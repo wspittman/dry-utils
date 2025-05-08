@@ -1,16 +1,8 @@
 import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
-import { beforeEach, describe, mock, test } from "node:test";
-import { APIError } from "openai";
-import type {
-  ChatCompletionCreateParamsNonStreaming,
-  ChatCompletionMessageParam,
-} from "openai/resources";
-import {
-  type ChatCompletionParseParams,
-  Completions,
-  type ParsedChatCompletionMessage,
-} from "openai/resources/beta/chat/completions";
+import { beforeEach, describe, test } from "node:test";
+import type { ChatCompletionMessageParam } from "openai/resources";
+import { type ParsedChatCompletionMessage } from "openai/resources/beta/chat/completions";
 import { z } from "zod";
 import { setAILogging } from "../src/index.ts";
 import {
@@ -20,17 +12,13 @@ import {
   proseCompletion,
   type Tool,
 } from "../src/openai.ts";
+import { MockOpenAISDK, type Mode } from "./mockOpenAISDK.ts";
 
 process.env["OPENAI_API_KEY"] = "mock_openai_key";
 
 type Message =
   | ChatCompletionMessageParam
   | ParsedChatCompletionMessage<unknown>;
-type ParseParams = ChatCompletionParseParams;
-
-type MockError = "errRate" | "errLarge" | "errLong" | "error";
-type MockReason = "stop" | "tool_calls" | "unknown";
-type Mode = MockError | MockReason | "errRateTemp" | "refusal";
 
 const prompt = "system prompt";
 const userInput = "user input";
@@ -115,112 +103,8 @@ const fullParams: Required<CompletionParams> = {
   parsedOutput,
 };
 
-// #region Mock
-
-const createErr = (status: number, code: string, message: string) =>
-  new APIError(status, { status, message, code }, message, {});
-
-const errMap: Record<MockError, APIError> = {
-  errRate: createErr(429, "rate_limit_exceeded", "Rate limit exceeded"),
-  errLarge: createErr(429, "rate_limit_exceeded", "Request too large..."),
-  errLong: createErr(400, "context_length_exceeded", "This model's maximum..."),
-  error: createErr(500, "mock_other_error", "This is a mock error..."),
-};
-
-function checkError(action: Mode) {
-  if (action === "errRateTemp" && mockParse.mock.callCount() < 1) {
-    action = "errRate";
-  }
-
-  if (errMap[action as MockError]) {
-    throw errMap[action as MockError];
-  }
-}
-
-function getChoice(action: Mode, encodedOutput: string) {
-  let reason: string = action;
-  let message: Record<string, unknown> = {};
-
-  if (action === "stop" || action === "errRateTemp") {
-    reason = "stop";
-    message = { content: encodedOutput, parsed: JSON.parse(encodedOutput) };
-  }
-
-  if (action === "refusal") {
-    reason = "stop";
-    message = { refusal: encodedOutput };
-  }
-
-  if (action === "tool_calls") {
-    message = { tool_calls: JSON.parse(encodedOutput) };
-  }
-
-  return { reason, message };
-}
-
-function stuffModel(input: string) {
-  return Buffer.from(input)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
-function unstuffModel(input: string) {
-  const padding = "=".repeat((4 - (input.length % 4)) % 4);
-  return Buffer.from(
-    input.replace(/-/g, "+").replace(/_/g, "/") + padding,
-    "base64"
-  ).toString("utf8");
-}
-
-const mockParse = mock.method(
-  Completions.prototype,
-  "parse",
-  function ({
-    response_format,
-    model,
-  }: ChatCompletionCreateParamsNonStreaming) {
-    if (!response_format || !("json_schema" in response_format)) {
-      assert.fail("Invalid response_format");
-    }
-
-    // We stuffed what we wanted in the model parameter
-    const [action, encodedOutput] = unstuffModel(model).split("~") as [
-      Mode,
-      string
-    ];
-
-    checkError(action);
-    const { reason, message } = getChoice(action, encodedOutput);
-
-    return {
-      choices: [
-        {
-          finish_reason: reason,
-          index: 0,
-          message: {
-            role: "assistant",
-            content: encodedOutput,
-            ...message,
-          },
-        },
-      ],
-      usage: {
-        total_tokens: 75,
-        prompt_tokens: 50,
-        completion_tokens: 25,
-        prompt_tokens_details: {
-          cached_tokens: 0,
-        },
-      },
-    };
-  }
-);
-
-// #endregion
-
 describe("AI: OpenAI", () => {
+  const openAISDK = new MockOpenAISDK();
   const { logOptions, logCounts, logReset } = mockExternalLog();
   setAILogging(logOptions);
 
@@ -230,7 +114,7 @@ describe("AI: OpenAI", () => {
 
   function clearCounts() {
     logReset();
-    mockParse.mock.resetCalls();
+    openAISDK.resetCalls();
   }
 
   beforeEach(clearCounts);
@@ -240,40 +124,7 @@ describe("AI: OpenAI", () => {
     // This just works out for openai.ts
     const parse = log - ag + 1;
     logCounts(params);
-    assert.equal(mockParse.mock.callCount(), parse, "parse count");
-  }
-
-  function validateParams(
-    expectedContents: string[],
-    expectedTools: Tool[] = [],
-    msg?: string
-  ) {
-    if (!mockParse.mock.calls[0]) {
-      assert.fail("No calls to mockParse");
-    }
-
-    const { messages, tools } = mockParse.mock.calls[0]
-      .arguments[0] as ParseParams;
-    const contents = messages.map((x) => x.content);
-
-    assert.deepEqual(contents, expectedContents, `input contents match ${msg}`);
-    assert.equal(
-      tools?.length,
-      expectedTools.length,
-      `input tools length ${msg}`
-    );
-
-    assert.deepEqual(
-      tools?.map((x) => x.function.name),
-      expectedTools.map((x) => x.name),
-      `input tools name ${msg}`
-    );
-
-    assert.deepEqual(
-      tools?.map((x) => x.function.description),
-      expectedTools.map((x) => x.description),
-      `input tools description ${msg}`
-    );
+    assert.equal(openAISDK.getCallCount(), parse, "parse count");
   }
 
   function validateResponse(
@@ -301,23 +152,14 @@ describe("AI: OpenAI", () => {
       ...params,
     };
 
-    const model = stuffModel([mode, JSON.stringify(parsedOutput)].join("~"));
-    const options = { context, tools, model };
-    const contents =
-      typeof thread === "string"
-        ? [thread]
-        : thread?.map(({ content }) => content as string);
-    const inputIn = typeof input === "string" ? input : JSON.stringify(input);
-    const contextIn = (context ?? []).map(
-      ({ description, content }) =>
-        `Useful context: ${description}\n${JSON.stringify(content)}`
-    );
+    openAISDK.setBehavior(mode, JSON.stringify(parsedOutput));
 
+    const options = { context, tools };
     const result = useProse
       ? await proseCompletion("test", thread, input, options)
       : await jsonCompletion("test", thread, input, schema, options);
 
-    validateParams([...contents, ...contextIn, inputIn], tools, msg);
+    openAISDK.validateParams(thread, input, options, msg);
 
     return result;
   }
