@@ -16,6 +16,7 @@ export function mockExternalLog(): {
     logFn: MockFn;
     errorFn: MockFn;
     aggregatorFn: Mock<() => Aggregator>;
+    logCallFn: MockFn;
   };
   logCounts: (
     { log, error, ag }: Partial<Record<"log" | "error" | "ag", number>>,
@@ -33,6 +34,7 @@ export function mockExternalLog(): {
       logFn,
       errorFn,
       aggregatorFn,
+      logCallFn: logFn,
     },
     logCounts: ({ log, error, ag }, msg = "") => {
       const check = (name: string, fn: MockFn, count: number = 0) => {

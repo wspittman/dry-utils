@@ -368,15 +368,23 @@ async function backoff(action: string, attempt: number) {
 
 // #region Telemetry
 
-function logLLMAction(
+function logLLMAction<T>(
   action: string,
   input: string,
   duration: number,
-  { usageMetadata, candidates }: GenerateContentResponse,
-  response?: unknown
+  apiResponse: GenerateContentResponse,
+  response?: CompletionResponse<T>
 ) {
   try {
-    if (!usageMetadata) return;
+    if (!apiResponse?.usageMetadata) return;
+
+    const blob: Record<string, unknown> = {
+      action,
+      input,
+      duration,
+      apiResponse,
+      response,
+    };
 
     const {
       cachedContentTokenCount,
@@ -385,8 +393,8 @@ function logLLMAction(
       thoughtsTokenCount,
       toolUsePromptTokenCount,
       totalTokenCount,
-    } = usageMetadata;
-    const { finishReason } = candidates?.[0] ?? {};
+    } = apiResponse.usageMetadata;
+    const { finishReason } = apiResponse.candidates?.[0] ?? {};
 
     const log: Record<string, unknown> = {
       name: action,
@@ -414,16 +422,11 @@ function logLLMAction(
     }
 
     if (response) {
-      /*
-      For now, discard the thread to decrease the size of the log and stay under Azure limits.
-      A better long-term solutions would be to give the user more control via the storeCalls option.
-      They should be able to add to the same log, log separate with logFn or provide a separate logging function.
-      */
-      //const { thread, ...rest } = response;
-      log["out"] = response;
+      const { thread, ...rest } = response;
+      log["out"] = rest;
     }
 
-    externalLog.aggregate(action, log, [
+    externalLog.aggregate(action, log, blob, [
       "tokens",
       "inTokens",
       "outTokens",

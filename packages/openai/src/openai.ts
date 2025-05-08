@@ -296,15 +296,24 @@ function logLLMAction<T>(
   action: string,
   input: string,
   duration: number,
-  { usage, choices }: OpenAI.ChatCompletion,
+  apiResponse: OpenAI.ChatCompletion,
   response?: CompletionResponse<T>
 ) {
   try {
-    if (!usage) return;
+    if (!apiResponse?.usage) return;
 
-    const { total_tokens, prompt_tokens, completion_tokens } = usage;
-    const { cached_tokens = 0 } = usage.prompt_tokens_details ?? {};
-    const { finish_reason, message } = choices[0] ?? {};
+    const blob: Record<string, unknown> = {
+      action,
+      input,
+      duration,
+      apiResponse,
+      response,
+    };
+
+    const { total_tokens, prompt_tokens, completion_tokens } =
+      apiResponse.usage;
+    const { cached_tokens = 0 } = apiResponse.usage.prompt_tokens_details ?? {};
+    const { finish_reason, message } = apiResponse.choices[0] ?? {};
 
     const log: Record<string, unknown> = {
       name: action,
@@ -325,16 +334,11 @@ function logLLMAction<T>(
     }
 
     if (response) {
-      /*
-      For now, discard the thread to decrease the size of the log and stay under Azure limits.
-      A better long-term solutions would be to give the user more control via the storeCalls option.
-      They should be able to add to the same log, log separate with logFn or provide a separate logging function.
-      */
       const { thread, ...rest } = response;
       log["out"] = rest;
     }
 
-    externalLog.aggregate(action, log, [
+    externalLog.aggregate(action, log, blob, [
       "tokens",
       "inTokens",
       "outTokens",
