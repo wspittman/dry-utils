@@ -18,10 +18,6 @@ This repository is structured as a monorepo containing several packages:
 
 All packages require Node.js >=22.0.0
 
-### OpenAI
-
-When using OpenAI, you will need to set up an OpenAI account and create an API key. The OpenAI code expect .env to contain OPENAI_API_KEY, which is referenced directly in the OpenAI SDK.
-
 ### CosmosDB
 
 - [Azure CosmosDB Emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/local-emulator)
@@ -39,6 +35,14 @@ CosmosDB has a local emulator that you can use for development. These instructio
   - Base-64 encoded X.509 (.CER)
   - Save the file
 
+### Gemini
+
+When using Gemini, you will need to setup a Gemini account and create an API key. The Gemini code expects .env to contain GEMINI_API_KEY, which is referenced directly in the dry-utils-gemini package.
+
+### OpenAI
+
+When using OpenAI, you will need to setup an OpenAI account and create an API key. The OpenAI code expects .env to contain OPENAI_API_KEY, which is referenced directly in the OpenAI SDK.
+
 ## Installation
 
 dry-utils packages are available on npm.
@@ -47,6 +51,7 @@ dry-utils packages are available on npm.
 # Install the specific package you need
 npm install dry-utils-async
 npm install dry-utils-cosmosdb
+npm install dry-utils-gemini
 npm install dry-utils-logger
 npm install dry-utils-openai
 npm install dry-utils-text
@@ -77,6 +82,19 @@ CosmosDB abstractions for simplified database interactions.
 - Logging: Built-in logging for database operations with RU consumption tracking
 
 [View dry-utils-cosmosdb documentation](./packages/cosmosdb/README.md)
+
+### dry-utils-gemini
+
+Utilities for working with the Gemini API, focusing on structured responses, error handling, and logging.
+
+**Features:**
+
+- JSON Schema Validation: Create structured responses with Zod schemas
+- Prose Completions: Generate text responses with simple API
+- Automatic Retries: Built-in exponential backoff for rate limiting
+- Error Handling: Comprehensive error handling for common API issues
+
+[View dry-utils-gemini documentation](./packages/gemini/README.md)
 
 ### dry-utils-logger
 
@@ -123,6 +141,7 @@ This monorepo provides several npm scripts to help with development:
 - `npm run clean` - Clean the repository by removing all untracked files and directories
 - `npm run build` - Build all packages in the monorepo
 - `npm run test` - Run tests for all packages
+- `npm run e2e` - Run end-to-end tests for all packages
 - `npm run link` - Create symbolic links for all packages to use them locally
 - `npm run unlink` - Remove symbolic links created by the link command
 - `npm run publish-packages` - Publish packages to npm registry
