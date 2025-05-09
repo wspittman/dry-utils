@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-async",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Personal, hyper-specific collection of async utilities",
   "type": "module",
   "sideEffects": false,

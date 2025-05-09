@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-shared",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "internal shared package - do not use",
   "type": "module",
   "sideEffects": false,
