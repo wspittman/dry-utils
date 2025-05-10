@@ -20,24 +20,19 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wspittman/dry-utils.git",
-    "directory": "shared"
+    "directory": "packages/shared"
   },
   "author": "William Pittman",
-  "homepage": "https://github.com/wspittman/dry-utils/tree/main/shared#readme",
+  "homepage": "https://github.com/wspittman/dry-utils/tree/main/packages/shared#readme",
   "engines": {
     "node": ">=22.0.0"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "pretest": "tsc --noEmit",
+    "build": "tsc -b tsconfig.json",
     "test": "echo no operation",
     "link": "echo no operation",
     "unlink": "echo no operation",
-    "prepublishOnly": "npm run build && npm run test",
-    "publish-package": "npm publish --access public",
+    "publish-package": "echo \"No publish for shared package\"",
     "e2e": "echo \"No e2e tests for shared package\""
   },
   "license": "MIT",
