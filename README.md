@@ -8,11 +8,12 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 This repository is structured as a monorepo containing several packages:
 
-- [dry-utils-async](#dry-utilsasync) - Utilities for handling common asynchronous programming patterns
-- [dry-utils-cosmosdb](#dry-utilscosmosdb) - CosmosDB abstractions for simplified database interactions
-- [dry-utils-logger](#dry-utilslogger) - Winston wrapper logger with simplified configuration
-- [dry-utils-openai](#dry-utilsopenai) - Utilities for working with the OpenAI API
-- [dry-utils-text](#dry-utilstext) - HTML and Markdown conversion utilities with sanitization
+- [dry-utils-async](#dry-utils-async) - Utilities for handling common asynchronous programming patterns
+- [dry-utils-cosmosdb](#dry-utils-cosmosdb) - CosmosDB abstractions for simplified database interactions
+- [dry-utils-gemini](#dry-utils-gemini) - Utilities for working with the Gemini API
+- [dry-utils-logger](#dry-utils-logger) - Winston wrapper logger with simplified configuration
+- [dry-utils-openai](#dry-utils-openai) - Utilities for working with the OpenAI API
+- [dry-utils-text](#dry-utils-text) - HTML and Markdown conversion utilities with sanitization
 
 ## Prerequisites
 
