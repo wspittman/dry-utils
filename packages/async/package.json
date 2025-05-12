@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-async",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Personal, hyper-specific collection of async utilities",
   "type": "module",
   "sideEffects": false,
@@ -37,11 +37,12 @@
     "link": "npm link",
     "unlink": "npm unlink --global",
     "prepublishOnly": "npm run build && npm run test",
-    "publish-package": "npm publish --access public"
+    "publish-package": "npm publish --access public",
+    "e2e": "echo \"No e2e tests for async package\""
   },
   "license": "MIT",
   "dependencies": {
-    "dry-utils-shared": "*"
+    "dry-utils-shared": "0.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

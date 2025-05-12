@@ -1,34 +1,29 @@
+import { type Content } from "@google/genai";
 import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
-import type { ChatCompletionMessageParam } from "openai/resources";
-import { type ParsedChatCompletionMessage } from "openai/resources/beta/chat/completions";
 import { z } from "zod";
-import { setAILogging } from "../src/index.ts";
 import {
-  type CompletionOptions,
-  type CompletionResponse,
   jsonCompletion,
   proseCompletion,
+  type CompletionOptions,
+  type CompletionResponse,
   type Tool,
-} from "../src/openai.ts";
-import { MockOpenAISDK, type Mode } from "./mockOpenAISDK.ts";
-
-process.env["OPENAI_API_KEY"] = "mock_openai_key";
-
-type Message =
-  | ChatCompletionMessageParam
-  | ParsedChatCompletionMessage<unknown>;
+} from "../src/gemini.ts";
+import { setAILogging } from "../src/index.ts";
+import { MockGeminiSDK, type Mode } from "./mockGeminiSDK.ts";
 
 const prompt = "system prompt";
 const userInput = "user input";
-const parsedOutput = {
+const output = {
   key1: "value1",
   key2: "value2",
 };
-const encodedOutput = JSON.stringify(parsedOutput);
-const parsedProseOutput = { content: "prose" };
-const encodedProseOutput = JSON.stringify(parsedProseOutput);
+const toolOutput = {
+  name: "tool1",
+  args: { key1: "value1" },
+};
+const proseOutput = { content: "prose" };
 const schema = z.object({
   key1: z.string(),
   key2: z.string(),
@@ -36,35 +31,50 @@ const schema = z.object({
 
 const msgMap: Record<
   "prompt" | "userInput" | "assistantOutput" | "proseOutput" | "toolUse",
-  Message
+  Content
 > = {
-  prompt: { role: "developer", content: prompt },
-  userInput: { role: "user", name: "Agent", content: userInput },
+  prompt: { role: "user", parts: [{ text: prompt }] },
+  userInput: { role: "user", parts: [{ text: userInput }] },
   assistantOutput: {
-    role: "assistant",
-    parsed: parsedOutput,
-    content: encodedOutput,
+    role: "model",
+    parts: [
+      {
+        functionCall: {
+          name: "response",
+          args: output,
+        },
+      },
+    ],
   },
   proseOutput: {
-    role: "assistant",
-    parsed: parsedProseOutput,
-    content: encodedProseOutput,
+    role: "model",
+    parts: [
+      {
+        functionCall: {
+          name: "response",
+          args: proseOutput,
+        },
+      },
+    ],
   },
   toolUse: {
-    content: "[]",
-    role: "assistant",
-    tool_calls: [],
+    role: "model",
+    parts: [
+      {
+        functionCall: toolOutput,
+      },
+    ],
   },
 };
 
 interface CompletionParams {
-  thread?: Message[] | string;
+  thread?: Content[] | string;
   input?: string | object;
   schema?: z.ZodType;
   context?: CompletionOptions["context"];
   tools?: Tool[];
   mode?: Mode;
-  parsedOutput?: unknown;
+  output?: Record<string, unknown>;
 }
 
 const defaultParams: Required<CompletionParams> = {
@@ -73,18 +83,18 @@ const defaultParams: Required<CompletionParams> = {
   schema,
   context: [],
   tools: [],
-  mode: "stop",
-  parsedOutput,
+  mode: "response",
+  output,
 };
 
 const defaultResponse: CompletionResponse<unknown> = {
   thread: [msgMap.prompt, msgMap.userInput, msgMap.assistantOutput],
-  content: parsedOutput,
+  content: output,
 };
 
 const toolResponse: CompletionResponse<unknown> = {
   thread: [msgMap.prompt, msgMap.userInput, msgMap.toolUse],
-  toolCalls: [],
+  toolCalls: [toolOutput],
 };
 
 const fullParams: Required<CompletionParams> = {
@@ -99,12 +109,12 @@ const fullParams: Required<CompletionParams> = {
     { name: "tool1", description: "tool1 description", parameters: schema },
     { name: "tool2", description: "tool2 description" },
   ],
-  mode: "stop",
-  parsedOutput,
+  mode: "response",
+  output,
 };
 
-describe("AI: OpenAI", () => {
-  const openAISDK = new MockOpenAISDK();
+describe("AI: Gemini", () => {
+  const geminiSDK = new MockGeminiSDK();
   const { logOptions, logCounts, logReset } = mockExternalLog();
   setAILogging(logOptions);
 
@@ -114,17 +124,17 @@ describe("AI: OpenAI", () => {
 
   function clearCounts() {
     logReset();
-    openAISDK.resetCalls();
+    geminiSDK.resetCalls();
   }
 
   beforeEach(clearCounts);
 
   function callCounts(params: LogParams) {
     const { log = 0, ag = 0 } = params;
-    // This just works out for openai.ts
-    const parse = log - ag + 1;
+    // This just works out for gemini.ts
+    const geminiCall = log - ag + 1;
     logCounts(params);
-    assert.equal(openAISDK.getCallCount(), parse, "parse count");
+    assert.equal(geminiSDK.getCallCount(), geminiCall, "gemini call count");
   }
 
   function validateResponse(
@@ -147,33 +157,22 @@ describe("AI: OpenAI", () => {
     useProse = false
   ) {
     const msg = msgString(params);
-    let { thread, input, schema, context, tools, mode, parsedOutput } = {
+    let { thread, input, schema, context, tools, mode, output } = {
       ...defaultParams,
       ...params,
     };
 
-    openAISDK.setBehavior(mode, JSON.stringify(parsedOutput));
+    geminiSDK.setBehavior(mode, output);
 
     const options = { context, tools };
     const result = useProse
-      ? await proseCompletion("test", thread, input, options)
-      : await jsonCompletion("test", thread, input, schema, options);
+      ? await proseCompletion(msg, thread, input, options)
+      : await jsonCompletion(msg, thread, input, schema, options);
 
-    openAISDK.validateParams(thread, input, options, msg);
+    geminiSDK.validateParams(thread, input, options, msg);
 
     return result;
   }
-
-  test("jsonCompletion: bad action format", async () => {
-    const action = "bad action format";
-    const { thread, input, schema } = fullParams;
-    const result = await jsonCompletion(action, thread, input, schema);
-    assert.equal(
-      result.error,
-      `Invalid action name "${action}". Must match pattern ^[a-zA-Z0-9_-]+$`
-    );
-    logCounts({ error: 1 });
-  });
 
   const paramCases: [string, CompletionParams][] = [
     ["defaults", {}],
@@ -211,16 +210,14 @@ describe("AI: OpenAI", () => {
     LogParams,
     CompletionResponse<unknown> | string
   ][] = [
-    ["errRate", { error: 1, log: 3 }, "OpenAI Back Off Limit Exceeded"],
-    ["errLarge", errLog, "OpenAI Context Too Long"],
-    ["errLong", errLog, "OpenAI Context Too Long"],
-    ["error", errLog, "OpenAI Non-Backoff Error"],
-    ["refusal", defaultLog, `Refusal: ${encodedOutput}`],
-    ["unknown", defaultLog, "Unexpected Finish Reason: unknown"],
+    ["rateLimit", { error: 1, log: 3 }, "Gemini Back Off Limit Exceeded"],
+    ["error", errLog, "Gemini Non-Backoff Error"],
+    ["refusal", defaultLog, `Refusal: SAFETY: undefined`],
+    ["unknown", defaultLog, "Unexpected Finish Reason: UNKNOWN: undefined"],
     [{}, defaultLog, defaultResponse],
-    ["errRateTemp", { ag: 1, log: 2 }, defaultResponse],
+    ["rateLimitTemp", { ag: 1, log: 2 }, defaultResponse],
     [
-      { mode: "tool_calls", tools: fullParams.tools, parsedOutput: [] },
+      { mode: "toolCall", tools: fullParams.tools, output: toolOutput },
       defaultLog,
       toolResponse,
     ],
@@ -239,17 +236,17 @@ describe("AI: OpenAI", () => {
   });
 
   const proseCases: typeof cases = [
-    ["error", errLog, "OpenAI Non-Backoff Error"],
+    ["error", errLog, "Gemini Non-Backoff Error"],
     [
-      { parsedOutput: parsedProseOutput },
+      { output: proseOutput },
       defaultLog,
       {
         thread: [msgMap.prompt, msgMap.userInput, msgMap.proseOutput],
-        content: parsedProseOutput.content,
+        content: proseOutput.content,
       },
     ],
     [
-      { mode: "tool_calls", tools: fullParams.tools, parsedOutput: [] },
+      { mode: "toolCall", tools: fullParams.tools, output: toolOutput },
       defaultLog,
       toolResponse,
     ],

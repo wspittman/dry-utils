@@ -1,6 +1,6 @@
-# dry-utils-openai
+# dry-utils-gemini
 
-A collection of utilities for working with the OpenAI API, focusing on structured responses, error handling, and logging.
+A collection of utilities for working with the Gemini API, focusing on structured responses, error handling, and logging.
 
 I do not anticipate that you will find this repository useful. It is hyper-specific to my needs. If you do find something useful, feel free to use it, fork it, or liberally copy code out into your own projects.
 
@@ -9,12 +9,12 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 Prerequisites:
 
 - Node.js >=22.0.0
-- When using OpenAI, you will need to set up an OpenAI account and create an API key. The OpenAI code expect .env to contain OPENAI_API_KEY, which is referenced directly in the OpenAI SDK.
+- When using Gemini, you will need to set up a Gemini account and create an API key. The Gemini code expect .env to contain GEMINI_API_KEY, which is referenced directly in the Gemini SDK.
 
 Install:
 
 ```bash
-npm install dry-utils-openai
+npm install dry-utils-gemini
 ```
 
 ## Features
@@ -32,7 +32,7 @@ npm install dry-utils-openai
 Generate structured responses with schema validation:
 
 ```typescript
-import { jsonCompletion, z } from "dry-utils-openai";
+import { jsonCompletion, z } from "dry-utils-gemini";
 
 // Define a schema for the response
 const recipeSchema = z
@@ -62,7 +62,7 @@ if (result.content) {
 Generate simple text responses:
 
 ```typescript
-import { proseCompletion } from "dry-utils-openai";
+import { proseCompletion } from "dry-utils-gemini";
 
 // Make a prose completion request
 const result = await proseCompletion(
@@ -78,10 +78,10 @@ if (result.content) {
 
 ### Schema Creation Helpers
 
-Create Zod schemas with descriptions for OpenAI:
+Create Zod schemas with descriptions for Gemini:
 
 ```typescript
-import { zObj, zString, zNumber, zBoolean, zObjArray } from "dry-utils-openai";
+import { zObj, zString, zNumber, zBoolean, zObjArray } from "dry-utils-gemini";
 
 // Create a schema with helper functions
 const userSchema = zObj("User information", {
@@ -101,7 +101,7 @@ const userSchema = zObj("User information", {
 Configure how API calls are logged:
 
 ```typescript
-import { setAILogging } from "dry-utils-openai";
+import { setAILogging } from "dry-utils-gemini";
 
 // Use custom logging function
 setAILogging({

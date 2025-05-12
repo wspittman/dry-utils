@@ -6,6 +6,12 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 ## Installation
 
+Prerequisites:
+
+- Node.js >=22.0.0
+
+Install:
+
 ```bash
 npm install dry-utils-async
 ```
@@ -56,7 +62,3 @@ setAsyncLogging({
   },
 });
 ```
-
-## Requirements
-
-- Node.js >=22.0.0

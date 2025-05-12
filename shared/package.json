@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-shared",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "internal shared package - do not use",
   "type": "module",
   "sideEffects": false,
@@ -37,7 +37,8 @@
     "link": "echo no operation",
     "unlink": "echo no operation",
     "prepublishOnly": "npm run build && npm run test",
-    "publish-package": "npm publish --access public"
+    "publish-package": "npm publish --access public",
+    "e2e": "echo \"No e2e tests for shared package\""
   },
   "license": "MIT",
   "devDependencies": {

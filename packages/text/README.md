@@ -6,6 +6,12 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 ## Installation
 
+Prerequisites:
+
+- Node.js >=22.0.0
+
+Install:
+
 ```bash
 npm install dry-utils-text
 ```
@@ -60,7 +66,3 @@ const standardizedHtml = standardizeUntrustedHtml(untrustedHtml);
 - External links automatically get `target="_blank"` and `rel="noopener noreferrer"` attributes
 - Dangerous HTML elements and attributes are stripped
 - HTML entities are properly decoded
-
-## Requirements
-
-- Node.js >=22.0.0

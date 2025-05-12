@@ -119,7 +119,7 @@ function getContainer() {
 // #endregion
 
 describe("DB: Container", () => {
-  const { logOptions, logCounts, logReset, debug } = mockExternalLog();
+  const { logOptions, logCounts, logReset } = mockExternalLog();
   setDBLogging(logOptions);
 
   beforeEach(() => {

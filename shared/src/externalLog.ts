@@ -7,7 +7,9 @@ export interface LogOptions {
 
 export interface AggregatorLogOptions extends LogOptions {
   aggregatorFn?: () => Aggregator;
-  storeCalls?: boolean;
+  storeCalls?: number;
+  logCallFn?: LogFn;
+  logBlobFn?: LogFn;
 }
 
 export interface Aggregator {
@@ -43,30 +45,39 @@ export class ExternalAggregatorLog extends ExternalLog {
     this.opts = options;
   }
 
-  aggregate(tag: string, log: Record<string, unknown>, props: string[]): void {
+  aggregate(
+    tag: string,
+    log: Record<string, unknown>,
+    blob: Record<string, unknown>,
+    props: string[]
+  ): void {
     const ag = this.opts.aggregatorFn?.();
 
-    if (ag && props) {
-      ag.count = (ag.count ?? 0) + 1;
-      ag.counts[tag] = (ag.counts[tag] ?? 0) + 1;
+    if (!ag) return;
 
-      if (this.opts.storeCalls) {
-        ag.calls = ag.calls ?? [];
-        if (ag.calls.length < 10) {
-          ag.calls.push(log);
-        }
-      }
+    ag.count = (ag.count ?? 0) + 1;
+    ag.counts[tag] = (ag.counts[tag] ?? 0) + 1;
 
-      props.forEach((key) => {
-        ag[key] = ag[key] ?? 0;
-        if (typeof log[key] === "number" && typeof ag[key] === "number") {
-          ag[key] += log[key];
-        }
-      });
-
-      if (!this.opts.storeCalls) {
-        super.log(tag, log);
+    if (this.opts.storeCalls) {
+      ag.calls = ag.calls ?? [];
+      if (ag.calls.length < this.opts.storeCalls) {
+        ag.calls.push(log);
       }
     }
+
+    if (this.opts.logCallFn) {
+      this.opts.logCallFn(`${this.name}_${tag}`, log);
+    }
+
+    if (this.opts.logBlobFn) {
+      this.opts.logBlobFn(`${this.name}_${tag}`, blob);
+    }
+
+    props.forEach((key) => {
+      ag[key] = ag[key] ?? 0;
+      if (typeof log[key] === "number" && typeof ag[key] === "number") {
+        ag[key] += log[key];
+      }
+    });
   }
 }

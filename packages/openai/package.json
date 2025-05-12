@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-openai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Personal, hyper-specific collection of OpenAI API utilities",
   "type": "module",
   "sideEffects": false,
@@ -37,13 +37,14 @@
     "link": "npm link",
     "unlink": "npm unlink --global",
     "prepublishOnly": "npm run build && npm run test",
-    "publish-package": "npm publish --access public"
+    "publish-package": "npm publish --access public",
+    "e2e": "node --env-file=.env --import tsx/esm --test e2e/**/*.test.ts"
   },
   "license": "MIT",
   "dependencies": {
     "openai": "^4.87.3",
     "zod": "^3.24.2",
-    "dry-utils-shared": "*"
+    "dry-utils-shared": "0.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

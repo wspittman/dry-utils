@@ -1,10 +1,7 @@
 import { setTimeout } from "node:timers/promises";
 import OpenAI from "openai";
-import { zodResponseFormat } from "openai/helpers/zod";
-import type {
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
-} from "openai/resources";
+import { zodFunction, zodResponseFormat } from "openai/helpers/zod";
+import type { ChatCompletionMessageParam } from "openai/resources";
 import type {
   ParsedChatCompletion,
   ParsedFunctionToolCall,
@@ -13,16 +10,24 @@ import type { ZodType } from "zod";
 import { externalLog } from "./externalLog.ts";
 import { zObj, zString } from "./zod.ts";
 
-const MODEL = "gpt-4o-mini";
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
 
+export interface Context {
+  description: string;
+  content: Record<string, unknown>;
+}
+
+export interface Tool {
+  name: string;
+  description: string;
+  parameters?: ZodType<object>;
+}
+
 export interface CompletionOptions {
-  context?: {
-    description: string;
-    content: Record<string, unknown>;
-  }[];
-  tools?: ChatCompletionTool[];
+  context?: Context[];
+  tools?: Tool[];
+  model?: string;
 }
 
 export interface CompletionResponse<T> {
@@ -53,11 +58,19 @@ export async function proseCompletion(
   const schema = zObj("A wrapper around the completion content", {
     content: zString("The completion content"),
   });
-  const result = await jsonCompletion(action, thread, input, schema, options);
-  return {
-    ...result,
-    content: result.content?.["content"] ?? undefined,
-  };
+  const { content, ...rest } = await jsonCompletion(
+    action,
+    thread,
+    input,
+    schema,
+    options
+  );
+
+  if (content) {
+    return { ...rest, content: content["content"] ?? undefined };
+  }
+
+  return rest;
 }
 
 /**
@@ -75,7 +88,7 @@ export async function jsonCompletion<T extends object>(
   thread: ChatCompletionMessageParam[] | string,
   input: string | object,
   schema: ZodType<T>,
-  options?: CompletionOptions
+  { context, tools, model = "gpt-4o-mini" }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   const actionError = validateAction(action);
   if (actionError) {
@@ -92,7 +105,20 @@ export async function jsonCompletion<T extends object>(
     input = JSON.stringify(input);
   }
 
-  return await apiCall(MODEL, action, thread, input, schema, options);
+  return await apiCall(
+    model,
+    action,
+    thread,
+    input,
+    schema,
+    context ?? [],
+    tools
+      ? tools.map((tool) => ({
+          ...tool,
+          parameters: tool.parameters ?? zObj("No parameters", {}),
+        }))
+      : []
+  );
 }
 
 async function apiCall<T extends object>(
@@ -101,7 +127,8 @@ async function apiCall<T extends object>(
   thread: ChatCompletionMessageParam[],
   input: string,
   schema: ZodType<T>,
-  { context, tools }: CompletionOptions = {}
+  context: Context[],
+  simpleTools: Required<Tool>[]
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const messages = createMessages(thread, input, context);
@@ -109,7 +136,7 @@ async function apiCall<T extends object>(
     model,
     messages,
     response_format: zodResponseFormat(schema, action),
-    tools,
+    tools: simpleTools.map((tool) => zodFunction(tool)),
   };
 
   while (true) {
@@ -145,7 +172,7 @@ function getClient() {
 function createMessages(
   thread: ChatCompletionMessageParam[],
   input: string,
-  context: CompletionOptions["context"] = []
+  context: Context[]
 ): ChatCompletionMessageParam[] {
   return [
     ...thread,
@@ -221,20 +248,21 @@ function errorToResponse(
   const errorType = getErrorType(error);
 
   if (errorType === "Too Long") {
-    externalLog.error("OpenAI Context Too Long", error);
+    externalLog.error("Context Too Long", error);
     return { error: "OpenAI Context Too Long" };
   }
 
   if (errorType !== "429") {
-    externalLog.error("OpenAI Non-Backoff Error", error);
+    externalLog.error("Non-Backoff Error", error);
     return { error: "OpenAI Non-Backoff Error" };
   }
 
   if (attempt >= MAX_RETRIES) {
-    externalLog.error("OpenAI Back Off Limit Exceeded", error);
+    externalLog.error("Back Off Limit Exceeded", error);
     return { error: "OpenAI Back Off Limit Exceeded" };
   }
 
+  // Retry
   return;
 }
 
@@ -268,15 +296,24 @@ function logLLMAction<T>(
   action: string,
   input: string,
   duration: number,
-  { usage, choices }: OpenAI.ChatCompletion,
+  apiResponse: OpenAI.ChatCompletion,
   response?: CompletionResponse<T>
 ) {
   try {
-    if (!usage) return;
+    if (!apiResponse?.usage) return;
 
-    const { total_tokens, prompt_tokens, completion_tokens } = usage;
-    const { cached_tokens = 0 } = usage.prompt_tokens_details ?? {};
-    const { finish_reason, message } = choices[0] ?? {};
+    const blob: Record<string, unknown> = {
+      action,
+      input,
+      duration,
+      apiResponse,
+      response,
+    };
+
+    const { total_tokens, prompt_tokens, completion_tokens } =
+      apiResponse.usage;
+    const { cached_tokens = 0 } = apiResponse.usage.prompt_tokens_details ?? {};
+    const { finish_reason, message } = apiResponse.choices[0] ?? {};
 
     const log: Record<string, unknown> = {
       name: action,
@@ -297,16 +334,11 @@ function logLLMAction<T>(
     }
 
     if (response) {
-      /*
-      For now, discard the thread to decrease the size of the log and stay under Azure limits.
-      A better long-term solutions would be to give the user more control via the storeCalls option.
-      They should be able to add to the same log, log separate with logFn or provide a separate logging function.
-      */
       const { thread, ...rest } = response;
       log["out"] = rest;
     }
 
-    externalLog.aggregate(action, log, [
+    externalLog.aggregate(action, log, blob, [
       "tokens",
       "inTokens",
       "outTokens",
@@ -314,7 +346,7 @@ function logLLMAction<T>(
       "ms",
     ]);
   } catch (error) {
-    externalLog.error("OpenAI_LogLLMAction", error);
+    externalLog.error("LogLLMAction", error);
   }
 }
 

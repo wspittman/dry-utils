@@ -148,11 +148,7 @@ function logDBAction(
   query?: string | SqlQuerySpec
 ) {
   try {
-    const ru = response.requestCharge;
-    const {
-      requestDurationInMs: ms,
-      totalResponsePayloadLengthInBytes: bytes,
-    } = response.diagnostics.clientSideRequestStatistics;
+    const { ru, ms, bytes, count, rest } = extractResponse(response);
 
     const log: Record<string, unknown> = {
       name: action,
@@ -162,22 +158,60 @@ function logDBAction(
       bytes,
     };
 
+    const blob: Record<string, unknown> = {
+      action,
+      container,
+    };
+
     if (pkey) {
-      log["pkey"] = pkey;
+      log["pkey"] = blob["pkey"] = pkey;
     }
 
     if (query) {
-      log["query"] = typeof query === "string" ? query : query.query;
+      // No query.parameters to avoid IDs
+      log["query"] = blob["query"] =
+        typeof query === "string" ? query : query.query;
     }
 
-    if ("resources" in response) {
-      log["count"] = response.resources.length;
+    if (count != null) {
+      log["count"] = count;
+      blob["response"] = {
+        ...rest,
+        resourceCount: count,
+      };
+    } else {
+      blob["response"] = rest;
     }
 
-    externalLog.aggregate(action, log, ["ru", "ms", "bytes"]);
+    externalLog.aggregate(action, log, blob, ["ru", "ms", "bytes"]);
   } catch (error) {
     externalLog.error("LogDBAction", error);
   }
+}
+
+function extractResponse(
+  response: ItemResponse<ItemDefinition> | FeedResponse<unknown>
+) {
+  const ru = response.requestCharge;
+  const { requestDurationInMs, totalResponsePayloadLengthInBytes } =
+    response.diagnostics.clientSideRequestStatistics;
+
+  // No response .item, .resource, .resources to avoid IDs
+  const { item, resource, resources, ...rest } = response as unknown as {
+    item?: unknown;
+    resource?: unknown;
+    resources?: unknown[];
+    [key: string]: unknown;
+  };
+  const count = resources?.length;
+
+  return {
+    ru,
+    ms: requestDurationInMs,
+    bytes: totalResponsePayloadLengthInBytes,
+    count,
+    rest,
+  };
 }
 
 // #endregion
