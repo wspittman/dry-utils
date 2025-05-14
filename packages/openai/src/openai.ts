@@ -112,12 +112,10 @@ export async function jsonCompletion<T extends object>(
     input,
     schema,
     context ?? [],
-    tools
-      ? tools.map((tool) => ({
-          ...tool,
-          parameters: tool.parameters ?? zObj("No parameters", {}),
-        }))
-      : []
+    tools?.map((tool) => ({
+      ...tool,
+      parameters: tool.parameters ?? zObj("No parameters", {}),
+    }))
   );
 }
 
@@ -128,7 +126,7 @@ async function apiCall<T extends object>(
   input: string,
   schema: ZodType<T>,
   context: Context[],
-  simpleTools: Required<Tool>[]
+  simpleTools?: Required<Tool>[]
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const messages = createMessages(thread, input, context);
@@ -136,7 +134,7 @@ async function apiCall<T extends object>(
     model,
     messages,
     response_format: zodResponseFormat(schema, action),
-    tools: simpleTools.map((tool) => zodFunction(tool)),
+    tools: simpleTools?.map((tool) => zodFunction(tool)) ?? undefined,
   };
 
   while (true) {

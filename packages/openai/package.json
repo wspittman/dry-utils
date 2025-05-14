@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-openai",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Personal, hyper-specific collection of OpenAI API utilities",
   "type": "module",
   "sideEffects": false,
