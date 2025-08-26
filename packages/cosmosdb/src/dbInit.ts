@@ -3,7 +3,7 @@ import { CosmosClient } from "@azure/cosmos";
 import fs from "node:fs";
 import https from "node:https";
 import { Container } from "./container.ts";
-import { externalLog } from "./externalLog.ts";
+import { diag } from "./diagnostics.ts";
 
 export interface ContainerOptions {
   name: string;
@@ -64,7 +64,7 @@ export async function connectDB({
     throw new Error(`Failed to initialize containers: ${failures.join(", ")}`);
   }
 
-  externalLog.log("ConnectDB", "CosmosDB connected");
+  diag.log("ConnectDB", "CosmosDB connected");
 
   return containerMap;
 }
@@ -90,14 +90,14 @@ async function createContainer(
     return new Container(name, internalContainer);
   } catch (error) {
     if (attempt < MAX_CREATE_ATTEMPTS) {
-      externalLog.error(
+      diag.error(
         "CreateContainer",
         `Failed to create container: ${name} (attempt ${attempt})`
       );
       return createContainer(database, options, attempt + 1);
     }
 
-    externalLog.error("CreateContainer", error);
+    diag.error("CreateContainer", error);
     return;
   }
 }

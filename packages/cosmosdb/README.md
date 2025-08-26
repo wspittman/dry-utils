@@ -33,7 +33,7 @@ npm install dry-utils-cosmosdb
 - **Container Management**: Simplified container creation and initialization
 - **Query Builder**: Helper class for building SQL queries with best practices
 - **CRUD Operations**: Streamlined item operations (create, read, update, delete)
-- **Logging**: Built-in logging for database operations with RU consumption tracking
+- **Logging**: Emits events for database operations via `node:diagnostics_channel`, including RU consumption tracking.
 
 ## Usage
 
@@ -110,20 +110,40 @@ const activeUsers = await container.query(
 );
 ```
 
-### Configuring Logging
+### Subscribing to Logging Events
 
-Set up custom logging for database operations:
+This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostics_channel.html) to publish log, error, and aggregatable events. To consume them, you need to subscribe to the channels exported by the package.
+
+- `COSMOSDB_LOG_CHANNEL`: For general logging (e.g., connection status).
+- `COSMOSDB_ERR_CHANNEL`: For errors encountered during database operations.
+- `COSMOSDB_AGG_CHANNEL`: For aggregatable logs and metrics.
+
+The message payload for each channel is different:
+
+- `LOG` and `ERR`: `{ tag: string, val: unknown }`
+- `AGG`: `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`
 
 ```typescript
-import { setDBLogging } from "dry-utils-cosmosdb";
+import diagnostics_channel from "node:diagnostics_channel";
+import {
+  COSMOSDB_LOG_CHANNEL,
+  COSMOSDB_ERR_CHANNEL,
+  COSMOSDB_AGG_CHANNEL,
+} from "dry-utils-cosmosdb";
 
-// Configure custom logging
-setDBLogging({
-  logFn: (label, ...data) => {
-    console.log(`[DB:${label}]`, ...data);
-  },
-  errorFn: (label, ...data) => {
-    console.error(`[DB ERROR:${label}]`, ...data);
-  },
+// Subscribe to log events
+diagnostics_channel.subscribe(COSMOSDB_LOG_CHANNEL, ({ tag, val }) => {
+  console.log(`[DB LOG] ${tag}:`, val);
+});
+
+// Subscribe to error events
+diagnostics_channel.subscribe(COSMOSDB_ERR_CHANNEL, ({ tag, val }) => {
+  console.error(`[DB ERROR] ${tag}:`, val);
+});
+
+// Subscribe to aggregate performance events
+diagnostics_channel.subscribe(COSMOSDB_AGG_CHANNEL, ({ tag, metrics }) => {
+  console.log(`[DB PERF] ${tag}:`, metrics);
+  // Example: [DB PERF] UPSERT: { ru: 1.29, ms: 12.3, bytes: 123, count: 1 }
 });
 ```

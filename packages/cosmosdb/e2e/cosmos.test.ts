@@ -1,8 +1,15 @@
-import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
-import { after, afterEach, describe, test } from "node:test";
+import diagnostics_channel from "node:diagnostics_channel";
 import path from "node:path";
-import { Container, dbConnect, Query, setDBLogging } from "../src/index.ts";
+import { after, afterEach, describe, mock, test } from "node:test";
+import {
+  Container,
+  COSMOSDB_AGG_CHANNEL,
+  COSMOSDB_ERR_CHANNEL,
+  COSMOSDB_LOG_CHANNEL,
+  dbConnect,
+  Query,
+} from "../src/index.ts";
 
 // Local Emulator config, default key not private
 const DATABASE_URL = "https://localhost:8081";
@@ -19,16 +26,30 @@ export interface Model {
 }
 
 const id = "test-item-1";
-const dbActionLog = { log: 1, ag: 1 };
+const dbActionLog = { agg: 1 };
 
 describe("CosmosDB E2E Flow", () => {
+  const logFn = mock.fn();
+  const errorFn = mock.fn();
+  const aggFn = mock.fn();
+  diagnostics_channel.subscribe(COSMOSDB_LOG_CHANNEL, logFn);
+  diagnostics_channel.subscribe(COSMOSDB_ERR_CHANNEL, errorFn);
+  diagnostics_channel.subscribe(COSMOSDB_AGG_CHANNEL, aggFn);
+
+  function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
+    assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);
+    assert.equal(errorFn.mock.callCount(), error, `errorFn count ${msg}`);
+    assert.equal(aggFn.mock.callCount(), agg, `aggFn count ${msg}`);
+  }
+
   // Note: Each test is dependent on the previous one
   const containerName = `Test_${Date.now()}`;
-  const { logOptions, logCounts, logReset } = mockExternalLog();
   let container: Container<Model> | undefined = undefined;
 
   afterEach(() => {
-    logReset();
+    logFn.mock.resetCalls();
+    errorFn.mock.resetCalls();
+    aggFn.mock.resetCalls();
   });
 
   after(() => {
@@ -41,8 +62,6 @@ describe("CosmosDB E2E Flow", () => {
   });
 
   test("dbConnect", async () => {
-    setDBLogging(logOptions);
-
     const containers = await dbConnect({
       endpoint: DATABASE_URL,
       key: DATABASE_KEY,
