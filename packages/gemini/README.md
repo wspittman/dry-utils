@@ -23,7 +23,7 @@ npm install dry-utils-gemini
 - **Prose Completions**: Generate text responses with simple API
 - **Automatic Retries**: Built-in exponential backoff for rate limiting
 - **Error Handling**: Comprehensive error handling for common API issues
-- **Logging**: Configurable logging for API calls with performance metrics
+- **Logging**: Detailed logging via `node:diagnostics_channel` for API calls, errors, and performance metrics.
 
 ## Usage
 
@@ -96,20 +96,35 @@ const userSchema = zObj("User information", {
 });
 ```
 
-### Configuring Logging
+### Logging
 
-Configure how API calls are logged:
+This package uses `node:diagnostics_channel` for logging. You can subscribe to these channels to receive log, error, and aggregate metric events.
 
+- `GEMINI_LOG_CHANNEL`: For general log messages. The message is an object `{ tag: string, val: unknown }`.
+- `GEMINI_ERR_CHANNEL`: For error messages. The message is an object `{ tag: string, val: unknown }`.
+- `GEMINI_AGG_CHANNEL`: For aggregated metrics on API calls. The message is an object `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`.
+
+Example:
 ```typescript
-import { setAILogging } from "dry-utils-gemini";
+import { subscribe } from "node:diagnostics_channel";
+import {
+  GEMINI_LOG_CHANNEL,
+  GEMINI_ERR_CHANNEL,
+  GEMINI_AGG_CHANNEL,
+} from "dry-utils-gemini";
 
-// Use custom logging function
-setAILogging({
-  logFn: (label, ...data) => {
-    console.log(`[AI-${label}]`, ...data);
-  },
-  errorFn: (label, ...data) => {
-    console.error(`[AI-ERROR-${label}]`, ...data);
-  },
+// Subscribe to log events
+subscribe(GEMINI_LOG_CHANNEL, ({ tag, val }) => {
+  console.log(`[Gemini Log: ${tag}]`, val);
+});
+
+// Subscribe to error events
+subscribe(GEMINI_ERR_CHANNEL, ({ tag, val }) => {
+  console.error(`[Gemini Error: ${tag}]`, val);
+});
+
+// Subscribe to aggregate events
+subscribe(GEMINI_AGG_CHANNEL, ({ tag, dense, metrics }) => {
+  console.log(`[Gemini Aggregate: ${tag}]`, { dense, metrics });
 });
 ```

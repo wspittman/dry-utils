@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import diagnostics_channel from "node:diagnostics_channel";
+import { subscribe } from "node:diagnostics_channel";
 import path from "node:path";
 import { after, afterEach, describe, mock, test } from "node:test";
 import {
@@ -32,9 +32,9 @@ describe("CosmosDB E2E Flow", () => {
   const logFn = mock.fn();
   const errorFn = mock.fn();
   const aggFn = mock.fn();
-  diagnostics_channel.subscribe(COSMOSDB_LOG_CHANNEL, logFn);
-  diagnostics_channel.subscribe(COSMOSDB_ERR_CHANNEL, errorFn);
-  diagnostics_channel.subscribe(COSMOSDB_AGG_CHANNEL, aggFn);
+  subscribe(COSMOSDB_LOG_CHANNEL, logFn);
+  subscribe(COSMOSDB_ERR_CHANNEL, errorFn);
+  subscribe(COSMOSDB_AGG_CHANNEL, aggFn);
 
   function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
     assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);

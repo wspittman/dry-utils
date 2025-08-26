@@ -1,4 +1,4 @@
-import diagnostics_channel, { type Channel } from "node:diagnostics_channel";
+import { channel, type Channel } from "node:diagnostics_channel";
 
 /*
 Just copy/paste this file to other libraries.
@@ -20,9 +20,9 @@ class Diagnostics {
   private aggChannel: Channel;
 
   constructor() {
-    this.logChannel = diagnostics_channel.channel(GEMINI_LOG_CHANNEL);
-    this.errChannel = diagnostics_channel.channel(GEMINI_ERR_CHANNEL);
-    this.aggChannel = diagnostics_channel.channel(GEMINI_AGG_CHANNEL);
+    this.logChannel = channel(GEMINI_LOG_CHANNEL);
+    this.errChannel = channel(GEMINI_ERR_CHANNEL);
+    this.aggChannel = channel(GEMINI_AGG_CHANNEL);
   }
 
   log(tag: string, val: unknown): void {

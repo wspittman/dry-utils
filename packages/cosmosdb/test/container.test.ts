@@ -6,7 +6,7 @@ import {
   type SqlQuerySpec,
 } from "@azure/cosmos";
 import assert from "node:assert/strict";
-import diagnostics_channel from "node:diagnostics_channel";
+import { subscribe } from "node:diagnostics_channel";
 import { beforeEach, describe, mock, test } from "node:test";
 import {
   Container,
@@ -127,9 +127,9 @@ describe("DB: Container", () => {
   const logFn = mock.fn();
   const errFn = mock.fn();
   const aggFn = mock.fn();
-  diagnostics_channel.subscribe(COSMOSDB_LOG_CHANNEL, logFn);
-  diagnostics_channel.subscribe(COSMOSDB_ERR_CHANNEL, errFn);
-  diagnostics_channel.subscribe(COSMOSDB_AGG_CHANNEL, aggFn);
+  subscribe(COSMOSDB_LOG_CHANNEL, logFn);
+  subscribe(COSMOSDB_ERR_CHANNEL, errFn);
+  subscribe(COSMOSDB_AGG_CHANNEL, aggFn);
 
   beforeEach(() => {
     logFn.mock.resetCalls();

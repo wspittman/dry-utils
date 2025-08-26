@@ -124,7 +124,7 @@ The message payload for each channel is different:
 - `AGG`: `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`
 
 ```typescript
-import diagnostics_channel from "node:diagnostics_channel";
+import { subscribe } from "node:diagnostics_channel";
 import {
   COSMOSDB_LOG_CHANNEL,
   COSMOSDB_ERR_CHANNEL,
@@ -132,17 +132,17 @@ import {
 } from "dry-utils-cosmosdb";
 
 // Subscribe to log events
-diagnostics_channel.subscribe(COSMOSDB_LOG_CHANNEL, ({ tag, val }) => {
+subscribe(COSMOSDB_LOG_CHANNEL, ({ tag, val }) => {
   console.log(`[DB LOG] ${tag}:`, val);
 });
 
 // Subscribe to error events
-diagnostics_channel.subscribe(COSMOSDB_ERR_CHANNEL, ({ tag, val }) => {
+subscribe(COSMOSDB_ERR_CHANNEL, ({ tag, val }) => {
   console.error(`[DB ERROR] ${tag}:`, val);
 });
 
 // Subscribe to aggregate performance events
-diagnostics_channel.subscribe(COSMOSDB_AGG_CHANNEL, ({ tag, metrics }) => {
+subscribe(COSMOSDB_AGG_CHANNEL, ({ tag, metrics }) => {
   console.log(`[DB PERF] ${tag}:`, metrics);
   // Example: [DB PERF] UPSERT: { ru: 1.29, ms: 12.3, bytes: 123, count: 1 }
 });

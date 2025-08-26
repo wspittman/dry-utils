@@ -55,18 +55,18 @@ This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostic
 Here is an example of how to subscribe to the channels and see the output from the `batch` function.
 
 ```typescript
-import diagnostics_channel from "node:diagnostics_channel";
+import { subscribe } from "node:diagnostics_channel";
 import { batch, ASYNC_LOG_CHANNEL, ASYNC_ERR_CHANNEL } from "dry-utils-async";
 
 // Subscribe to log events
-diagnostics_channel.subscribe(ASYNC_LOG_CHANNEL, ({ tag, val }) => {
+subscribe(ASYNC_LOG_CHANNEL, ({ tag, val }) => {
   // Example: [LOG] Batch_ProcessUsers: 10
   // Example: [LOG] Batch_ProcessUsers: Complete
   console.log(`[LOG] ${tag}:`, val);
 });
 
 // Subscribe to error events
-diagnostics_channel.subscribe(ASYNC_ERR_CHANNEL, ({ tag, val }) => {
+subscribe(ASYNC_ERR_CHANNEL, ({ tag, val }) => {
   // Example: [ERROR] Batch_ProcessUsers: at values[4]: Error: Invalid ID: -5
   console.error(`[ERROR] ${tag}:`, val);
 });
