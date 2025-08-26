@@ -1,8 +1,13 @@
 import { type Content } from "@google/genai";
-import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
-import { beforeEach, describe, test } from "node:test";
+import { subscribe } from "node:diagnostics_channel";
+import { beforeEach, describe, mock, test } from "node:test";
 import { z } from "zod";
+import {
+  GEMINI_AGG_CHANNEL,
+  GEMINI_ERR_CHANNEL,
+  GEMINI_LOG_CHANNEL,
+} from "../src/diagnostics.ts";
 import {
   jsonCompletion,
   proseCompletion,
@@ -10,7 +15,6 @@ import {
   type CompletionResponse,
   type Tool,
 } from "../src/gemini.ts";
-import { setAILogging } from "../src/index.ts";
 import { MockGeminiSDK, type Mode } from "./mockGeminiSDK.ts";
 
 const prompt = "system prompt";
@@ -115,26 +119,30 @@ const fullParams: Required<CompletionParams> = {
 
 describe("AI: Gemini", () => {
   const geminiSDK = new MockGeminiSDK();
-  const { logOptions, logCounts, logReset } = mockExternalLog();
-  setAILogging(logOptions);
+  const logFn = mock.fn();
+  const errFn = mock.fn();
+  const aggFn = mock.fn();
+  subscribe(GEMINI_LOG_CHANNEL, logFn);
+  subscribe(GEMINI_ERR_CHANNEL, errFn);
+  subscribe(GEMINI_AGG_CHANNEL, aggFn);
 
-  type LogParams = Parameters<typeof logCounts>[0];
-  const errLog: LogParams = { error: 1 };
-  const defaultLog: LogParams = { log: 1, ag: 1 };
+  const errLog = { error: 1, gem: 1 };
+  const defaultLog = { ag: 1, gem: 1 };
 
   function clearCounts() {
-    logReset();
+    logFn.mock.resetCalls();
+    errFn.mock.resetCalls();
+    aggFn.mock.resetCalls();
     geminiSDK.resetCalls();
   }
 
   beforeEach(clearCounts);
 
-  function callCounts(params: LogParams) {
-    const { log = 0, ag = 0 } = params;
-    // This just works out for gemini.ts
-    const geminiCall = log - ag + 1;
-    logCounts(params);
-    assert.equal(geminiSDK.getCallCount(), geminiCall, "gemini call count");
+  function callCounts({ log = 0, error = 0, ag = 0, gem = 0 }) {
+    assert.equal(logFn.mock.callCount(), log, "logFn count");
+    assert.equal(errFn.mock.callCount(), error, "errFn count");
+    assert.equal(aggFn.mock.callCount(), ag, "aggFn count");
+    assert.equal(geminiSDK.getCallCount(), gem, "gemini call count");
   }
 
   function validateResponse(
@@ -207,15 +215,19 @@ describe("AI: Gemini", () => {
 
   const cases: [
     CompletionParams | Mode,
-    LogParams,
+    Parameters<typeof callCounts>[0],
     CompletionResponse<unknown> | string
   ][] = [
-    ["rateLimit", { error: 1, log: 3 }, "Gemini Back Off Limit Exceeded"],
+    [
+      "rateLimit",
+      { error: 1, log: 3, gem: 4 },
+      "Gemini Back Off Limit Exceeded",
+    ],
     ["error", errLog, "Gemini Non-Backoff Error"],
     ["refusal", defaultLog, `Refusal: SAFETY: undefined`],
     ["unknown", defaultLog, "Unexpected Finish Reason: UNKNOWN: undefined"],
     [{}, defaultLog, defaultResponse],
-    ["rateLimitTemp", { ag: 1, log: 2 }, defaultResponse],
+    ["rateLimitTemp", { ag: 1, log: 1, gem: 2 }, defaultResponse],
     [
       { mode: "toolCall", tools: fullParams.tools, output: toolOutput },
       defaultLog,
