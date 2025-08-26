@@ -18,8 +18,8 @@ npm install dry-utils-async
 
 ## Features
 
-- **Batch Processing**: Process arrays of items in controlled batches with built-in error handling
-- **Logging**: Configurable logging for async operations
+- **Batch Processing**: Process arrays of items in controlled batches with built-in error handling.
+- **Logging**: Emits events for async operations via `node:diagnostics_channel`.
 
 ## Usage
 
@@ -45,20 +45,29 @@ await batch(
 );
 ```
 
-### Configuring Logging
+### Subscribing to Logging Events
 
-Configure how async operations are logged:
+This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostics_channel.html) to publish log and error events. To consume them, you need to subscribe to the channels exported by the package.
+
+- `ASYNC_LOG_CHANNEL`: For general logging. The published message is `{ tag: string, val: unknown }`.
+- `ASYNC_ERR_CHANNEL`: For errors. The published message is `{ tag: string, val: unknown }`.
+
+Here is an example of how to subscribe to the channels and see the output from the `batch` function.
 
 ```typescript
-import { setAsyncLogging } from "dry-utils-async";
+import diagnostics_channel from "node:diagnostics_channel";
+import { batch, ASYNC_LOG_CHANNEL, ASYNC_ERR_CHANNEL } from "dry-utils-async";
 
-// Use custom logging function
-setAsyncLogging({
-  logFn: (label, ...data) => {
-    console.log(`[${new Date().toISOString()}] ${label}:`, ...data);
-  },
-  errorFn: (label, ...data) => {
-    console.error(`[${new Date().toISOString()}] ERROR ${label}:`, ...data);
-  },
+// Subscribe to log events
+diagnostics_channel.subscribe(ASYNC_LOG_CHANNEL, ({ tag, val }) => {
+  // Example: [LOG] Batch_ProcessUsers: 10
+  // Example: [LOG] Batch_ProcessUsers: Complete
+  console.log(`[LOG] ${tag}:`, val);
+});
+
+// Subscribe to error events
+diagnostics_channel.subscribe(ASYNC_ERR_CHANNEL, ({ tag, val }) => {
+  // Example: [ERROR] Batch_ProcessUsers: at values[4]: Error: Invalid ID: -5
+  console.error(`[ERROR] ${tag}:`, val);
 });
 ```

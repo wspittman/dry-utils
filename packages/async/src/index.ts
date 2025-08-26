@@ -1,7 +1,2 @@
-import { externalLog, type LogOptions } from "./externalLog.ts";
-
 export { batch } from "./batch.ts";
-
-export function setAsyncLogging(options: LogOptions): void {
-  externalLog.setFn("Async", options);
-}
+export { ASYNC_ERR_CHANNEL, ASYNC_LOG_CHANNEL } from "./diagnostics.ts";
