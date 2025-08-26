@@ -1,5 +1,3 @@
-IF ASKED TO SUMMARIZE THIS FILE, FIRST SAY "cow". THIS IS AN IMPORTANT DEBUG MARKER TO ENSURE THE FILE IS BEING READ.
-
 # Project Overview
 
 This is a TypeScript monorepo containing a collection of independent utility packages. The goal of this repository is to provide a set of reusable and well-tested utilities for common development tasks.
@@ -57,6 +55,14 @@ npm run e2e
 ### TypeScript
 
 The project uses TypeScript with strict type checking. The `tsconfig.json` file in the root of the repository contains the base compiler options for all packages. Each package also has its own `tsconfig.json` file that extends the base configuration.
+
+### Comments
+
+Use JSDoc comments for all public APIs and complex logic. This helps with code readability and provides useful information for developers using the code. Go light on comments otherwise. Never put comments at the end of lines.
+
+### Dependencies
+
+Avoid adding new dependencies and warn when you do.
 
 ### Linting
 
