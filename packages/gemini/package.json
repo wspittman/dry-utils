@@ -44,8 +44,7 @@
   "dependencies": {
     "@google/genai": "^0.13.0",
     "zod": "^3.24.2",
-    "zod-to-json-schema": "^3.24.5",
-    "dry-utils-shared": "0.2.0"
+    "zod-to-json-schema": "^3.24.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
