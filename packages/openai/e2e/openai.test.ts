@@ -1,26 +1,41 @@
-import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
-import { afterEach, describe, test } from "node:test";
+import { subscribe } from "node:diagnostics_channel";
+import { afterEach, describe, mock, test } from "node:test";
 import type { ChatCompletionMessageParam } from "openai/resources";
-import { proseCompletion, setAILogging, zBoolean, zObj } from "../src/index.ts";
+import {
+  OPENAI_AGG_CHANNEL,
+  OPENAI_ERR_CHANNEL,
+  OPENAI_LOG_CHANNEL,
+  proseCompletion,
+  zBoolean,
+  zObj,
+} from "../src/index.ts";
 
 // OPENAI_API_KEY present in .env, referenced directly in OpenAI SDK
 
-const aiActionLog = { log: 1, ag: 1 };
+const aiActionLog = { agg: 1 };
 
 describe("OpenAI E2E Flow", () => {
   // Note: Each test is dependent on the previous one
-  const { logOptions, logCounts, logReset } = mockExternalLog();
   let history: ChatCompletionMessageParam[] = [];
 
-  afterEach(() => {
-    logReset();
-  });
+  const logFn = mock.fn();
+  const errorFn = mock.fn();
+  const aggFn = mock.fn();
+  subscribe(OPENAI_LOG_CHANNEL, logFn);
+  subscribe(OPENAI_ERR_CHANNEL, errorFn);
+  subscribe(OPENAI_AGG_CHANNEL, aggFn);
 
-  test("setAILogging", () => {
-    setAILogging(logOptions);
-    assert.ok(true);
-    logCounts({}, "setAILogging");
+  function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
+    assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);
+    assert.equal(errorFn.mock.callCount(), error, `errorFn count ${msg}`);
+    assert.equal(aggFn.mock.callCount(), agg, `aggFn count ${msg}`);
+  }
+
+  afterEach(() => {
+    logFn.mock.resetCalls();
+    errorFn.mock.resetCalls();
+    aggFn.mock.resetCalls();
   });
 
   test("proseCompletion: minimal", async () => {

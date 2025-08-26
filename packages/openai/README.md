@@ -23,7 +23,7 @@ npm install dry-utils-openai
 - **Prose Completions**: Generate text responses with simple API
 - **Automatic Retries**: Built-in exponential backoff for rate limiting
 - **Error Handling**: Comprehensive error handling for common API issues
-- **Logging**: Configurable logging for API calls with performance metrics
+- **Logging**: Detailed logging via `node:diagnostics_channel` for API calls, errors, and performance metrics.
 
 ## Usage
 
@@ -96,20 +96,35 @@ const userSchema = zObj("User information", {
 });
 ```
 
-### Configuring Logging
+### Logging
 
-Configure how API calls are logged:
+This package uses `node:diagnostics_channel` for logging. You can subscribe to these channels to receive log, error, and aggregate metric events.
 
+- `OPENAI_LOG_CHANNEL`: For general log messages. The message is an object `{ tag: string, val: unknown }`.
+- `OPENAI_ERR_CHANNEL`: For error messages. The message is an object `{ tag: string, val: unknown }`.
+- `OPENAI_AGG_CHANNEL`: For aggregated metrics on API calls. The message is an object `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`.
+
+Example:
 ```typescript
-import { setAILogging } from "dry-utils-openai";
+import { subscribe } from "node:diagnostics_channel";
+import {
+  OPENAI_LOG_CHANNEL,
+  OPENAI_ERR_CHANNEL,
+  OPENAI_AGG_CHANNEL,
+} from "dry-utils-openai";
 
-// Use custom logging function
-setAILogging({
-  logFn: (label, ...data) => {
-    console.log(`[AI-${label}]`, ...data);
-  },
-  errorFn: (label, ...data) => {
-    console.error(`[AI-ERROR-${label}]`, ...data);
-  },
+// Subscribe to log events
+subscribe(OPENAI_LOG_CHANNEL, ({ tag, val }) => {
+  console.log(`[OpenAI Log: ${tag}]`, val);
+});
+
+// Subscribe to error events
+subscribe(OPENAI_ERR_CHANNEL, ({ tag, val }) => {
+  console.error(`[OpenAI Error: ${tag}]`, val);
+});
+
+// Subscribe to aggregate events
+subscribe(OPENAI_AGG_CHANNEL, ({ tag, dense, metrics }) => {
+  console.log(`[OpenAI Aggregate: ${tag}]`, { dense, metrics });
 });
 ```

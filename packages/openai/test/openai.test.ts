@@ -1,10 +1,14 @@
-import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
-import { beforeEach, describe, test } from "node:test";
+import { subscribe } from "node:diagnostics_channel";
+import { beforeEach, describe, mock, test } from "node:test";
 import type { ChatCompletionMessageParam } from "openai/resources";
 import { type ParsedChatCompletionMessage } from "openai/resources/beta/chat/completions";
 import { z } from "zod";
-import { setAILogging } from "../src/index.ts";
+import {
+  OPENAI_AGG_CHANNEL,
+  OPENAI_ERR_CHANNEL,
+  OPENAI_LOG_CHANNEL,
+} from "../src/diagnostics.ts";
 import {
   type CompletionOptions,
   type CompletionResponse,
@@ -105,26 +109,30 @@ const fullParams: Required<CompletionParams> = {
 
 describe("AI: OpenAI", () => {
   const openAISDK = new MockOpenAISDK();
-  const { logOptions, logCounts, logReset } = mockExternalLog();
-  setAILogging(logOptions);
+  const logFn = mock.fn();
+  const errFn = mock.fn();
+  const aggFn = mock.fn();
+  subscribe(OPENAI_LOG_CHANNEL, logFn);
+  subscribe(OPENAI_ERR_CHANNEL, errFn);
+  subscribe(OPENAI_AGG_CHANNEL, aggFn);
 
-  type LogParams = Parameters<typeof logCounts>[0];
-  const errLog: LogParams = { error: 1 };
-  const defaultLog: LogParams = { log: 1, ag: 1 };
+  const errLog = { error: 1, opn: 1 };
+  const defaultLog = { ag: 1, opn: 1 };
 
   function clearCounts() {
-    logReset();
+    logFn.mock.resetCalls();
+    errFn.mock.resetCalls();
+    aggFn.mock.resetCalls();
     openAISDK.resetCalls();
   }
 
   beforeEach(clearCounts);
 
-  function callCounts(params: LogParams) {
-    const { log = 0, ag = 0 } = params;
-    // This just works out for openai.ts
-    const parse = log - ag + 1;
-    logCounts(params);
-    assert.equal(openAISDK.getCallCount(), parse, "parse count");
+  function callCounts({ log = 0, error = 0, ag = 0, opn = 0 }) {
+    assert.equal(logFn.mock.callCount(), log, "logFn count");
+    assert.equal(errFn.mock.callCount(), error, "errFn count");
+    assert.equal(aggFn.mock.callCount(), ag, "aggFn count");
+    assert.equal(openAISDK.getCallCount(), opn, "parse count");
   }
 
   function validateResponse(
@@ -172,7 +180,7 @@ describe("AI: OpenAI", () => {
       result.error,
       `Invalid action name "${action}". Must match pattern ^[a-zA-Z0-9_-]+$`
     );
-    logCounts({ error: 1 });
+    callCounts({ error: 1 });
   });
 
   const paramCases: [string, CompletionParams][] = [
@@ -208,17 +216,17 @@ describe("AI: OpenAI", () => {
 
   const cases: [
     CompletionParams | Mode,
-    LogParams,
+    Parameters<typeof callCounts>[0],
     CompletionResponse<unknown> | string
   ][] = [
-    ["errRate", { error: 1, log: 3 }, "OpenAI Back Off Limit Exceeded"],
+    ["errRate", { error: 1, log: 3, opn: 4 }, "OpenAI Back Off Limit Exceeded"],
     ["errLarge", errLog, "OpenAI Context Too Long"],
     ["errLong", errLog, "OpenAI Context Too Long"],
     ["error", errLog, "OpenAI Non-Backoff Error"],
     ["refusal", defaultLog, `Refusal: ${encodedOutput}`],
     ["unknown", defaultLog, "Unexpected Finish Reason: unknown"],
     [{}, defaultLog, defaultResponse],
-    ["errRateTemp", { ag: 1, log: 2 }, defaultResponse],
+    ["errRateTemp", { ag: 1, log: 1, opn: 2 }, defaultResponse],
     [
       { mode: "tool_calls", tools: fullParams.tools, parsedOutput: [] },
       defaultLog,

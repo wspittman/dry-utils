@@ -7,7 +7,7 @@ import type {
   ParsedFunctionToolCall,
 } from "openai/resources/beta/chat/completions";
 import type { ZodType } from "zod";
-import { externalLog } from "./externalLog.ts";
+import { diag } from "./diagnostics.ts";
 import { zObj, zString } from "./zod.ts";
 
 const MAX_RETRIES = 3;
@@ -231,7 +231,7 @@ function extractToolCall({ function: fn }: ParsedFunctionToolCall) {
 function validateAction(action: string) {
   // This regex comes from OpenAI, as required by response_format.json_schema.name
   if (!/^[a-zA-Z0-9_-]+$/.test(action)) {
-    externalLog.error("OpenAI Invalid Action Name", action);
+    diag.error("OpenAI Invalid Action Name", action);
     return {
       error: `Invalid action name "${action}". Must match pattern ^[a-zA-Z0-9_-]+$`,
     };
@@ -246,17 +246,17 @@ function errorToResponse(
   const errorType = getErrorType(error);
 
   if (errorType === "Too Long") {
-    externalLog.error("Context Too Long", error);
+    diag.error("Context Too Long", error);
     return { error: "OpenAI Context Too Long" };
   }
 
   if (errorType !== "429") {
-    externalLog.error("Non-Backoff Error", error);
+    diag.error("Non-Backoff Error", error);
     return { error: "OpenAI Non-Backoff Error" };
   }
 
   if (attempt >= MAX_RETRIES) {
-    externalLog.error("Back Off Limit Exceeded", error);
+    diag.error("Back Off Limit Exceeded", error);
     return { error: "OpenAI Back Off Limit Exceeded" };
   }
 
@@ -280,7 +280,7 @@ function getErrorType(error: unknown): "429" | "Too Long" | "Other" {
 }
 
 async function backoff(action: string, attempt: number) {
-  externalLog.log(`OpenAI_${action}`, `backoff attempt ${attempt}`);
+  diag.log(`OpenAI_${action}`, `backoff attempt ${attempt}`);
   const backoff = INITIAL_BACKOFF * Math.pow(2, attempt);
   const jitter = Math.random() * 0.1 * backoff;
   return setTimeout(backoff + jitter, true);
@@ -313,7 +313,7 @@ function logLLMAction<T>(
     const { cached_tokens = 0 } = apiResponse.usage.prompt_tokens_details ?? {};
     const { finish_reason, message } = apiResponse.choices[0] ?? {};
 
-    const log: Record<string, unknown> = {
+    const dense: Record<string, unknown> = {
       name: action,
       in: input.length > 100 ? input.slice(0, 97) + "..." : input,
       tokens: total_tokens,
@@ -324,27 +324,28 @@ function logLLMAction<T>(
     };
 
     if (finish_reason !== "stop") {
-      log["finishReason"] = finish_reason;
+      dense["finishReason"] = finish_reason;
     }
 
     if (message?.refusal) {
-      log["refusal"] = message.refusal;
+      dense["refusal"] = message.refusal;
     }
 
     if (response) {
       const { thread, ...rest } = response;
-      log["out"] = rest;
+      dense["out"] = rest;
     }
 
-    externalLog.aggregate(action, log, blob, [
-      "tokens",
-      "inTokens",
-      "outTokens",
-      "cacheTokens",
-      "ms",
-    ]);
+    const metrics: Record<string, number> = {};
+    ["tokens", "inTokens", "outTokens", "cacheTokens", "ms"].forEach((x) => {
+      if (typeof dense[x] === "number") {
+        metrics[x] = dense[x];
+      }
+    });
+
+    diag.aggregate(action, blob, dense, metrics);
   } catch (error) {
-    externalLog.error("LogLLMAction", error);
+    diag.error("LogLLMAction", error);
   }
 }
 
