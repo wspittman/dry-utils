@@ -1,7 +1,7 @@
 import type { ContainerRequest, Database, ItemDefinition } from "@azure/cosmos";
 import { CosmosClient } from "@azure/cosmos";
-import fs from "fs";
-import https from "https";
+import fs from "node:fs";
+import https from "node:https";
 import { Container } from "./container.ts";
 import { externalLog } from "./externalLog.ts";
 

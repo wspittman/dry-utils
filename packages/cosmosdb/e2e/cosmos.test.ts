@@ -1,7 +1,7 @@
 import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
 import { after, afterEach, describe, test } from "node:test";
-import path from "path";
+import path from "node:path";
 import { Container, dbConnect, Query, setDBLogging } from "../src/index.ts";
 
 // Local Emulator config, default key not private
