@@ -6,9 +6,8 @@ import {
 } from "@google/genai";
 import { setTimeout } from "node:timers/promises";
 import type { ZodType } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { diag } from "./diagnostics.ts";
-import { zObj, zString } from "./zod.ts";
+import { toJSONSchema, zObj, zString } from "./zod.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
@@ -200,21 +199,15 @@ export function setTestClient(client: unknown): void {
 
 // #region Object Creation
 
-function zodToOpenAPISchema<T>(schema: ZodType<T>) {
-  const { additionalProperties, ...rest } = zodToJsonSchema(schema, {
-    name: "wrapper",
-    target: "openApi3",
-  }).definitions!["wrapper"] as Record<string, unknown>;
-  return rest;
-}
-
 function toolToGeminiTool({ name, description, parameters }: Tool) {
   return {
     functionDeclarations: [
       {
         name,
         description,
-        parameters: parameters ? zodToOpenAPISchema(parameters) : undefined,
+        parameters: parameters
+          ? (toJSONSchema(parameters) as Record<string, unknown>)
+          : undefined,
       },
     ],
   };
