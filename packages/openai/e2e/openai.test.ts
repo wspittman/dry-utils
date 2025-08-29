@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
 import { subscribe } from "node:diagnostics_channel";
 import { afterEach, describe, mock, test } from "node:test";
-import type { ChatCompletionMessageParam } from "openai/resources";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
 import {
   OPENAI_AGG_CHANNEL,
   OPENAI_ERR_CHANNEL,
   OPENAI_LOG_CHANNEL,
   proseCompletion,
   zBoolean,
+  zEnum,
+  zNumber,
   zObj,
+  zObjArray,
+  zString,
 } from "../src/index.ts";
 
 // OPENAI_API_KEY present in .env, referenced directly in OpenAI SDK
@@ -17,7 +21,7 @@ const aiActionLog = { agg: 1 };
 
 describe("OpenAI E2E Flow", () => {
   // Note: Each test is dependent on the previous one
-  let history: ChatCompletionMessageParam[] = [];
+  let history: ResponseInputItem[] = [];
 
   const logFn = mock.fn();
   const errorFn = mock.fn();
@@ -54,7 +58,7 @@ describe("OpenAI E2E Flow", () => {
       "complete",
       "Content should be 'complete'"
     );
-    assert.equal(thread?.length, 3, "Thread should have three messages");
+    assert.equal(thread?.length, 4, "Thread should have four messages");
     assert.deepEqual(rest, {}, "Rest should be empty object");
     logCounts(aiActionLog, "proseCompletion: minimal");
   });
@@ -64,7 +68,7 @@ describe("OpenAI E2E Flow", () => {
       "Test_Full",
       history,
       {
-        instructions: "Select the Obey tool with no parameters",
+        instructions: "Select the Obey tool and choose to obey",
       },
       {
         context: [
@@ -84,7 +88,20 @@ describe("OpenAI E2E Flow", () => {
             }),
           },
           { name: "Reject", description: "Reject the user" },
+          {
+            name: "Ignore_Tool",
+            description: "Ignore the user",
+            parameters: zObj("Ignorable", {
+              zObjArray: zObjArray("Ignored zObjArray", {
+                zString: zString("Ignored zString"),
+                zNumber: zNumber("Ignored zNumber"),
+                zBoolean: zBoolean("Ignored zBoolean"),
+                zEnum: zEnum("Ignored zEnum", ["value1", "value2", "value3"]),
+              }),
+            }),
+          },
         ],
+        model: "gpt-5-nano",
       }
     );
     assert.ok(response, "Should return a response from proseCompletion");
@@ -97,7 +114,7 @@ describe("OpenAI E2E Flow", () => {
       [{ name: "Obey", args: { obey: true } }],
       "ToolCalls should be Obey tool"
     );
-    assert.equal(thread?.length, 6, "Thread should have six messages");
+    assert.equal(thread?.length, 8, "Thread should have eight messages");
     assert.deepEqual(rest, {}, "Rest should be empty object");
     logCounts(aiActionLog, "proseCompletion: full");
   });

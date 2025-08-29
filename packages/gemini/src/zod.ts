@@ -1,6 +1,12 @@
 import { z } from "zod";
 import type { JSONSchema } from "zod/v4/core";
 
+/*
+Just copy/paste this file to other libraries.
+No ROI in trying to refactor to some kind of shared space.
+On the rare occasion of edits, update other zod.ts files.
+*/
+
 type ZObj = Record<string, z.ZodType>;
 type ZBoolean = z.ZodNullable<z.ZodBoolean>;
 type ZNumber = z.ZodNullable<z.ZodNumber>;

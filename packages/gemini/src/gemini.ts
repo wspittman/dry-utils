@@ -87,7 +87,7 @@ export async function jsonCompletion<T extends object>(
   thread: Content[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context, tools, model = "gemini-2.0-flash" }: CompletionOptions = {}
+  { context, tools, model = "gemini-2.0-flash-lite" }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
