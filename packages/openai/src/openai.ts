@@ -110,10 +110,7 @@ export async function jsonCompletion<T extends object>(
     input,
     schema,
     context ?? [],
-    tools?.map((tool) => ({
-      ...tool,
-      parameters: tool.parameters ?? zObj("No parameters", {}),
-    }))
+    tools ?? []
   );
 }
 
@@ -124,22 +121,14 @@ async function apiCall<T extends object>(
   input: string,
   schema: ZodType<T>,
   context: Context[],
-  simpleTools?: Required<Tool>[]
+  simpleTools?: Tool[]
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const messages = createMessages(thread, input, context);
   const body = {
     model,
     input: messages,
-    text: {
-      // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
-      format: {
-        name: action,
-        schema: toJSONSchema(schema),
-        type: "json_schema" as const,
-        strict: true,
-      },
-    },
+    text: getTextFormat(action, schema),
     tools: simpleTools?.map((tool) => toolToOpenAITool(tool)) ?? undefined,
     reasoning: { effort: "minimal" as const },
   };
@@ -176,13 +165,29 @@ function getClient() {
 
 // #region Object Creation
 
+function getTextFormat<T>(action: string, schema: ZodType<T>) {
+  return {
+    // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
+    format: {
+      name: action,
+      schema: toJSONSchema(schema),
+      type: "json_schema" as const,
+      strict: true,
+    },
+  };
+}
+
 function toolToOpenAITool({ name, description, parameters }: Tool) {
   // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
+
+  // Parameters are optional in our Tool type but required by OpenAI
+  const defaultParams = parameters ?? zObj("No parameters", {});
+
   return {
     type: "function" as const,
     name,
     description,
-    parameters: parameters ? toJSONSchema(parameters) : {},
+    parameters: toJSONSchema(defaultParams),
     strict: true,
   };
 }
@@ -234,7 +239,7 @@ function completionToResponse<T>(
       } else if (content?.type === "output_text") {
         result.content = content.parsed ?? undefined;
       } else {
-        return { error: `No content on message output` };
+        return { error: "No content on message output" };
       }
     } else if (output.type === "function_call") {
       result.toolCalls ??= [];
