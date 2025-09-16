@@ -12,7 +12,6 @@ The monorepo is structured with the following packages:
 - **logger**: A Winston wrapper for simplified logging.
 - **openai**: Utilities for working with the OpenAI API.
 - **text**: HTML and Markdown conversion utilities with sanitization.
-- **shared**: Shared utilities and configurations for the other packages.
 
 ## Building and Running
 
