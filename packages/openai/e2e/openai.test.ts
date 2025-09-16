@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
-import { subscribe } from "node:diagnostics_channel";
 import { afterEach, describe, mock, test } from "node:test";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
 import {
-  OPENAI_AGG_CHANNEL,
-  OPENAI_ERR_CHANNEL,
-  OPENAI_LOG_CHANNEL,
   proseCompletion,
+  subscribeOpenAILogging,
   zBoolean,
   zEnum,
   zNumber,
@@ -26,9 +23,7 @@ describe("OpenAI E2E Flow", () => {
   const logFn = mock.fn();
   const errorFn = mock.fn();
   const aggFn = mock.fn();
-  subscribe(OPENAI_LOG_CHANNEL, logFn);
-  subscribe(OPENAI_ERR_CHANNEL, errorFn);
-  subscribe(OPENAI_AGG_CHANNEL, aggFn);
+  subscribeOpenAILogging({ log: logFn, error: errorFn, aggregate: aggFn });
 
   function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
     assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);

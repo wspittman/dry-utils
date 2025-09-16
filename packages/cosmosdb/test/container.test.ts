@@ -6,14 +6,8 @@ import {
   type SqlQuerySpec,
 } from "@azure/cosmos";
 import assert from "node:assert/strict";
-import { subscribe } from "node:diagnostics_channel";
 import { beforeEach, describe, mock, test } from "node:test";
-import {
-  Container,
-  COSMOSDB_AGG_CHANNEL,
-  COSMOSDB_ERR_CHANNEL,
-  COSMOSDB_LOG_CHANNEL,
-} from "../src/index.ts";
+import { Container, subscribeCosmosDBLogging } from "../src/index.ts";
 
 // #region Mock
 
@@ -127,9 +121,7 @@ describe("DB: Container", () => {
   const logFn = mock.fn();
   const errFn = mock.fn();
   const aggFn = mock.fn();
-  subscribe(COSMOSDB_LOG_CHANNEL, logFn);
-  subscribe(COSMOSDB_ERR_CHANNEL, errFn);
-  subscribe(COSMOSDB_AGG_CHANNEL, aggFn);
+  subscribeCosmosDBLogging({ log: logFn, error: errFn, aggregate: aggFn });
 
   beforeEach(() => {
     logFn.mock.resetCalls();

@@ -1,12 +1,9 @@
 import type { Content } from "@google/genai";
 import assert from "node:assert/strict";
-import { subscribe } from "node:diagnostics_channel";
 import { afterEach, describe, mock, test } from "node:test";
 import {
-  GEMINI_AGG_CHANNEL,
-  GEMINI_ERR_CHANNEL,
-  GEMINI_LOG_CHANNEL,
   proseCompletion,
+  subscribeGeminiLogging,
   zBoolean,
   zEnum,
   zNumber,
@@ -26,9 +23,7 @@ describe("Gemini E2E Flow", () => {
   const logFn = mock.fn();
   const errorFn = mock.fn();
   const aggFn = mock.fn();
-  subscribe(GEMINI_LOG_CHANNEL, logFn);
-  subscribe(GEMINI_ERR_CHANNEL, errorFn);
-  subscribe(GEMINI_AGG_CHANNEL, aggFn);
+  subscribeGeminiLogging({ log: logFn, error: errorFn, aggregate: aggFn });
 
   function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
     assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);

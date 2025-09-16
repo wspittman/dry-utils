@@ -1,8 +1,4 @@
-export {
-  GEMINI_AGG_CHANNEL,
-  GEMINI_ERR_CHANNEL,
-  GEMINI_LOG_CHANNEL,
-} from "./diagnostics.ts";
+export { subscribeGeminiLogging } from "./diagnostics.ts";
 
 export { z } from "zod";
 export { jsonCompletion, proseCompletion } from "./gemini.ts";

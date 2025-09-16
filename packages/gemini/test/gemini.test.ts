@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
-import { subscribe } from "node:diagnostics_channel";
 import { beforeEach, describe, mock, test } from "node:test";
 import type { CompletionResponse } from "../src/gemini.ts";
 import {
-  GEMINI_AGG_CHANNEL,
-  GEMINI_ERR_CHANNEL,
-  GEMINI_LOG_CHANNEL,
   jsonCompletion,
   proseCompletion,
+  subscribeGeminiLogging,
 } from "../src/index.ts";
 import {
   ParamTemplates,
@@ -49,9 +46,7 @@ describe("AI: Gemini", () => {
   const logFn = mock.fn();
   const errFn = mock.fn();
   const aggFn = mock.fn();
-  subscribe(GEMINI_LOG_CHANNEL, logFn);
-  subscribe(GEMINI_ERR_CHANNEL, errFn);
-  subscribe(GEMINI_AGG_CHANNEL, aggFn);
+  subscribeGeminiLogging({ log: logFn, error: errFn, aggregate: aggFn });
 
   const errLog = { error: 1, generate: 1 };
   const defaultLog = { agg: 1, generate: 1 };

@@ -1,12 +1,9 @@
 import assert from "assert/strict";
-import { subscribe } from "diagnostics_channel";
 import { beforeEach, describe, mock, test } from "node:test";
 import {
   jsonCompletion,
-  OPENAI_AGG_CHANNEL,
-  OPENAI_ERR_CHANNEL,
-  OPENAI_LOG_CHANNEL,
   proseCompletion,
+  subscribeOpenAILogging,
 } from "../src/index.ts";
 import type { CompletionResponse } from "../src/openai.ts";
 import {
@@ -52,9 +49,7 @@ describe("AI: OpenAI", () => {
   const logFn = mock.fn();
   const errFn = mock.fn();
   const aggFn = mock.fn();
-  subscribe(OPENAI_LOG_CHANNEL, logFn);
-  subscribe(OPENAI_ERR_CHANNEL, errFn);
-  subscribe(OPENAI_AGG_CHANNEL, aggFn);
+  subscribeOpenAILogging({ log: logFn, error: errFn, aggregate: aggFn });
 
   const errLog = { error: 1, parse: 1 };
   const defaultLog = { agg: 1, parse: 1 };

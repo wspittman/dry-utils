@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test, type TestContext } from "node:test";
 // Note: Destructuring functions such as import { setTimeout } from 'node:timers' is currently not supported by [Mock Timers] API.
-import { subscribe } from "node:diagnostics_channel";
 import timers from "node:timers/promises";
-import { ASYNC_ERR_CHANNEL, ASYNC_LOG_CHANNEL, batch } from "../src/index.ts";
+import { batch, subscribeAsyncLogging } from "../src/index.ts";
 
 /**
  * Mocks timers for testing
@@ -24,8 +23,7 @@ function mockTimers(context: TestContext) {
 describe("Async/Batch", () => {
   const logFn = mock.fn();
   const errFn = mock.fn();
-  subscribe(ASYNC_LOG_CHANNEL, logFn);
-  subscribe(ASYNC_ERR_CHANNEL, errFn);
+  subscribeAsyncLogging({ log: logFn, error: errFn });
 
   const batchFn = mock.fn(async (val: number) => {
     await timers.setTimeout(100);

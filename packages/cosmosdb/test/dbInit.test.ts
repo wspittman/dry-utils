@@ -8,10 +8,9 @@ import {
   Databases,
 } from "@azure/cosmos";
 import assert from "node:assert/strict";
-import { subscribe } from "node:diagnostics_channel";
 import { beforeEach, describe, mock, test } from "node:test";
 import { connectDB, type ContainerOptions } from "../src/dbInit.ts";
-import { COSMOSDB_ERR_CHANNEL, COSMOSDB_LOG_CHANNEL } from "../src/index.ts";
+import { subscribeCosmosDBLogging } from "../src/index.ts";
 
 // #region Mock
 
@@ -66,8 +65,7 @@ mock.method(
 describe("DB: DBInit", () => {
   const logFn = mock.fn();
   const errorFn = mock.fn();
-  subscribe(COSMOSDB_LOG_CHANNEL, logFn);
-  subscribe(COSMOSDB_ERR_CHANNEL, errorFn);
+  subscribeCosmosDBLogging({ log: logFn, error: errorFn });
 
   function callCounts(log: number, error: number, msg = "") {
     assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);

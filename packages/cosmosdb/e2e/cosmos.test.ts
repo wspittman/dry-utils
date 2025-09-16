@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
-import { subscribe } from "node:diagnostics_channel";
 import path from "node:path";
 import { after, afterEach, describe, mock, test } from "node:test";
 import {
   Container,
-  COSMOSDB_AGG_CHANNEL,
-  COSMOSDB_ERR_CHANNEL,
-  COSMOSDB_LOG_CHANNEL,
   dbConnect,
   Query,
+  subscribeCosmosDBLogging,
 } from "../src/index.ts";
 
 // Local Emulator config, default key not private
@@ -32,9 +29,7 @@ describe("CosmosDB E2E Flow", () => {
   const logFn = mock.fn();
   const errorFn = mock.fn();
   const aggFn = mock.fn();
-  subscribe(COSMOSDB_LOG_CHANNEL, logFn);
-  subscribe(COSMOSDB_ERR_CHANNEL, errorFn);
-  subscribe(COSMOSDB_AGG_CHANNEL, aggFn);
+  subscribeCosmosDBLogging({ log: logFn, error: errorFn, aggregate: aggFn });
 
   function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
     assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);
