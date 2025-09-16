@@ -19,17 +19,18 @@ npm install dry-utils-openai
 
 ## Features
 
-- **JSON Schema Validation**: Create structured responses with Zod schemas
-- **Prose Completions**: Generate text responses with simple API
-- **Automatic Retries**: Built-in exponential backoff for rate limiting
-- **Error Handling**: Comprehensive error handling for common API issues
+- **Structured JSON Responses**: Create structured responses with Zod schemas using `json_schema` mode.
+- **Tool Use**: Define tools that the model can call and receive structured arguments.
+- **Prose Completions**: Generate text responses with a simple API.
+- **Automatic Retries**: Built-in exponential backoff for rate limiting.
+- **Error Handling**: Comprehensive error handling for common API issues.
 - **Logging**: Detailed logging via `node:diagnostics_channel` for API calls, errors, and performance metrics.
 
 ## Usage
 
 ### JSON Completion
 
-Generate structured responses with schema validation:
+Generate structured responses with schema validation. You can also provide additional context and specify a model.
 
 ```typescript
 import { jsonCompletion, z } from "dry-utils-openai";
@@ -44,12 +45,27 @@ const recipeSchema = z
   })
   .describe("A recipe with ingredients and steps");
 
+// Optional: Provide additional context for the model
+const context = [
+  {
+    description: "Dietary preferences",
+    content: {
+      diet: "vegan",
+      allergies: ["nuts"],
+    },
+  },
+];
+
 // Make a completion request
 const result = await jsonCompletion(
   "GenerateRecipe", // Action name for logging
   "You are a helpful cooking assistant", // Initial prompt
   "Create a recipe for chocolate chip cookies", // User input
-  recipeSchema // Schema for validation
+  recipeSchema, // Schema for validation
+  {
+    model: "gpt-4-turbo", // Specify the model to use
+    context,
+  }
 );
 
 if (result.content) {
@@ -68,11 +84,50 @@ import { proseCompletion } from "dry-utils-openai";
 const result = await proseCompletion(
   "SummarizeArticle", // Action name for logging
   "You are a helpful summarization assistant", // Initial prompt
-  "Summarize this article in 3 bullet points: " + articleText // User input
+  "Summarize this article in 3 bullet points: " + articleText, // User input
+  { model: "gpt-4-turbo" }
 );
 
 if (result.content) {
   console.log("Summary:", result.content);
+}
+```
+
+### Tool Use
+
+Define tools that the model can call during a completion.
+
+```typescript
+import { jsonCompletion, z, zObj, zString } from "dry-utils-openai";
+
+// Define a tool
+const searchTool = {
+  name: "searchWeb",
+  description: "Search the web for information",
+  parameters: zObj("Search parameters", {
+    query: zString("The search query"),
+  }),
+};
+
+// Make a completion request with the tool
+const result = await jsonCompletion(
+  "WebSearch",
+  "You are a helpful assistant.",
+  "Search the web for the capital of France.",
+  zObj("Response", {
+    answer: zString("The answer to the user's question"),
+  }),
+  {
+    tools: [searchTool],
+  }
+);
+
+if (result.toolCalls) {
+  for (const toolCall of result.toolCalls) {
+    console.log(`Tool call: ${toolCall.name}`, toolCall.args);
+    // You would typically execute the tool here and return the result
+    // to the model in a subsequent call.
+  }
 }
 ```
 
