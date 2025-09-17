@@ -70,3 +70,10 @@ The project uses ESLint for linting. The `.eslintrc.js` file in the root of the 
 ### Testing
 
 Our tests are always written in Node's built-in `node:test` framework.
+
+## Scratchpad
+
+Two directories are provided for ad-hoc experimentation by agents: `agent_notes` and `agent_scripts`.
+
+- `agent_notes`: Agents SHOULD store notes, ideas, and plans if they will be useful beyond the current task. These should be stored as .md markdown files.
+- `agent_scripts`: Agents SHOULD store short-lived scripts and experiments here in .js JavaScript files.
