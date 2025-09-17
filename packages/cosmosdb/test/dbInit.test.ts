@@ -10,7 +10,7 @@ import {
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { connectDB, type ContainerOptions } from "../src/dbInit.ts";
-import { setDBLogging } from "../src/index.ts";
+import { subscribeCosmosDBLogging } from "../src/index.ts";
 
 // #region Mock
 
@@ -65,10 +65,8 @@ mock.method(
 describe("DB: DBInit", () => {
   const logFn = mock.fn();
   const errorFn = mock.fn();
-  setDBLogging({
-    logFn,
-    errorFn,
-  });
+  subscribeCosmosDBLogging({ log: logFn, error: errorFn });
+
   function callCounts(log: number, error: number, msg = "") {
     assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);
     assert.equal(errorFn.mock.callCount(), error, `errorFn count ${msg}`);

@@ -1,4 +1,4 @@
-import { externalLog } from "./externalLog.ts";
+import { diag } from "./diagnostics.ts";
 
 /**
  * Processes an array of values in batches using an async function.
@@ -18,7 +18,7 @@ export async function batch<T>(
 ): Promise<void> {
   if (!values.length) return;
 
-  externalLog.log(`Batch_${name}`, values.length);
+  diag.log(`Batch_${name}`, values.length);
 
   for (let i = 0; i < values.length; i += size) {
     const batch = values.slice(i, i + size);
@@ -26,10 +26,10 @@ export async function batch<T>(
 
     result.forEach((r, index) => {
       if (r.status === "rejected") {
-        externalLog.error(`Batch_${name}: at values[${i + index}]`, r.reason);
+        diag.error(`Batch_${name}: at values[${i + index}]`, r.reason);
       }
     });
   }
 
-  externalLog.log(`Batch_${name}`, "Complete");
+  diag.log(`Batch_${name}`, "Complete");
 }

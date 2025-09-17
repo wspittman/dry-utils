@@ -1,14 +1,12 @@
 import { setTimeout } from "node:timers/promises";
 import OpenAI from "openai";
-import { zodFunction, zodResponseFormat } from "openai/helpers/zod";
-import type { ChatCompletionMessageParam } from "openai/resources";
 import type {
-  ParsedChatCompletion,
-  ParsedFunctionToolCall,
-} from "openai/resources/beta/chat/completions";
+  ParsedResponse,
+  ResponseInputItem,
+} from "openai/resources/responses/responses";
 import type { ZodType } from "zod";
-import { externalLog } from "./externalLog.ts";
-import { zObj, zString } from "./zod.ts";
+import { diag } from "./diagnostics.ts";
+import { toJSONSchema, zObj, zString } from "./zod.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
@@ -31,7 +29,7 @@ export interface CompletionOptions {
 }
 
 export interface CompletionResponse<T> {
-  thread?: ChatCompletionMessageParam[];
+  thread?: ResponseInputItem[];
   content?: T;
   toolCalls?: {
     name: string;
@@ -51,7 +49,7 @@ export interface CompletionResponse<T> {
  */
 export async function proseCompletion(
   action: string,
-  thread: ChatCompletionMessageParam[] | string,
+  thread: ResponseInputItem[] | string,
   input: string | object,
   options?: CompletionOptions
 ): Promise<CompletionResponse<string>> {
@@ -85,10 +83,10 @@ export async function proseCompletion(
  */
 export async function jsonCompletion<T extends object>(
   action: string,
-  thread: ChatCompletionMessageParam[] | string,
+  thread: ResponseInputItem[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context, tools, model = "gpt-4o-mini" }: CompletionOptions = {}
+  { context, tools, model = "gpt-5-nano" }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   const actionError = validateAction(action);
   if (actionError) {
@@ -112,35 +110,35 @@ export async function jsonCompletion<T extends object>(
     input,
     schema,
     context ?? [],
-    tools?.map((tool) => ({
-      ...tool,
-      parameters: tool.parameters ?? zObj("No parameters", {}),
-    }))
+    tools ?? []
   );
 }
 
 async function apiCall<T extends object>(
   model: string,
   action: string,
-  thread: ChatCompletionMessageParam[],
+  thread: ResponseInputItem[],
   input: string,
   schema: ZodType<T>,
   context: Context[],
-  simpleTools?: Required<Tool>[]
+  simpleTools?: Tool[]
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const messages = createMessages(thread, input, context);
   const body = {
     model,
-    messages,
-    response_format: zodResponseFormat(schema, action),
-    tools: simpleTools?.map((tool) => zodFunction(tool)) ?? undefined,
+    input: messages,
+    text: getTextFormat(action, schema),
+    tools: simpleTools?.map((tool) => toolToOpenAITool(tool)) ?? undefined,
+    reasoning: { effort: "minimal" as const },
   };
 
   while (true) {
     try {
       const start = Date.now();
-      const completion = await getClient().beta.chat.completions.parse(body);
+      const completion = await getClient().responses.parse<typeof body, T>(
+        body
+      );
       const duration = Date.now() - start;
 
       const response = completionToResponse(completion, messages);
@@ -167,61 +165,101 @@ function getClient() {
 
 // #region Object Creation
 
+function getTextFormat<T>(action: string, schema: ZodType<T>) {
+  return {
+    // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
+    format: {
+      name: action,
+      schema: toJSONSchema(schema),
+      type: "json_schema" as const,
+      strict: true,
+    },
+  };
+}
+
+function toolToOpenAITool({ name, description, parameters }: Tool) {
+  // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
+
+  // Parameters are optional in our Tool type but required by OpenAI
+  const defaultParams = parameters ?? zObj("No parameters", {});
+
+  return {
+    type: "function" as const,
+    name,
+    description,
+    parameters: toJSONSchema(defaultParams),
+    strict: true,
+  };
+}
+
 function createMessages(
-  thread: ChatCompletionMessageParam[],
+  thread: ResponseInputItem[],
   input: string,
   context: Context[]
-): ChatCompletionMessageParam[] {
+): ResponseInputItem[] {
   return [
     ...thread,
     ...context.map(
       ({ description, content }) =>
         ({
           role: "user",
-          name: "Context_Provider",
           content: `Useful context: ${description}\n${JSON.stringify(content)}`,
-        } as ChatCompletionMessageParam)
+        } as ResponseInputItem)
     ),
-    { role: "user", name: "Agent", content: input },
+    { role: "user", content: input },
   ];
 }
 
 function completionToResponse<T>(
-  completion: ParsedChatCompletion<T>,
-  thread: ChatCompletionMessageParam[]
+  completion: ParsedResponse<T>,
+  thread: ResponseInputItem[]
 ): CompletionResponse<T> {
-  const { finish_reason, message } = completion.choices[0] ?? {};
-
-  if (message?.refusal) {
-    return { error: `Refusal: ${message.refusal}` };
+  if (completion.status === "incomplete") {
+    const reason = completion.incomplete_details?.reason;
+    return {
+      error:
+        reason === "content_filter"
+          ? "Content filtered"
+          : "Incomplete response",
+    };
   }
 
-  if (finish_reason === "tool_calls") {
-    return !message
-      ? { error: "Finish reason tool_calls, but message is empty" }
-      : {
-          toolCalls: message.tool_calls?.map(extractToolCall),
-          thread: [...thread, message],
-        };
+  if (completion.status !== "completed") {
+    return { error: `Unexpected response status: ${completion.status}` };
   }
 
-  if (finish_reason === "stop") {
-    return !message
-      ? { error: "Finish reason stop, but message is empty" }
-      : {
-          content: message.parsed ?? undefined,
-          thread: [...thread, message],
-        };
+  const result: CompletionResponse<T> = {};
+
+  for (const output of completion.output) {
+    if (output.type === "message") {
+      const content = output.content[0];
+
+      if (content?.type === "refusal") {
+        return { error: `Refusal: ${content.refusal}` };
+      } else if (content?.type === "output_text") {
+        result.content = content.parsed ?? undefined;
+      } else {
+        return { error: "No content on message output" };
+      }
+    } else if (output.type === "function_call") {
+      result.toolCalls ??= [];
+
+      let args = output.parsed_arguments;
+
+      // I'm seeing an issue where this just repeats the output block for one level nested
+      if (args && "call_id" in args) {
+        args = args.parsed_arguments;
+      }
+
+      result.toolCalls.push({
+        name: output.name,
+        args,
+      });
+    }
   }
 
-  return { error: `Unexpected Finish Reason: ${finish_reason}` };
-}
-
-function extractToolCall({ function: fn }: ParsedFunctionToolCall) {
-  return {
-    name: fn.name,
-    args: fn.parsed_arguments as Record<string, unknown>,
-  };
+  result.thread = [...thread, ...completion.output];
+  return result;
 }
 
 // #endregion
@@ -231,7 +269,7 @@ function extractToolCall({ function: fn }: ParsedFunctionToolCall) {
 function validateAction(action: string) {
   // This regex comes from OpenAI, as required by response_format.json_schema.name
   if (!/^[a-zA-Z0-9_-]+$/.test(action)) {
-    externalLog.error("OpenAI Invalid Action Name", action);
+    diag.error("OpenAI Invalid Action Name", action);
     return {
       error: `Invalid action name "${action}". Must match pattern ^[a-zA-Z0-9_-]+$`,
     };
@@ -246,17 +284,17 @@ function errorToResponse(
   const errorType = getErrorType(error);
 
   if (errorType === "Too Long") {
-    externalLog.error("Context Too Long", error);
+    diag.error("Context Too Long", error);
     return { error: "OpenAI Context Too Long" };
   }
 
   if (errorType !== "429") {
-    externalLog.error("Non-Backoff Error", error);
+    diag.error("Non-Backoff Error", error);
     return { error: "OpenAI Non-Backoff Error" };
   }
 
   if (attempt >= MAX_RETRIES) {
-    externalLog.error("Back Off Limit Exceeded", error);
+    diag.error("Back Off Limit Exceeded", error);
     return { error: "OpenAI Back Off Limit Exceeded" };
   }
 
@@ -280,7 +318,7 @@ function getErrorType(error: unknown): "429" | "Too Long" | "Other" {
 }
 
 async function backoff(action: string, attempt: number) {
-  externalLog.log(`OpenAI_${action}`, `backoff attempt ${attempt}`);
+  diag.log(`OpenAI_${action}`, `backoff attempt ${attempt}`);
   const backoff = INITIAL_BACKOFF * Math.pow(2, attempt);
   const jitter = Math.random() * 0.1 * backoff;
   return setTimeout(backoff + jitter, true);
@@ -294,7 +332,7 @@ function logLLMAction<T>(
   action: string,
   input: string,
   duration: number,
-  apiResponse: OpenAI.ChatCompletion,
+  apiResponse: ParsedResponse<T>,
   response?: CompletionResponse<T>
 ) {
   try {
@@ -308,43 +346,64 @@ function logLLMAction<T>(
       response,
     };
 
-    const { total_tokens, prompt_tokens, completion_tokens } =
-      apiResponse.usage;
-    const { cached_tokens = 0 } = apiResponse.usage.prompt_tokens_details ?? {};
-    const { finish_reason, message } = apiResponse.choices[0] ?? {};
+    const { total_tokens, input_tokens, output_tokens } = apiResponse.usage;
+    const { cached_tokens = 0 } = apiResponse.usage.input_tokens_details ?? {};
+    const { reasoning_tokens = 0 } =
+      apiResponse.usage.output_tokens_details ?? {};
+    const { status } = apiResponse;
 
-    const log: Record<string, unknown> = {
+    const dense: Record<string, unknown> = {
       name: action,
       in: input.length > 100 ? input.slice(0, 97) + "..." : input,
       tokens: total_tokens,
-      inTokens: prompt_tokens,
-      outTokens: completion_tokens,
-      cacheTokens: cached_tokens,
+      inTokens: input_tokens,
+      outTokens: output_tokens,
       ms: duration,
     };
 
-    if (finish_reason !== "stop") {
-      log["finishReason"] = finish_reason;
+    if (cached_tokens) {
+      dense["cacheTokens"] = cached_tokens;
     }
 
-    if (message?.refusal) {
-      log["refusal"] = message.refusal;
+    if (reasoning_tokens) {
+      dense["reasoningTokens"] = reasoning_tokens;
+    }
+
+    if (status !== "completed") {
+      const reason = apiResponse.incomplete_details?.reason;
+      dense["finishReason"] = `${status}${reason ? `: ${reason}` : ""}`;
+    }
+
+    const messages = apiResponse.output
+      .filter((x) => x.type === "message")
+      .map((x) => x.content[0]);
+    const refusal = messages.find((x) => x?.type === "refusal");
+    if (refusal) {
+      dense["refusal"] = refusal.refusal;
     }
 
     if (response) {
       const { thread, ...rest } = response;
-      log["out"] = rest;
+      dense["out"] = rest;
     }
 
-    externalLog.aggregate(action, log, blob, [
+    const metrics: Record<string, number> = {};
+    [
       "tokens",
       "inTokens",
       "outTokens",
       "cacheTokens",
+      "reasoningTokens",
       "ms",
-    ]);
+    ].forEach((x) => {
+      if (typeof dense[x] === "number") {
+        metrics[x] = dense[x];
+      }
+    });
+
+    diag.aggregate(action, blob, dense, metrics);
   } catch (error) {
-    externalLog.error("LogLLMAction", error);
+    diag.error("LogLLMAction", error);
   }
 }
 

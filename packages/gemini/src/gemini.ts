@@ -6,9 +6,8 @@ import {
 } from "@google/genai";
 import { setTimeout } from "node:timers/promises";
 import type { ZodType } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { externalLog } from "./externalLog.ts";
-import { zObj, zString } from "./zod.ts";
+import { diag } from "./diagnostics.ts";
+import { toJSONSchema, zObj, zString } from "./zod.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
@@ -88,7 +87,7 @@ export async function jsonCompletion<T extends object>(
   thread: Content[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context, tools, model = "gemini-2.0-flash" }: CompletionOptions = {}
+  { context, tools, model = "gemini-2.0-flash-lite" }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
@@ -200,21 +199,15 @@ export function setTestClient(client: unknown): void {
 
 // #region Object Creation
 
-function zodToOpenAPISchema<T>(schema: ZodType<T>) {
-  const { additionalProperties, ...rest } = zodToJsonSchema(schema, {
-    name: "wrapper",
-    target: "openApi3",
-  }).definitions!["wrapper"] as Record<string, unknown>;
-  return rest;
-}
-
 function toolToGeminiTool({ name, description, parameters }: Tool) {
   return {
     functionDeclarations: [
       {
         name,
         description,
-        parameters: parameters ? zodToOpenAPISchema(parameters) : undefined,
+        parameters: parameters
+          ? (toJSONSchema(parameters) as Record<string, unknown>)
+          : undefined,
       },
     ],
   };
@@ -321,17 +314,17 @@ function errorToResponse(
   const errorType = getErrorType(error);
 
   if (errorType === "Too Long") {
-    externalLog.error("Context Too Long", error);
+    diag.error("Context Too Long", error);
     return { error: "Gemini Context Too Long" };
   }
 
   if (errorType !== "429") {
-    externalLog.error("Non-Backoff Error", error);
+    diag.error("Non-Backoff Error", error);
     return { error: "Gemini Non-Backoff Error" };
   }
 
   if (attempt >= MAX_RETRIES) {
-    externalLog.error("Back Off Limit Exceeded", error);
+    diag.error("Back Off Limit Exceeded", error);
     return { error: "Gemini Back Off Limit Exceeded" };
   }
 
@@ -352,13 +345,13 @@ function getErrorType(error: unknown): "429" | "Too Long" | "Other" {
 
       if (code === 429) return "429";
     } catch (e) {
-      externalLog.error("Error Parsing ClientError", e);
+      diag.error("Error Parsing ClientError", e);
     }
   }
   return "Other";
 }
 async function backoff(action: string, attempt: number) {
-  externalLog.log(action, `backoff attempt ${attempt}`);
+  diag.log(action, `backoff attempt ${attempt}`);
   const backoff = INITIAL_BACKOFF * Math.pow(2, attempt);
   const jitter = Math.random() * 0.1 * backoff;
   return setTimeout(backoff + jitter, true);
@@ -396,7 +389,7 @@ function logLLMAction<T>(
     } = apiResponse.usageMetadata;
     const { finishReason } = apiResponse.candidates?.[0] ?? {};
 
-    const log: Record<string, unknown> = {
+    const dense: Record<string, unknown> = {
       name: action,
       in: input.length > 100 ? input.slice(0, 97) + "..." : input,
       tokens: totalTokenCount,
@@ -406,27 +399,28 @@ function logLLMAction<T>(
     };
 
     if (thoughtsTokenCount) {
-      log["thoughtTokens"] = thoughtsTokenCount;
+      dense["thoughtTokens"] = thoughtsTokenCount;
     }
 
     if (toolUsePromptTokenCount) {
-      log["toolTokens"] = toolUsePromptTokenCount;
+      dense["toolTokens"] = toolUsePromptTokenCount;
     }
 
     if (cachedContentTokenCount) {
-      log["cacheTokens"] = cachedContentTokenCount;
+      dense["cacheTokens"] = cachedContentTokenCount;
     }
 
     if (finishReason !== "STOP") {
-      log["finishReason"] = finishReason;
+      dense["finishReason"] = finishReason;
     }
 
     if (response) {
       const { thread, ...rest } = response;
-      log["out"] = rest;
+      dense["out"] = rest;
     }
 
-    externalLog.aggregate(action, log, blob, [
+    const metrics: Record<string, number> = {};
+    [
       "tokens",
       "inTokens",
       "outTokens",
@@ -434,9 +428,15 @@ function logLLMAction<T>(
       "thoughtTokens",
       "toolTokens",
       "ms",
-    ]);
+    ].forEach((x) => {
+      if (typeof dense[x] === "number") {
+        metrics[x] = dense[x];
+      }
+    });
+
+    diag.aggregate(action, blob, dense, metrics);
   } catch (error) {
-    externalLog.error("LogLLMAction", error);
+    diag.error("LogLLMAction", error);
   }
 }
 

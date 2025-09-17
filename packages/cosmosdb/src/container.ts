@@ -8,7 +8,7 @@ import type {
   Resource,
   SqlQuerySpec,
 } from "@azure/cosmos";
-import { externalLog } from "./externalLog.ts";
+import { diag } from "./diagnostics.ts";
 
 /**
  * Generic container class for database operations
@@ -38,7 +38,7 @@ export class Container<Item extends ItemDefinition> {
       logDBAction("READ", this.name, response, partitionKey);
       return response.resource;
     } catch (error) {
-      externalLog.error("GetItem", error);
+      diag.error("GetItem", error);
       throw error;
     }
   }
@@ -58,7 +58,7 @@ export class Container<Item extends ItemDefinition> {
       logDBAction("READ_ALL", this.name, response, partitionKey);
       return response.resources;
     } catch (error) {
-      externalLog.error("GetItemsByPartitionKey", error);
+      diag.error("GetItemsByPartitionKey", error);
       throw error;
     }
   }
@@ -101,7 +101,7 @@ export class Container<Item extends ItemDefinition> {
       logDBAction("QUERY", this.name, response, options?.partitionKey, query);
       return response.resources;
     } catch (error) {
-      externalLog.error("Query", error);
+      diag.error("Query", error);
       throw error;
     }
   }
@@ -115,7 +115,7 @@ export class Container<Item extends ItemDefinition> {
       const response = await this.container.items.upsert(item);
       logDBAction("UPSERT", this.name, response);
     } catch (error) {
-      externalLog.error("UpsertItem", error);
+      diag.error("UpsertItem", error);
       throw error;
     }
   }
@@ -130,7 +130,11 @@ export class Container<Item extends ItemDefinition> {
       const response = await this.container.item(id, partitionKey).delete();
       logDBAction("DELETE", this.name, response, partitionKey);
     } catch (error) {
-      externalLog.error("DeleteItem", error);
+      if ((error as { code?: number }).code === 404) {
+        // Item already deleted, ignore
+        return;
+      }
+      diag.error("DeleteItem", error);
       throw error;
     }
   }
@@ -150,7 +154,12 @@ function logDBAction(
   try {
     const { ru, ms, bytes, count, rest } = extractResponse(response);
 
-    const log: Record<string, unknown> = {
+    const blob: Record<string, unknown> = {
+      action,
+      container,
+    };
+
+    const dense: Record<string, unknown> = {
       name: action,
       in: container,
       ru,
@@ -158,34 +167,31 @@ function logDBAction(
       bytes,
     };
 
-    const blob: Record<string, unknown> = {
-      action,
-      container,
-    };
+    const metrics: Record<string, number> = { ru, ms, bytes };
 
     if (pkey) {
-      log["pkey"] = blob["pkey"] = pkey;
+      blob["pkey"] = dense["pkey"] = pkey;
     }
 
     if (query) {
       // No query.parameters to avoid IDs
-      log["query"] = blob["query"] =
+      blob["query"] = dense["query"] =
         typeof query === "string" ? query : query.query;
     }
 
     if (count != null) {
-      log["count"] = count;
       blob["response"] = {
         ...rest,
         resourceCount: count,
       };
+      dense["count"] = metrics["count"] = count;
     } else {
       blob["response"] = rest;
     }
 
-    externalLog.aggregate(action, log, blob, ["ru", "ms", "bytes"]);
+    diag.aggregate(action, blob, dense, metrics);
   } catch (error) {
-    externalLog.error("LogDBAction", error);
+    diag.error("LogDBAction", error);
   }
 }
 

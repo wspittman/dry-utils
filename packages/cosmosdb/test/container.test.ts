@@ -5,10 +5,9 @@ import {
   QueryIterator,
   type SqlQuerySpec,
 } from "@azure/cosmos";
-import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
-import { Container, setDBLogging } from "../src/index.ts";
+import { Container, subscribeCosmosDBLogging } from "../src/index.ts";
 
 // #region Mock
 
@@ -119,19 +118,29 @@ function getContainer() {
 // #endregion
 
 describe("DB: Container", () => {
-  const { logOptions, logCounts, logReset } = mockExternalLog();
-  setDBLogging(logOptions);
+  const logFn = mock.fn();
+  const errFn = mock.fn();
+  const aggFn = mock.fn();
+  subscribeCosmosDBLogging({ log: logFn, error: errFn, aggregate: aggFn });
 
   beforeEach(() => {
-    logReset();
+    logFn.mock.resetCalls();
+    errFn.mock.resetCalls();
+    aggFn.mock.resetCalls();
   });
+
+  function logCounts({ log = 0, error = 0, ag = 0 }) {
+    assert.equal(logFn.mock.callCount(), log, "logFn count");
+    assert.equal(errFn.mock.callCount(), error, "errFn count");
+    assert.equal(aggFn.mock.callCount(), ag, "aggFn count");
+  }
 
   function testSuccess(fn: ContainerFn, expected: unknown) {
     return async () => {
       const c = getContainer();
       const result = await fn(c);
       assert.deepEqual(result, expected);
-      logCounts({ log: 1, ag: 1 });
+      logCounts({ ag: 1 });
     };
   }
 

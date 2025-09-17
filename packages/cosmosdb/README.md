@@ -33,7 +33,7 @@ npm install dry-utils-cosmosdb
 - **Container Management**: Simplified container creation and initialization
 - **Query Builder**: Helper class for building SQL queries with best practices
 - **CRUD Operations**: Streamlined item operations (create, read, update, delete)
-- **Logging**: Built-in logging for database operations with RU consumption tracking
+- **Logging**: Emits events for database operations via `node:diagnostics_channel`, including RU consumption tracking.
 
 ## Usage
 
@@ -110,20 +110,32 @@ const activeUsers = await container.query(
 );
 ```
 
-### Configuring Logging
+### Subscribing to Logging Events
 
-Set up custom logging for database operations:
+This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostics_channel.html) to publish log, error, and aggregatable events. A helper function `subscribeCosmosDBLogging` is provided to simplify subscribing to these events.
+
+The `subscribeCosmosDBLogging` function accepts an object with optional `log`, `error`, and `aggregate` callbacks.
+
+- `log`: A function that receives log messages: `{ tag: string, val: unknown }`.
+- `error`: A function that receives error messages: `{ tag: string, val: unknown }`.
+- `aggregate`: A function that receives performance and metric data: `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`.
+
+Here is an example of how to subscribe to these events.
 
 ```typescript
-import { setDBLogging } from "dry-utils-cosmosdb";
+import { subscribeCosmosDBLogging } from "dry-utils-cosmosdb";
 
-// Configure custom logging
-setDBLogging({
-  logFn: (label, ...data) => {
-    console.log(`[DB:${label}]`, ...data);
+// Subscribe to log, error, and aggregate events
+subscribeCosmosDBLogging({
+  log: ({ tag, val }) => {
+    console.log(`[DB LOG] ${tag}:`, val);
   },
-  errorFn: (label, ...data) => {
-    console.error(`[DB ERROR:${label}]`, ...data);
+  error: ({ tag, val }) => {
+    console.error(`[DB ERROR] ${tag}:`, val);
+  },
+  aggregate: ({ tag, metrics }) => {
+    console.log(`[DB PERF] ${tag}:`, metrics);
+    // Example: [DB PERF] UPSERT: { ru: 1.29, ms: 12.3, bytes: 123, count: 1 }
   },
 });
 ```

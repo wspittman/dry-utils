@@ -19,17 +19,20 @@ npm install dry-utils-gemini
 
 ## Features
 
-- **JSON Schema Validation**: Create structured responses with Zod schemas
-- **Prose Completions**: Generate text responses with simple API
-- **Automatic Retries**: Built-in exponential backoff for rate limiting
-- **Error Handling**: Comprehensive error handling for common API issues
-- **Logging**: Configurable logging for API calls with performance metrics
+- **JSON Schema Validation**: Create structured responses with Zod schemas.
+- **Prose Completions**: Generate text responses with a simple API.
+- **Tool Usage**: Define custom tools that the model can request to call.
+- **Conversation Threads**: Maintain conversation history by passing the thread between calls.
+- **Context Injection**: Provide additional context to the model for more relevant responses.
+- **Automatic Retries**: Built-in exponential backoff for rate limiting.
+- **Error Handling**: Comprehensive error handling for common API issues.
+- **Logging**: Detailed logging via `node:diagnostics_channel` for API calls, errors, and performance metrics.
 
 ## Usage
 
 ### JSON Completion
 
-Generate structured responses with schema validation:
+Generate structured responses with schema validation. The `jsonCompletion` and `proseCompletion` functions return a `thread` object that can be passed to subsequent calls to maintain conversation history.
 
 ```typescript
 import { jsonCompletion, z } from "dry-utils-gemini";
@@ -44,16 +47,28 @@ const recipeSchema = z
   })
   .describe("A recipe with ingredients and steps");
 
-// Make a completion request
-const result = await jsonCompletion(
+// Make the first completion request
+const result1 = await jsonCompletion(
   "GenerateRecipe", // Action name for logging
   "You are a helpful cooking assistant", // Initial prompt
   "Create a recipe for chocolate chip cookies", // User input
   recipeSchema // Schema for validation
 );
 
-if (result.content) {
-  console.log("Recipe:", result.content);
+if (result1.content && result1.thread) {
+  console.log("Recipe:", result1.content);
+
+  // Make a follow-up request using the thread from the first response
+  const result2 = await jsonCompletion(
+    "ModifyRecipe",
+    result1.thread, // Continue the conversation
+    "Now, make it gluten-free.",
+    recipeSchema
+  );
+
+  if (result2.content) {
+    console.log("Gluten-Free Recipe:", result2.content);
+  }
 }
 ```
 
@@ -81,7 +96,14 @@ if (result.content) {
 Create Zod schemas with descriptions for Gemini:
 
 ```typescript
-import { zObj, zString, zNumber, zBoolean, zObjArray } from "dry-utils-gemini";
+import {
+  zObj,
+  zString,
+  zNumber,
+  zBoolean,
+  zObjArray,
+  zEnum,
+} from "dry-utils-gemini";
 
 // Create a schema with helper functions
 const userSchema = zObj("User information", {
@@ -94,22 +116,135 @@ const userSchema = zObj("User information", {
     zipCode: zString("Postal code"),
   }),
 });
+
+// Create a schema with an enum
+const pizzaToppings = ["pepperoni", "mushrooms", "onions"] as const;
+
+const pizzaSchema = zObj("A pizza order", {
+  size: zEnum("The size of the pizza", ["small", "medium", "large"]),
+  topping: zEnum("The main topping", pizzaToppings),
+});
 ```
 
-### Configuring Logging
+## Advanced Usage
 
-Configure how API calls are logged:
+The `jsonCompletion` and `proseCompletion` functions accept an optional `options` object to enable advanced features like tool usage, context injection, and model selection.
+
+### Tool Usage
+
+You can define tools that the model can ask to call. The model may either call one of your tools or respond directly.
 
 ```typescript
-import { setAILogging } from "dry-utils-gemini";
+import { jsonCompletion, z, zObj, zString } from "dry-utils-gemini";
 
-// Use custom logging function
-setAILogging({
-  logFn: (label, ...data) => {
-    console.log(`[AI-${label}]`, ...data);
+// 1. Define a tool the model can use
+const getCurrentWeatherTool = {
+  name: "getCurrentWeather",
+  description: "Get the current weather in a given location",
+  parameters: zObj("The location for which to get the weather", {
+    location: zString("The city and state, e.g. San Francisco, CA"),
+  }),
+};
+
+// 2. Define the schema for the model's final response to the user
+const responseSchema = z.object({
+  answer: z.string().describe("The final, user-facing answer."),
+});
+
+// 3. Make the request
+const result = await jsonCompletion(
+  "Assistant",
+  "You are a helpful assistant that can get the weather.",
+  "What's the weather in Boston?",
+  responseSchema,
+  {
+    tools: [getCurrentWeatherTool],
+  }
+);
+
+// 4. Handle the response
+if (result.toolCalls) {
+  // The model wants to call a tool
+  const toolCall = result.toolCalls[0];
+  if (toolCall.name === "getCurrentWeather") {
+    console.log(
+      `The model wants to know the weather in ${toolCall.args.location}`
+    );
+    // In a real app, you would execute the tool and send the result back to the model.
+  }
+} else if (result.content) {
+  // The model provided a final answer directly
+  console.log("Final Answer:", result.content.answer);
+}
+```
+
+### Providing Context
+
+You can provide additional context to the model for more relevant responses.
+
+```typescript
+import { jsonCompletion, z } from "dry-utils-gemini";
+
+const userProfile = {
+  name: "Jane Doe",
+  dietaryRestrictions: ["gluten-free", "vegetarian"],
+};
+
+const recipeSchema = z.object({
+  // ...
+});
+
+const result = await jsonCompletion(
+  "GenerateRecipeWithContext",
+  "You are a helpful cooking assistant",
+  "Suggest a dinner recipe for me.",
+  recipeSchema,
+  {
+    context: [
+      {
+        description: "User Profile",
+        content: userProfile,
+      },
+    ],
+  }
+);
+```
+
+### Model Selection
+
+You can specify a different Gemini model using the `model` property in the `options` object. The default is `gemini-2.0-flash`.
+
+```typescript
+const result = await jsonCompletion("...", "...", "...", someSchema, {
+  model: "gemini-1.5-pro-latest", // Specify a different model
+});
+```
+
+### Subscribing to Logging Events
+
+This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostics_channel.html) to publish log, error, and aggregatable events. A helper function `subscribeGeminiLogging` is provided to simplify subscribing to these events.
+
+The `subscribeGeminiLogging` function accepts an object with optional `log`, `error`, and `aggregate` callbacks.
+
+- `log`: A function that receives log messages: `{ tag: string, val: unknown }`.
+- `error`: A function that receives error messages: `{ tag: string, val: unknown }`.
+- `aggregate`: A function that receives performance and metric data: `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`.
+
+Example:
+
+```typescript
+import { subscribeGeminiLogging } from "dry-utils-gemini";
+
+// Subscribe to log, error, and aggregate events
+subscribeGeminiLogging({
+  log: ({ tag, val }) => {
+    console.log(`[Gemini Log: ${tag}]`, val);
   },
-  errorFn: (label, ...data) => {
-    console.error(`[AI-ERROR-${label}]`, ...data);
+  error: ({ tag, val }) => {
+    console.error(`[Gemini Error: ${tag}]`, val);
+  },
+  aggregate: ({ tag, dense, metrics }) => {
+    console.log(`[Gemini Aggregate: ${tag}]`, { dense, metrics });
   },
 });
 ```

@@ -1,26 +1,40 @@
 import type { Content } from "@google/genai";
-import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
-import { afterEach, describe, test } from "node:test";
-import { proseCompletion, setAILogging, zBoolean, zObj } from "../src/index.ts";
+import { afterEach, describe, mock, test } from "node:test";
+import {
+  proseCompletion,
+  subscribeGeminiLogging,
+  zBoolean,
+  zEnum,
+  zNumber,
+  zObj,
+  zObjArray,
+  zString,
+} from "../src/index.ts";
 
 // GEMINI_API_KEY present in .env
 
-const aiActionLog = { log: 1, ag: 1 };
+const aiActionLog = { agg: 1 };
 
 describe("Gemini E2E Flow", () => {
   // Note: Each test is dependent on the previous one
-  const { logOptions, logCounts, logReset } = mockExternalLog();
   let history: Content[] = [];
 
-  afterEach(() => {
-    logReset();
-  });
+  const logFn = mock.fn();
+  const errorFn = mock.fn();
+  const aggFn = mock.fn();
+  subscribeGeminiLogging({ log: logFn, error: errorFn, aggregate: aggFn });
 
-  test("setAILogging", () => {
-    setAILogging(logOptions);
-    assert.ok(true);
-    logCounts({}, "setAILogging");
+  function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
+    assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);
+    assert.equal(errorFn.mock.callCount(), error, `errorFn count ${msg}`);
+    assert.equal(aggFn.mock.callCount(), agg, `aggFn count ${msg}`);
+  }
+
+  afterEach(() => {
+    logFn.mock.resetCalls();
+    errorFn.mock.resetCalls();
+    aggFn.mock.resetCalls();
   });
 
   test("proseCompletion: minimal", async () => {
@@ -49,7 +63,7 @@ describe("Gemini E2E Flow", () => {
       "Test_Full",
       history,
       {
-        instructions: "Select the Obey tool with no parameters",
+        instructions: "Select the Obey tool and choose to obey",
       },
       {
         context: [
@@ -69,7 +83,20 @@ describe("Gemini E2E Flow", () => {
             }),
           },
           { name: "Reject", description: "Reject the user" },
+          {
+            name: "Ignore_Tool",
+            description: "Ignore the user",
+            parameters: zObj("Ignorable", {
+              zObjArray: zObjArray("Ignored zObjArray", {
+                zString: zString("Ignored zString"),
+                zNumber: zNumber("Ignored zNumber"),
+                zBoolean: zBoolean("Ignored zBoolean"),
+                zEnum: zEnum("Ignored zEnum", ["value1", "value2", "value3"]),
+              }),
+            }),
+          },
         ],
+        model: "gemini-2.0-flash-lite",
       }
     );
     assert.ok(response, "Should return a response from proseCompletion");

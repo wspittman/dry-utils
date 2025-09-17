@@ -1,26 +1,40 @@
-import { mockExternalLog } from "dry-utils-shared";
 import assert from "node:assert/strict";
-import { afterEach, describe, test } from "node:test";
-import type { ChatCompletionMessageParam } from "openai/resources";
-import { proseCompletion, setAILogging, zBoolean, zObj } from "../src/index.ts";
+import { afterEach, describe, mock, test } from "node:test";
+import type { ResponseInputItem } from "openai/resources/responses/responses";
+import {
+  proseCompletion,
+  subscribeOpenAILogging,
+  zBoolean,
+  zEnum,
+  zNumber,
+  zObj,
+  zObjArray,
+  zString,
+} from "../src/index.ts";
 
 // OPENAI_API_KEY present in .env, referenced directly in OpenAI SDK
 
-const aiActionLog = { log: 1, ag: 1 };
+const aiActionLog = { agg: 1 };
 
 describe("OpenAI E2E Flow", () => {
   // Note: Each test is dependent on the previous one
-  const { logOptions, logCounts, logReset } = mockExternalLog();
-  let history: ChatCompletionMessageParam[] = [];
+  let history: ResponseInputItem[] = [];
+
+  const logFn = mock.fn();
+  const errorFn = mock.fn();
+  const aggFn = mock.fn();
+  subscribeOpenAILogging({ log: logFn, error: errorFn, aggregate: aggFn });
+
+  function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
+    assert.equal(logFn.mock.callCount(), log, `logFn count ${msg}`);
+    assert.equal(errorFn.mock.callCount(), error, `errorFn count ${msg}`);
+    assert.equal(aggFn.mock.callCount(), agg, `aggFn count ${msg}`);
+  }
 
   afterEach(() => {
-    logReset();
-  });
-
-  test("setAILogging", () => {
-    setAILogging(logOptions);
-    assert.ok(true);
-    logCounts({}, "setAILogging");
+    logFn.mock.resetCalls();
+    errorFn.mock.resetCalls();
+    aggFn.mock.resetCalls();
   });
 
   test("proseCompletion: minimal", async () => {
@@ -39,7 +53,7 @@ describe("OpenAI E2E Flow", () => {
       "complete",
       "Content should be 'complete'"
     );
-    assert.equal(thread?.length, 3, "Thread should have three messages");
+    assert.equal(thread?.length, 4, "Thread should have four messages");
     assert.deepEqual(rest, {}, "Rest should be empty object");
     logCounts(aiActionLog, "proseCompletion: minimal");
   });
@@ -49,7 +63,7 @@ describe("OpenAI E2E Flow", () => {
       "Test_Full",
       history,
       {
-        instructions: "Select the Obey tool with no parameters",
+        instructions: "Select the Obey tool and choose to obey",
       },
       {
         context: [
@@ -69,7 +83,20 @@ describe("OpenAI E2E Flow", () => {
             }),
           },
           { name: "Reject", description: "Reject the user" },
+          {
+            name: "Ignore_Tool",
+            description: "Ignore the user",
+            parameters: zObj("Ignorable", {
+              zObjArray: zObjArray("Ignored zObjArray", {
+                zString: zString("Ignored zString"),
+                zNumber: zNumber("Ignored zNumber"),
+                zBoolean: zBoolean("Ignored zBoolean"),
+                zEnum: zEnum("Ignored zEnum", ["value1", "value2", "value3"]),
+              }),
+            }),
+          },
         ],
+        model: "gpt-5-nano",
       }
     );
     assert.ok(response, "Should return a response from proseCompletion");
@@ -82,7 +109,7 @@ describe("OpenAI E2E Flow", () => {
       [{ name: "Obey", args: { obey: true } }],
       "ToolCalls should be Obey tool"
     );
-    assert.equal(thread?.length, 6, "Thread should have six messages");
+    assert.equal(thread?.length, 8, "Thread should have eight messages");
     assert.deepEqual(rest, {}, "Rest should be empty object");
     logCounts(aiActionLog, "proseCompletion: full");
   });
