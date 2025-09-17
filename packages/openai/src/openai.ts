@@ -247,8 +247,8 @@ function completionToResponse<T>(
       let args = output.parsed_arguments;
 
       // I'm seeing an issue where this just repeats the output block for one level nested
-      if ("call_id" in output.parsed_arguments) {
-        args = output.parsed_arguments.parsed_arguments;
+      if (args && "call_id" in args) {
+        args = args.parsed_arguments;
       }
 
       result.toolCalls.push({
