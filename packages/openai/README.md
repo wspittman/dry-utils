@@ -151,35 +151,31 @@ const userSchema = zObj("User information", {
 });
 ```
 
-### Logging
+### Subscribing to Logging Events
 
-This package uses `node:diagnostics_channel` for logging. You can subscribe to these channels to receive log, error, and aggregate metric events.
+This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostics_channel.html) to publish log, error, and aggregatable events. A helper function `subscribeOpenAILogging` is provided to simplify subscribing to these events.
 
-- `OPENAI_LOG_CHANNEL`: For general log messages. The message is an object `{ tag: string, val: unknown }`.
-- `OPENAI_ERR_CHANNEL`: For error messages. The message is an object `{ tag: string, val: unknown }`.
-- `OPENAI_AGG_CHANNEL`: For aggregated metrics on API calls. The message is an object `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`.
+The `subscribeOpenAILogging` function accepts an object with optional `log`, `error`, and `aggregate` callbacks.
+
+- `log`: A function that receives log messages: `{ tag: string, val: unknown }`.
+- `error`: A function that receives error messages: `{ tag: string, val: unknown }`.
+- `aggregate`: A function that receives performance and metric data: `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`.
 
 Example:
+
 ```typescript
-import { subscribe } from "node:diagnostics_channel";
-import {
-  OPENAI_LOG_CHANNEL,
-  OPENAI_ERR_CHANNEL,
-  OPENAI_AGG_CHANNEL,
-} from "dry-utils-openai";
+import { subscribeOpenAILogging } from "dry-utils-openai";
 
-// Subscribe to log events
-subscribe(OPENAI_LOG_CHANNEL, ({ tag, val }) => {
-  console.log(`[OpenAI Log: ${tag}]`, val);
-});
-
-// Subscribe to error events
-subscribe(OPENAI_ERR_CHANNEL, ({ tag, val }) => {
-  console.error(`[OpenAI Error: ${tag}]`, val);
-});
-
-// Subscribe to aggregate events
-subscribe(OPENAI_AGG_CHANNEL, ({ tag, dense, metrics }) => {
-  console.log(`[OpenAI Aggregate: ${tag}]`, { dense, metrics });
+// Subscribe to log, error, and aggregate events
+subscribeOpenAILogging({
+  log: ({ tag, val }) => {
+    console.log(`[OpenAI Log: ${tag}]`, val);
+  },
+  error: ({ tag, val }) => {
+    console.error(`[OpenAI Error: ${tag}]`, val);
+  },
+  aggregate: ({ tag, dense, metrics }) => {
+    console.log(`[OpenAI Aggregate: ${tag}]`, { dense, metrics });
+  },
 });
 ```

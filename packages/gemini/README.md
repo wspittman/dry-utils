@@ -167,7 +167,9 @@ if (result.toolCalls) {
   // The model wants to call a tool
   const toolCall = result.toolCalls[0];
   if (toolCall.name === "getCurrentWeather") {
-    console.log(`The model wants to know the weather in ${toolCall.args.location}`);
+    console.log(
+      `The model wants to know the weather in ${toolCall.args.location}`
+    );
     // In a real app, you would execute the tool and send the result back to the model.
   }
 } else if (result.content) {
@@ -213,46 +215,36 @@ const result = await jsonCompletion(
 You can specify a different Gemini model using the `model` property in the `options` object. The default is `gemini-2.0-flash`.
 
 ```typescript
-const result = await jsonCompletion(
-  "...",
-  "...",
-  "...",
-  someSchema,
-  {
-    model: "gemini-1.5-pro-latest", // Specify a different model
-  }
-);
+const result = await jsonCompletion("...", "...", "...", someSchema, {
+  model: "gemini-1.5-pro-latest", // Specify a different model
+});
 ```
 
-### Logging
+### Subscribing to Logging Events
 
-This package uses `node:diagnostics_channel` for logging. You can subscribe to these channels to receive log, error, and aggregate metric events.
+This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostics_channel.html) to publish log, error, and aggregatable events. A helper function `subscribeGeminiLogging` is provided to simplify subscribing to these events.
 
-- `GEMINI_LOG_CHANNEL`: For general log messages. The message is an object `{ tag: string, val: unknown }`.
-- `GEMINI_ERR_CHANNEL`: For error messages. The message is an object `{ tag: string, val: unknown }`.
-- `GEMINI_AGG_CHANNEL`: For aggregated metrics on API calls. The message is an object `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`.
+The `subscribeGeminiLogging` function accepts an object with optional `log`, `error`, and `aggregate` callbacks.
+
+- `log`: A function that receives log messages: `{ tag: string, val: unknown }`.
+- `error`: A function that receives error messages: `{ tag: string, val: unknown }`.
+- `aggregate`: A function that receives performance and metric data: `{ tag: string, blob: Record<string, unknown>, dense: Record<string, unknown>, metrics: Record<string, number> }`.
 
 Example:
+
 ```typescript
-import { subscribe } from "node:diagnostics_channel";
-import {
-  GEMINI_LOG_CHANNEL,
-  GEMINI_ERR_CHANNEL,
-  GEMINI_AGG_CHANNEL,
-} from "dry-utils-gemini";
+import { subscribeGeminiLogging } from "dry-utils-gemini";
 
-// Subscribe to log events
-subscribe(GEMINI_LOG_CHANNEL, ({ tag, val }) => {
-  console.log(`[Gemini Log: ${tag}]`, val);
-});
-
-// Subscribe to error events
-subscribe(GEMINI_ERR_CHANNEL, ({ tag, val }) => {
-  console.error(`[Gemini Error: ${tag}]`, val);
-});
-
-// Subscribe to aggregate events
-subscribe(GEMINI_AGG_CHANNEL, ({ tag, dense, metrics }) => {
-  console.log(`[Gemini Aggregate: ${tag}]`, { dense, metrics });
+// Subscribe to log, error, and aggregate events
+subscribeGeminiLogging({
+  log: ({ tag, val }) => {
+    console.log(`[Gemini Log: ${tag}]`, val);
+  },
+  error: ({ tag, val }) => {
+    console.error(`[Gemini Error: ${tag}]`, val);
+  },
+  aggregate: ({ tag, dense, metrics }) => {
+    console.log(`[Gemini Aggregate: ${tag}]`, { dense, metrics });
+  },
 });
 ```

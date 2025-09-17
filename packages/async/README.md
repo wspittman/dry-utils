@@ -47,27 +47,25 @@ await batch(
 
 ### Subscribing to Logging Events
 
-This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostics_channel.html) to publish log and error events. To consume them, you need to subscribe to the channels exported by the package.
+This package uses [`node:diagnostics_channel`](https://nodejs.org/api/diagnostics_channel.html) to publish log and error events. A helper function `subscribeAsyncLogging` is provided to simplify subscribing to these events.
 
-- `ASYNC_LOG_CHANNEL`: For general logging. The published message is `{ tag: string, val: unknown }`.
-- `ASYNC_ERR_CHANNEL`: For errors. The published message is `{ tag: string, val: unknown }`.
+The `subscribeAsyncLogging` function accepts an object with optional `log` and `error` callbacks. Each callback receives a message object with `{ tag: string, val: unknown }`.
 
-Here is an example of how to subscribe to the channels and see the output from the `batch` function.
+Here is an example of how to subscribe to events from the `batch` function.
 
 ```typescript
-import { subscribe } from "node:diagnostics_channel";
-import { batch, ASYNC_LOG_CHANNEL, ASYNC_ERR_CHANNEL } from "dry-utils-async";
+import { subscribeAsyncLogging } from "dry-utils-async";
 
-// Subscribe to log events
-subscribe(ASYNC_LOG_CHANNEL, ({ tag, val }) => {
-  // Example: [LOG] Batch_ProcessUsers: 10
-  // Example: [LOG] Batch_ProcessUsers: Complete
-  console.log(`[LOG] ${tag}:`, val);
-});
-
-// Subscribe to error events
-subscribe(ASYNC_ERR_CHANNEL, ({ tag, val }) => {
-  // Example: [ERROR] Batch_ProcessUsers: at values[4]: Error: Invalid ID: -5
-  console.error(`[ERROR] ${tag}:`, val);
+// Subscribe to log and error events
+subscribeAsyncLogging({
+  log: ({ tag, val }) => {
+    // Example: [LOG] Batch_ProcessUsers: 10
+    // Example: [LOG] Batch_ProcessUsers: Complete
+    console.log(`[LOG] ${tag}:`, val);
+  },
+  error: ({ tag, val }) => {
+    // Example: [ERROR] Batch_ProcessUsers: at values[4]: Error: Invalid ID: -5
+    console.error(`[ERROR] ${tag}:`, val);
+  },
 });
 ```
