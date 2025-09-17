@@ -130,6 +130,10 @@ export class Container<Item extends ItemDefinition> {
       const response = await this.container.item(id, partitionKey).delete();
       logDBAction("DELETE", this.name, response, partitionKey);
     } catch (error) {
+      if ((error as { code?: number }).code === 404) {
+        // Item already deleted, ignore
+        return;
+      }
       diag.error("DeleteItem", error);
       throw error;
     }
