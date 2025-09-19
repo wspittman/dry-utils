@@ -47,6 +47,14 @@ describe("Async/Batch", () => {
     callCounts(0, 0, 0);
   });
 
+  test("batch: invalid size", async () => {
+    await assert.rejects(batch("invalid", [1], batchFn, 0), {
+      name: "RangeError",
+      message: "Batch size must be at least 1",
+    });
+    callCounts(0, 0, 0);
+  });
+
   const testAr = (count: number, fn?: (i: number) => number) => {
     const ar = Array(count).fill(0);
     return fn ? ar.map((_, i) => fn(i)) : ar;
