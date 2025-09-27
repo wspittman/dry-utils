@@ -155,7 +155,7 @@ async function apiCall<T extends object>(
 }
 
 let _client: OpenAI;
-function getClient() {
+export function getClient() {
   if (!_client) {
     _client = new OpenAI();
   }
