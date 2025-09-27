@@ -121,8 +121,9 @@ async function apiCall<T extends object>(
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const [systemPrompt, ...restOfThread] = thread;
+  const isEmptySystemPrompt = !systemPrompt || !systemPrompt.parts?.[0]?.text;
   const messages = createMessages(restOfThread, input, context);
-  const newThread = systemPrompt ? [systemPrompt, ...messages] : messages;
+  const newThread = [systemPrompt ?? createContent(""), ...messages];
 
   /*
   https://github.com/google-gemini/cookbook/issues/393
@@ -147,7 +148,7 @@ async function apiCall<T extends object>(
     model,
     contents: messages,
     config: {
-      systemInstruction: systemPrompt,
+      systemInstruction: isEmptySystemPrompt ? undefined : systemPrompt,
       //responseMimeType: "application/json",
       //responseSchema: zodToOpenAPISchema(schema),
       toolConfig: {

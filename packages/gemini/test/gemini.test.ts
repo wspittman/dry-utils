@@ -125,7 +125,9 @@ describe("AI: Gemini", () => {
     callCounts(defaultLog);
     assert.ok(result.thread, "thread should be defined");
     assert.ok(
-      result.thread!.every((message) => message && typeof message.role === "string"),
+      result.thread!.every(
+        (message) => message && typeof message.role === "string"
+      ),
       "thread entries should all be Content objects"
     );
   });

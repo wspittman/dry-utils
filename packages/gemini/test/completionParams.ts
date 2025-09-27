@@ -98,6 +98,7 @@ export function validateAPIParams(
   const fullThread: Content[] =
     typeof thread === "string" ? [createContent(thread)] : thread;
   const [systemPrompt, ...restOfThread] = fullThread;
+  const isEmptySystemPrompt = !systemPrompt || !systemPrompt.parts?.[0]?.text;
 
   const fullInput = typeof input === "string" ? input : JSON.stringify(input);
 
@@ -118,7 +119,7 @@ export function validateAPIParams(
   );
   assert.deepEqual(
     actual.config?.systemInstruction,
-    systemPrompt,
+    isEmptySystemPrompt ? undefined : systemPrompt,
     "config.systemInstruction"
   );
   assert.deepEqual(
