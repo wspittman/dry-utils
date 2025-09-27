@@ -118,6 +118,18 @@ describe("AI: Gemini", () => {
     validateAPIResponse(result, ResponseTemplates["default"]!, "complete");
   });
 
+  test("jsonCompletion preserves thread entries for empty thread", async () => {
+    geminiMock.mockResponseOnce(ResponseTemplates["default"]!);
+    const result = await jsonCall(ParamTemplates["threadArrayEmpty"]!);
+
+    callCounts(defaultLog);
+    assert.ok(result.thread, "thread should be defined");
+    assert.ok(
+      result.thread!.every((message) => message && typeof message.role === "string"),
+      "thread entries should all be Content objects"
+    );
+  });
+
   test("Response Rate Limit", async () => {
     const [error, expected] = RateLimitTemplate;
     geminiMock.mockMany([error, error, error, error]);
