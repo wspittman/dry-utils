@@ -122,7 +122,7 @@ async function apiCall<T extends object>(
   let attempt = 0;
   const [systemPrompt, ...restOfThread] = thread;
   const messages = createMessages(restOfThread, input, context);
-  const newThread = [systemPrompt!, ...messages];
+  const newThread = systemPrompt ? [systemPrompt, ...messages] : messages;
 
   /*
   https://github.com/google-gemini/cookbook/issues/393
