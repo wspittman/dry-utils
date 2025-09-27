@@ -179,7 +179,7 @@ async function apiCall<T extends object>(
 }
 
 let _client: GoogleGenAI;
-export function getClient() {
+export function getClient(): GoogleGenAI {
   if (!_client) {
     _client = new GoogleGenAI({
       apiKey: process.env["GEMINI_API_KEY"],
