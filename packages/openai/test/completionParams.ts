@@ -9,7 +9,7 @@ import {
   type Context,
   type Tool,
 } from "../src/openai.ts";
-import { toJSONSchema, zObj, zString } from "../src/zod.ts";
+import { proseSchema, toJSONSchema } from "../src/zodUtils.ts";
 
 /**
  * Flattened parameters for calling jsonCompletion or proseCompletion in tests
@@ -28,15 +28,11 @@ export interface CompletionParams {
   model?: string;
 }
 
-const defaultSchema = zObj("A wrapper around the completion content", {
-  content: zString("The completion content"),
-});
-
 const defaultParams: CompletionParams = {
   action: "test",
   thread: "system prompt",
   input: "user input",
-  schema: defaultSchema,
+  schema: proseSchema,
 };
 
 const fullThread: ResponseInputItem[] = [
@@ -68,7 +64,7 @@ const fullTools: Tool[] = [
   {
     name: "tool2",
     description: "desc2",
-    parameters: zObj("Tool 2 params", { a: z.string() }),
+    parameters: z.object({ a: z.string() }).describe("Tool 2 params"),
   },
 ];
 
@@ -95,7 +91,7 @@ export const ParamTemplates: Record<string, CompletionParams> = {
   inputStringEmpty: mp({ input: "" }),
   inputObjectEmpty: mp({ input: {} }),
   inputObject: mp({ input: { key1: "value1", key2: "value2" } }),
-  schemaMinimal: mp({ schema: zObj("Empty object", {}) }),
+  schemaMinimal: mp({ schema: z.object({}).describe("Empty object") }),
   contextEmpty: mp({ context: [] }),
   contextOne: mp({ context: [{ description: "desc1", content: { a: 1 } }] }),
   contextTwo: mp({
@@ -160,7 +156,7 @@ function toolToOpenAITool({ name, description, parameters }: Tool) {
   // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
 
   // Parameters are optional in our Tool type but required by OpenAI
-  const defaultParams = parameters ?? zObj("No parameters", {});
+  const defaultParams = parameters ?? z.object({}).describe("No parameters");
 
   return {
     type: "function" as const,

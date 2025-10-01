@@ -4,9 +4,9 @@ import type {
   ParsedResponse,
   ResponseInputItem,
 } from "openai/resources/responses/responses";
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import { diag } from "./diagnostics.ts";
-import { toJSONSchema, zObj, zString } from "./zod.ts";
+import { proseSchema, toJSONSchema } from "./zodUtils.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
@@ -53,14 +53,11 @@ export async function proseCompletion(
   input: string | object,
   options?: CompletionOptions
 ): Promise<CompletionResponse<string>> {
-  const schema = zObj("A wrapper around the completion content", {
-    content: zString("The completion content"),
-  });
   const { content, ...rest } = await jsonCompletion(
     action,
     thread,
     input,
-    schema,
+    proseSchema,
     options
   );
 
@@ -181,7 +178,7 @@ function toolToOpenAITool({ name, description, parameters }: Tool) {
   // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
 
   // Parameters are optional in our Tool type but required by OpenAI
-  const defaultParams = parameters ?? zObj("No parameters", {});
+  const defaultParams = parameters ?? z.object({}).describe("No parameters");
 
   return {
     type: "function" as const,

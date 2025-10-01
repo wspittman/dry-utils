@@ -6,7 +6,7 @@ import {
 } from "@google/genai";
 import assert from "node:assert/strict";
 import type { CompletionResponse } from "../src/gemini.ts";
-import { zObj, zString } from "../src/index.ts";
+import { proseSchema } from "../src/zodUtils.ts";
 
 type Completion = CompletionResponse<unknown>;
 
@@ -18,10 +18,6 @@ const usage: GenerateContentResponseUsageMetadata = {
   thoughtsTokenCount: 50,
   totalTokenCount: 75,
 };
-
-const defaultSchema = zObj("A wrapper around the completion content", {
-  content: zString("The completion content"),
-});
 
 const defaultResponse = createResponse(
   { content: "complete" },
@@ -113,7 +109,7 @@ function simpleCompletionResponse({
       { role: "user", parts: [{ text: "user input" }] },
       content,
     ],
-    content: name === "response" ? defaultSchema.parse(args) : undefined,
+    content: name === "response" ? proseSchema.parse(args) : undefined,
     toolCalls: name === "response" ? undefined : [fn],
   };
 }

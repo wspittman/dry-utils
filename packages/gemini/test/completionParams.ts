@@ -2,7 +2,7 @@ import type { Content, GenerateContentParameters } from "@google/genai";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import type { Context, Tool } from "../src/gemini.ts";
-import { toJSONSchema, zObj, zString } from "../src/zod.ts";
+import { proseSchema, toJSONSchema } from "../src/zodUtils.ts";
 
 /**
  * Flattened parameters for calling jsonCompletion or proseCompletion in tests
@@ -21,15 +21,11 @@ export interface CompletionParams {
   model?: string;
 }
 
-const defaultSchema = zObj("A wrapper around the completion content", {
-  content: zString("The completion content"),
-});
-
 const defaultParams: CompletionParams = {
   action: "test",
   thread: "system prompt",
   input: "user input",
-  schema: defaultSchema,
+  schema: proseSchema,
 };
 
 const fullThread: Content[] = [
@@ -50,7 +46,7 @@ const fullTools: Tool[] = [
   {
     name: "tool2",
     description: "desc2",
-    parameters: zObj("Tool 2 params", { a: z.string() }),
+    parameters: z.object({ a: z.string() }).describe("Tool 2 params"),
   },
 ];
 
@@ -69,7 +65,7 @@ export const ParamTemplates: Record<string, CompletionParams> = {
   inputStringEmpty: mp({ input: "" }),
   inputObjectEmpty: mp({ input: {} }),
   inputObject: mp({ input: { key1: "value1", key2: "value2" } }),
-  schemaMinimal: mp({ schema: zObj("Empty object", {}) }),
+  schemaMinimal: mp({ schema: z.object({}).describe("Empty object") }),
   contextEmpty: mp({ context: [] }),
   contextOne: mp({ context: [{ description: "desc1", content: { a: 1 } }] }),
   contextTwo: mp({

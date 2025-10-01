@@ -1,16 +1,7 @@
 import type { Content } from "@google/genai";
 import assert from "node:assert/strict";
 import { afterEach, describe, mock, test } from "node:test";
-import {
-  proseCompletion,
-  subscribeGeminiLogging,
-  zBoolean,
-  zEnum,
-  zNumber,
-  zObj,
-  zObjArray,
-  zString,
-} from "../src/index.ts";
+import { proseCompletion, subscribeGeminiLogging, z } from "../src/index.ts";
 
 // GEMINI_API_KEY present in .env
 
@@ -78,22 +69,32 @@ describe("Gemini E2E Flow", () => {
           {
             name: "Obey",
             description: "Obey the user",
-            parameters: zObj("Just say true", {
-              obey: zBoolean("Choose to obey?"),
-            }),
+            parameters: z
+              .object({
+                obey: z.boolean().describe("Choose to obey?"),
+              })
+              .describe("Just say true"),
           },
           { name: "Reject", description: "Reject the user" },
           {
             name: "Ignore_Tool",
             description: "Ignore the user",
-            parameters: zObj("Ignorable", {
-              zObjArray: zObjArray("Ignored zObjArray", {
-                zString: zString("Ignored zString"),
-                zNumber: zNumber("Ignored zNumber"),
-                zBoolean: zBoolean("Ignored zBoolean"),
-                zEnum: zEnum("Ignored zEnum", ["value1", "value2", "value3"]),
-              }),
-            }),
+            parameters: z
+              .object({
+                zObjArray: z.array(
+                  z
+                    .object({
+                      zString: z.string().describe("Ignored zString"),
+                      zNumber: z.number().describe("Ignored zNumber"),
+                      zBoolean: z.boolean().describe("Ignored zBoolean"),
+                      zEnum: z
+                        .enum(["value1", "value2", "value3"])
+                        .describe("Ignored zEnum"),
+                    })
+                    .describe("Ignored zObjArray")
+                ),
+              })
+              .describe("Ignorable"),
           },
         ],
         model: "gemini-2.0-flash-lite",

@@ -7,7 +7,7 @@ import {
 import { setTimeout } from "node:timers/promises";
 import type { ZodType } from "zod";
 import { diag } from "./diagnostics.ts";
-import { toJSONSchema, zObj, zString } from "./zod.ts";
+import { proseSchema, toJSONSchema } from "./zodUtils.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
@@ -54,14 +54,11 @@ export async function proseCompletion(
   input: string | object,
   options?: CompletionOptions
 ): Promise<CompletionResponse<string>> {
-  const schema = zObj("A wrapper around the completion content", {
-    content: zString("The completion content"),
-  });
   const { content, ...rest } = await jsonCompletion(
     action,
     thread,
     input,
-    schema,
+    proseSchema,
     options
   );
 
