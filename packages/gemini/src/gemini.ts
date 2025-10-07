@@ -12,6 +12,15 @@ import { proseSchema, toJSONSchema } from "./zodUtils.ts";
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
 
+export type ReasoningEffort = "minimal" | "low" | "medium" | "high";
+
+const REASONING_BUDGETS: Record<ReasoningEffort, number> = {
+  minimal: 0,
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+};
+
 export interface Context {
   description: string;
   content: Record<string, unknown>;
@@ -27,6 +36,7 @@ export interface CompletionOptions {
   context?: Context[];
   tools?: Tool[];
   model?: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface CompletionResponse<T> {
@@ -84,7 +94,12 @@ export async function jsonCompletion<T extends object>(
   thread: Content[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context, tools, model = "gemini-2.0-flash-lite" }: CompletionOptions = {}
+  {
+    context,
+    tools,
+    model = "gemini-2.0-flash-lite",
+    reasoningEffort,
+  }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
@@ -103,7 +118,8 @@ export async function jsonCompletion<T extends object>(
     input,
     schema,
     context ?? [],
-    tools ?? []
+    tools ?? [],
+    reasoningEffort
   );
 }
 
@@ -114,7 +130,8 @@ async function apiCall<T extends object>(
   input: string,
   schema: ZodType<T>,
   context: Context[],
-  tools: Tool[]
+  tools: Tool[],
+  reasoningEffort?: ReasoningEffort
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const [systemPrompt, ...restOfThread] = thread;
@@ -141,6 +158,10 @@ async function apiCall<T extends object>(
     },
   ];
 
+  const thinkingBudget =
+    reasoningEffort === undefined
+      ? undefined
+      : REASONING_BUDGETS[reasoningEffort];
   const body = {
     model,
     contents: messages,
@@ -154,6 +175,11 @@ async function apiCall<T extends object>(
         },
       },
       tools: tools.map(toolToGeminiTool),
+      ...(thinkingBudget !== undefined && {
+        thinkingConfig: {
+          thinkingBudget,
+        },
+      }),
     },
   };
 

@@ -1,7 +1,12 @@
 import type { Content, GenerateContentParameters } from "@google/genai";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import type { Context, Tool } from "../src/gemini.ts";
+import type {
+  CompletionOptions,
+  Context,
+  ReasoningEffort,
+  Tool,
+} from "../src/gemini.ts";
 import { proseSchema, toJSONSchema } from "../src/zodUtils.ts";
 
 /**
@@ -19,6 +24,7 @@ export interface CompletionParams {
   context?: Context[];
   tools?: Tool[];
   model?: string;
+  reasoningEffort?: CompletionOptions["reasoningEffort"];
 }
 
 const defaultParams: CompletionParams = {
@@ -52,6 +58,13 @@ const fullTools: Tool[] = [
 
 const mp = (x: Partial<CompletionParams>) => ({ ...defaultParams, ...x });
 
+const REASONING_BUDGETS: Record<ReasoningEffort, number> = {
+  minimal: 0,
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+};
+
 /**
  * Templates for valid parameters
  */
@@ -78,6 +91,10 @@ export const ParamTemplates: Record<string, CompletionParams> = {
   toolsOne: mp({ tools: fullTools.slice(0, 1) }),
   toolsFull: mp({ tools: fullTools }),
   model: mp({ model: "gemini-2.0-flash-lite-fake" }),
+  reasoningMinimal: mp({ reasoningEffort: "minimal" }),
+  reasoningLow: mp({ reasoningEffort: "low" }),
+  reasoningMedium: mp({ reasoningEffort: "medium" }),
+  reasoningHigh: mp({ reasoningEffort: "high" }),
 };
 
 /**
@@ -89,7 +106,7 @@ export function validateAPIParams(
   actual: GenerateContentParameters,
   used: CompletionParams
 ): void {
-  const { thread, input, schema, context, tools, model } = used;
+  const { thread, input, schema, context, tools, model, reasoningEffort } = used;
 
   const fullThread: Content[] =
     typeof thread === "string" ? [createContent(thread)] : thread;
@@ -122,6 +139,17 @@ export function validateAPIParams(
     actual.config?.tools,
     toolsWithSchema.map(toolToGeminiTool),
     "config.tools"
+  );
+  const expectedThinkingBudget =
+    reasoningEffort === undefined
+      ? undefined
+      : REASONING_BUDGETS[reasoningEffort];
+  assert.deepEqual(
+    actual.config?.thinkingConfig,
+    expectedThinkingBudget === undefined
+      ? undefined
+      : { thinkingBudget: expectedThinkingBudget },
+    "config.thinkingConfig"
   );
 }
 

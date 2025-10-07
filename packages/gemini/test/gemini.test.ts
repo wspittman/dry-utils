@@ -39,20 +39,28 @@ const { MockGeminiClient } = await import("./mockGeminiClient.ts");
 function proseCall(
   params: CompletionParams
 ): Promise<CompletionResponse<string>> {
-  const { action, thread, input, context, tools, model } = params;
+  const { action, thread, input, context, tools, model, reasoningEffort } =
+    params;
 
-  return proseCompletion(action, thread, input, { context, tools, model });
+  return proseCompletion(action, thread, input, {
+    context,
+    tools,
+    model,
+    reasoningEffort,
+  });
 }
 
 function jsonCall(
   params: CompletionParams
 ): Promise<CompletionResponse<unknown>> {
-  const { action, thread, input, schema, context, tools, model } = params;
+  const { action, thread, input, schema, context, tools, model, reasoningEffort } =
+    params;
 
   return jsonCompletion(action, thread, input, schema, {
     context,
     tools,
     model,
+    reasoningEffort,
   });
 }
 
