@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { beforeEach, describe, mock, test } from "node:test";
 import type { CompletionResponse } from "../src/gemini.ts";
-import {
-  jsonCompletion,
-  proseCompletion,
-  subscribeGeminiLogging,
-} from "../src/index.ts";
 import {
   ParamTemplates,
   validateAPIParams,
@@ -19,7 +15,26 @@ import {
   validateAPIError,
   validateAPIResponse,
 } from "./generateResponse.ts";
-import { MockGeminiClient } from "./mockGeminiClient.ts";
+
+const require = createRequire(import.meta.url);
+const timers = require("node:timers/promises") as typeof import("node:timers/promises");
+const originalSetTimeout = timers.setTimeout;
+timers.setTimeout = (async (
+  _delay: number,
+  value: unknown
+) => value) as typeof timers.setTimeout;
+
+test.after(() => {
+  timers.setTimeout = originalSetTimeout;
+});
+
+const {
+  jsonCompletion,
+  proseCompletion,
+  subscribeGeminiLogging,
+} = await import("../src/index.ts");
+
+const { MockGeminiClient } = await import("./mockGeminiClient.ts");
 
 function proseCall(
   params: CompletionParams
