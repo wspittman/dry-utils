@@ -4,6 +4,7 @@ import type {
   ParsedResponse,
   ResponseInputItem,
 } from "openai/resources/responses/responses";
+import type { ReasoningEffort } from "openai/resources/shared";
 import { z, type ZodType } from "zod";
 import { diag } from "./diagnostics.ts";
 import { proseSchema, toJSONSchema } from "./zodUtils.ts";
@@ -26,6 +27,7 @@ export interface CompletionOptions {
   context?: Context[];
   tools?: Tool[];
   model?: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface CompletionResponse<T> {
@@ -83,7 +85,12 @@ export async function jsonCompletion<T extends object>(
   thread: ResponseInputItem[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context, tools, model = "gpt-5-nano" }: CompletionOptions = {}
+  {
+    context,
+    tools,
+    model = "gpt-5-nano",
+    reasoningEffort,
+  }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   const actionError = validateAction(action);
   if (actionError) {
@@ -107,7 +114,8 @@ export async function jsonCompletion<T extends object>(
     input,
     schema,
     context ?? [],
-    tools ?? []
+    tools ?? [],
+    reasoningEffort
   );
 }
 
@@ -118,7 +126,8 @@ async function apiCall<T extends object>(
   input: string,
   schema: ZodType<T>,
   context: Context[],
-  simpleTools?: Tool[]
+  simpleTools: Tool[],
+  reasoningEffort?: ReasoningEffort
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const messages = createMessages(thread, input, context);
@@ -126,8 +135,11 @@ async function apiCall<T extends object>(
     model,
     input: messages,
     text: getTextFormat(action, schema),
-    tools: simpleTools?.map((tool) => toolToOpenAITool(tool)) ?? undefined,
-    reasoning: { effort: "minimal" as const },
+    tools: simpleTools.map((tool) => toolToOpenAITool(tool)),
+    reasoning:
+      reasoningEffort === undefined
+        ? undefined
+        : { effort: reasoningEffort },
   };
 
   while (true) {

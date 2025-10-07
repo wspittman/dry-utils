@@ -26,6 +26,7 @@ export interface CompletionParams {
   context?: CompletionOptions["context"];
   tools?: Tool[];
   model?: string;
+  reasoningEffort?: CompletionOptions["reasoningEffort"];
 }
 
 const defaultParams: CompletionParams = {
@@ -104,6 +105,7 @@ export const ParamTemplates: Record<string, CompletionParams> = {
   toolsOne: mp({ tools: fullTools.slice(0, 1) }),
   toolsFull: mp({ tools: fullTools }),
   model: mp({ model: "gpt-5-fake" }),
+  reasoningEffort: mp({ reasoningEffort: "medium" }),
 };
 
 /**
@@ -115,7 +117,16 @@ export function validateAPIParams(
   actual: ResponseCreateParams,
   used: CompletionParams
 ): void {
-  const { action, thread, input, schema, context, tools, model } = used;
+  const {
+    action,
+    thread,
+    input,
+    schema,
+    context,
+    tools,
+    model,
+    reasoningEffort,
+  } = used;
 
   const fullThread: ResponseInputItem[] =
     typeof thread === "string"
@@ -135,6 +146,11 @@ export function validateAPIParams(
     actual.tools,
     tools?.map((x) => toolToOpenAITool(x)) ?? [],
     "tools"
+  );
+  assert.deepEqual(
+    actual.reasoning,
+    reasoningEffort === undefined ? undefined : { effort: reasoningEffort },
+    "reasoning"
   );
 }
 
