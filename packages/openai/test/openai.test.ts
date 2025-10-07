@@ -1,10 +1,6 @@
 import assert from "assert/strict";
+import { createRequire } from "node:module";
 import { beforeEach, describe, mock, test } from "node:test";
-import {
-  jsonCompletion,
-  proseCompletion,
-  subscribeOpenAILogging,
-} from "../src/index.ts";
 import type { CompletionResponse } from "../src/openai.ts";
 import {
   ParamErrorTemplates,
@@ -22,7 +18,25 @@ import {
   validateAPIResponse,
 } from "./parsedResponse.ts";
 
+const require = createRequire(import.meta.url);
+const timers = require("node:timers/promises") as typeof import("node:timers/promises");
+const originalSetTimeout = timers.setTimeout;
+timers.setTimeout = (async (
+  _delay: number,
+  value: unknown
+) => value) as typeof timers.setTimeout;
+
+test.after(() => {
+  timers.setTimeout = originalSetTimeout;
+});
+
 process.env["OPENAI_API_KEY"] = "mock_openai_key";
+
+const {
+  jsonCompletion,
+  proseCompletion,
+  subscribeOpenAILogging,
+} = await import("../src/index.ts");
 
 function proseCall(
   params: CompletionParams
