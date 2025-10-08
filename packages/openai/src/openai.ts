@@ -1,44 +1,35 @@
 import { setTimeout } from "node:timers/promises";
 import OpenAI from "openai";
+import type { CreateEmbeddingResponse } from "openai/resources";
 import type {
   ParsedResponse,
   ResponseInputItem,
 } from "openai/resources/responses/responses";
 import type { ReasoningEffort } from "openai/resources/shared";
-import { z, type ZodType } from "zod";
+import { type ZodType } from "zod";
 import { diag } from "./diagnostics.ts";
-import { proseSchema, toJSONSchema } from "./zodUtils.ts";
+import {
+  completionToResponse,
+  createMessages,
+  embeddingToResponse,
+  getTextFormat,
+  toolToOpenAITool,
+} from "./shaping.ts";
+import type {
+  Bag,
+  CompletionOptions,
+  CompletionResponse,
+  Context,
+  EmbeddingOptions,
+  EmbeddingResponse,
+  Tool,
+} from "./types.ts";
+import { proseSchema } from "./zodUtils.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
 
-export interface Context {
-  description: string;
-  content: Record<string, unknown>;
-}
-
-export interface Tool {
-  name: string;
-  description: string;
-  parameters?: ZodType<object>;
-}
-
-export interface CompletionOptions {
-  context?: Context[];
-  tools?: Tool[];
-  model?: string;
-  reasoningEffort?: ReasoningEffort;
-}
-
-export interface CompletionResponse<T> {
-  thread?: ResponseInputItem[];
-  content?: T;
-  toolCalls?: {
-    name: string;
-    args: Record<string, unknown>;
-  }[];
-  error?: string;
-}
+// #region Completion
 
 /**
  * Makes an OpenAI prose completion request.
@@ -107,7 +98,7 @@ export async function jsonCompletion<T extends object>(
     input = JSON.stringify(input);
   }
 
-  return await apiCall(
+  return await apiCompletion(
     model,
     action,
     thread,
@@ -119,7 +110,7 @@ export async function jsonCompletion<T extends object>(
   );
 }
 
-async function apiCall<T extends object>(
+async function apiCompletion<T extends object>(
   model: string,
   action: string,
   thread: ResponseInputItem[],
@@ -137,9 +128,7 @@ async function apiCall<T extends object>(
     text: getTextFormat(action, schema),
     tools: simpleTools.map((tool) => toolToOpenAITool(tool)),
     reasoning:
-      reasoningEffort === undefined
-        ? undefined
-        : { effort: reasoningEffort },
+      reasoningEffort === undefined ? undefined : { effort: reasoningEffort },
   };
 
   while (true) {
@@ -163,6 +152,60 @@ async function apiCall<T extends object>(
   }
 }
 
+// #endregion
+
+// #region Embedding
+
+/**
+ * Generates embeddings for the provided text input.
+ * Includes automatic retries with exponential backoff for rate limiting.
+ * @param action The name of the action for logging purposes. Must satisfy pattern: ^[a-zA-Z0-9_-]+$
+ * @param input The text or list of texts to embed.
+ * @param options Optional object containing the model name and dimensionality.
+ * @returns An object containing embedding vectors or an error.
+ */
+export async function embed(
+  action: string,
+  input: string | string[],
+  { model = "text-embedding-3-small", dimensions }: EmbeddingOptions = {}
+): Promise<EmbeddingResponse> {
+  const actionError = validateAction(action);
+  if (actionError) {
+    return actionError;
+  }
+
+  const inputs = Array.isArray(input) ? input : [input];
+  const body = {
+    model,
+    input: inputs,
+    dimensions,
+  };
+
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const start = Date.now();
+      const embeddingResponse = await getClient().embeddings.create(body);
+      const duration = Date.now() - start;
+
+      const result = embeddingToResponse(embeddingResponse);
+      logEmbedAction(action, inputs, duration, embeddingResponse, result);
+      return result;
+    } catch (error) {
+      const response = errorToResponse(error, attempt);
+      if (response) return response;
+
+      await backoff(action, attempt);
+      attempt++;
+    }
+  }
+}
+
+// #endregion
+
+// #region Client
+
 let _client: OpenAI;
 export function getClient(): OpenAI {
   if (!_client) {
@@ -170,105 +213,6 @@ export function getClient(): OpenAI {
   }
 
   return _client;
-}
-
-// #region Object Creation
-
-function getTextFormat<T>(action: string, schema: ZodType<T>) {
-  return {
-    // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
-    format: {
-      name: action,
-      schema: toJSONSchema(schema),
-      type: "json_schema" as const,
-      strict: true,
-    },
-  };
-}
-
-function toolToOpenAITool({ name, description, parameters }: Tool) {
-  // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
-
-  // Parameters are optional in our Tool type but required by OpenAI
-  const defaultParams = parameters ?? z.object({}).describe("No parameters");
-
-  return {
-    type: "function" as const,
-    name,
-    description,
-    parameters: toJSONSchema(defaultParams),
-    strict: true,
-  };
-}
-
-function createMessages(
-  thread: ResponseInputItem[],
-  input: string,
-  context: Context[]
-): ResponseInputItem[] {
-  return [
-    ...thread,
-    ...context.map(
-      ({ description, content }) =>
-        ({
-          role: "user",
-          content: `Useful context: ${description}\n${JSON.stringify(content)}`,
-        } as ResponseInputItem)
-    ),
-    { role: "user", content: input },
-  ];
-}
-
-function completionToResponse<T>(
-  completion: ParsedResponse<T>,
-  thread: ResponseInputItem[]
-): CompletionResponse<T> {
-  if (completion.status === "incomplete") {
-    const reason = completion.incomplete_details?.reason;
-    return {
-      error:
-        reason === "content_filter"
-          ? "Content filtered"
-          : "Incomplete response",
-    };
-  }
-
-  if (completion.status !== "completed") {
-    return { error: `Unexpected response status: ${completion.status}` };
-  }
-
-  const result: CompletionResponse<T> = {};
-
-  for (const output of completion.output) {
-    if (output.type === "message") {
-      const content = output.content[0];
-
-      if (content?.type === "refusal") {
-        return { error: `Refusal: ${content.refusal}` };
-      } else if (content?.type === "output_text") {
-        result.content = content.parsed ?? undefined;
-      } else {
-        return { error: "No content on message output" };
-      }
-    } else if (output.type === "function_call") {
-      result.toolCalls ??= [];
-
-      let args = output.parsed_arguments;
-
-      // I'm seeing an issue where this just repeats the output block for one level nested
-      if (args && "call_id" in args) {
-        args = args.parsed_arguments;
-      }
-
-      result.toolCalls.push({
-        name: output.name,
-        args,
-      });
-    }
-  }
-
-  result.thread = [...thread, ...completion.output];
-  return result;
 }
 
 // #endregion
@@ -347,7 +291,7 @@ function logLLMAction<T>(
   try {
     if (!apiResponse?.usage) return;
 
-    const blob: Record<string, unknown> = {
+    const blob: Bag = {
       action,
       input,
       duration,
@@ -361,7 +305,7 @@ function logLLMAction<T>(
       apiResponse.usage.output_tokens_details ?? {};
     const { status } = apiResponse;
 
-    const dense: Record<string, unknown> = {
+    const dense: Bag = {
       name: action,
       in: input.length > 100 ? input.slice(0, 97) + "..." : input,
       tokens: total_tokens,
@@ -396,24 +340,70 @@ function logLLMAction<T>(
       dense["out"] = rest;
     }
 
-    const metrics: Record<string, number> = {};
-    [
+    const metrics = createMetrics(dense, [
       "tokens",
       "inTokens",
       "outTokens",
       "cacheTokens",
       "reasoningTokens",
       "ms",
-    ].forEach((x) => {
-      if (typeof dense[x] === "number") {
-        metrics[x] = dense[x];
-      }
-    });
+    ]);
 
     diag.aggregate(action, blob, dense, metrics);
   } catch (error) {
     diag.error("LogLLMAction", error);
   }
+}
+
+function logEmbedAction(
+  action: string,
+  inputs: string[],
+  duration: number,
+  apiResponse: CreateEmbeddingResponse,
+  response: EmbeddingResponse
+) {
+  try {
+    const blob: Bag = {
+      action,
+      inputs,
+      duration,
+      apiResponse,
+      response,
+    };
+
+    let preview = `${inputs.length} items: `;
+    for (const item of inputs) {
+      if (preview.length > 100) break;
+      preview += `[${item}] | `;
+    }
+
+    const { total_tokens, prompt_tokens } = apiResponse.usage;
+
+    const dense: Bag = {
+      name: action,
+      in: preview.length > 100 ? preview.slice(0, 97) + "..." : preview,
+      count: (response.embeddings ?? []).length,
+      tokens: total_tokens,
+      inTokens: prompt_tokens,
+      ms: duration,
+    };
+
+    const metrics = createMetrics(dense, ["tokens", "inTokens", "ms"]);
+
+    diag.aggregate(action, blob, dense, metrics);
+  } catch (error) {
+    diag.error("LogEmbedAction", error);
+  }
+}
+
+function createMetrics(dense: Bag, keys: string[]): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  keys.forEach((x) => {
+    if (typeof dense[x] === "number") {
+      metrics[x] = dense[x];
+    }
+  });
+  return metrics;
 }
 
 // #endregion

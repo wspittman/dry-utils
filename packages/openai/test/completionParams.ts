@@ -3,13 +3,14 @@ import {
   type ResponseCreateParams,
   type ResponseInputItem,
 } from "openai/resources/responses/responses";
-import { z, ZodType } from "zod";
+import { z } from "zod";
 import {
-  type CompletionOptions,
-  type Context,
-  type Tool,
-} from "../src/openai.ts";
-import { proseSchema, toJSONSchema } from "../src/zodUtils.ts";
+  createMessages,
+  getTextFormat,
+  toolToOpenAITool,
+} from "../src/shaping.ts";
+import type { CompletionOptions, Tool } from "../src/types.ts";
+import { proseSchema } from "../src/zodUtils.ts";
 
 /**
  * Flattened parameters for calling jsonCompletion or proseCompletion in tests
@@ -153,52 +154,3 @@ export function validateAPIParams(
     "reasoning"
   );
 }
-
-// #region Reformatting Helpers, copy/pasted from openai.ts
-
-function getTextFormat<T>(action: string, schema: ZodType<T>) {
-  return {
-    // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
-    format: {
-      name: action,
-      schema: toJSONSchema(schema),
-      type: "json_schema" as const,
-      strict: true,
-    },
-  };
-}
-
-function toolToOpenAITool({ name, description, parameters }: Tool) {
-  // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
-
-  // Parameters are optional in our Tool type but required by OpenAI
-  const defaultParams = parameters ?? z.object({}).describe("No parameters");
-
-  return {
-    type: "function" as const,
-    name,
-    description,
-    parameters: toJSONSchema(defaultParams),
-    strict: true,
-  };
-}
-
-function createMessages(
-  thread: ResponseInputItem[],
-  input: string,
-  context: Context[]
-): ResponseInputItem[] {
-  return [
-    ...thread,
-    ...context.map(
-      ({ description, content }) =>
-        ({
-          role: "user",
-          content: `Useful context: ${description}\n${JSON.stringify(content)}`,
-        } as ResponseInputItem)
-    ),
-    { role: "user", content: input },
-  ];
-}
-
-// #endregion

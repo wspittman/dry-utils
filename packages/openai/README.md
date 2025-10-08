@@ -20,8 +20,10 @@ npm install dry-utils-openai
 ## Features
 
 - **Structured JSON Responses**: Create structured responses with Zod schemas using `json_schema` mode.
-- **Tool Use**: Define tools that the model can call and receive structured arguments.
 - **Prose Completions**: Generate text responses with a simple API.
+- **Tool Use**: Define tools that the model can call and receive structured arguments.
+- **Conversation Threads**: Maintain conversation history by passing the thread between calls.
+- **Embeddings**: Generate text embeddings with automatic retries and diagnostics logging.
 - **Automatic Retries**: Built-in exponential backoff for rate limiting.
 - **Error Handling**: Comprehensive error handling for common API issues.
 - **Logging**: Detailed logging via `node:diagnostics_channel` for API calls, errors, and performance metrics.
@@ -93,20 +95,39 @@ if (result.content) {
 }
 ```
 
+### Embeddings
+
+Create embedding vectors for one or more strings:
+
+```typescript
+import { embed } from "dry-utils-openai";
+
+const result = await embed("VectorSearch", ["hello world", "hola mundo"], {
+  model: "text-embedding-3-small",
+  dimensions: 768,
+});
+
+if (result.embeddings) {
+  console.log("First embedding length:", result.embeddings[0].length);
+}
+```
+
 ### Tool Use
 
 Define tools that the model can call during a completion.
 
 ```typescript
-import { jsonCompletion, z, zObj, zString } from "dry-utils-openai";
+import { jsonCompletion, z } from "dry-utils-openai";
 
 // Define a tool
 const searchTool = {
   name: "searchWeb",
   description: "Search the web for information",
-  parameters: zObj("Search parameters", {
-    query: zString("The search query"),
-  }),
+  parameters: z
+    .object({
+      query: z.string().describe("The search query"),
+    })
+    .describe("Parameters for web search"),
 };
 
 // Make a completion request with the tool
@@ -114,8 +135,8 @@ const result = await jsonCompletion(
   "WebSearch",
   "You are a helpful assistant.",
   "Search the web for the capital of France.",
-  zObj("Response", {
-    answer: zString("The answer to the user's question"),
+  z.object({
+    answer: z.string().describe("The answer to the user's question"),
   }),
   {
     tools: [searchTool],
@@ -129,26 +150,6 @@ if (result.toolCalls) {
     // to the model in a subsequent call.
   }
 }
-```
-
-### Schema Creation Helpers
-
-Create Zod schemas with descriptions for OpenAI:
-
-```typescript
-import { zObj, zString, zNumber, zBoolean, zObjArray } from "dry-utils-openai";
-
-// Create a schema with helper functions
-const userSchema = zObj("User information", {
-  name: zString("The user's full name"),
-  age: zNumber("The user's age in years"),
-  isPremium: zBoolean("Whether the user has a premium subscription"),
-  addresses: zObjArray("List of user addresses", {
-    street: zString("Street address"),
-    city: zString("City name"),
-    zipCode: zString("Postal code"),
-  }),
-});
 ```
 
 ### Subscribing to Logging Events

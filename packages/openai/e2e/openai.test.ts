@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, mock, test } from "node:test";
 import type { ResponseInputItem } from "openai/resources/responses/responses";
-import { proseCompletion, subscribeOpenAILogging, z } from "../src/index.ts";
+import {
+  embed,
+  proseCompletion,
+  subscribeOpenAILogging,
+  z,
+} from "../src/index.ts";
 
 // OPENAI_API_KEY present in .env, referenced directly in OpenAI SDK
+
+const DEBUG = false;
+const debugFn = (x: unknown) => console.dir(x, { depth: null });
 
 const aiActionLog = { agg: 1 };
 
@@ -11,9 +19,9 @@ describe("OpenAI E2E Flow", () => {
   // Note: Each test is dependent on the previous one
   let history: ResponseInputItem[] = [];
 
-  const logFn = mock.fn();
-  const errorFn = mock.fn();
-  const aggFn = mock.fn();
+  const logFn = mock.fn(DEBUG ? debugFn : undefined);
+  const errorFn = mock.fn(DEBUG ? debugFn : undefined);
+  const aggFn = mock.fn(DEBUG ? debugFn : undefined);
   subscribeOpenAILogging({ log: logFn, error: errorFn, aggregate: aggFn });
 
   function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
@@ -26,6 +34,37 @@ describe("OpenAI E2E Flow", () => {
     logFn.mock.resetCalls();
     errorFn.mock.resetCalls();
     aggFn.mock.resetCalls();
+  });
+
+  test("embedding: minimal", async () => {
+    const { error, embeddings } = await embed("Min_Embed", "Embedding test");
+    assert.ok(!error, "Should not return an error from embed");
+    assert.ok(embeddings, "Should return embeddings from embed");
+    assert.equal(embeddings?.length, 1, "Should return one embedding");
+  });
+
+  test("embedding: full", async () => {
+    const { error, embeddings } = await embed(
+      "Full_Embed",
+      ["Embedding test", "This is a test of Gemini embeddings"],
+      {
+        model: "text-embedding-3-small",
+        dimensions: 768,
+      }
+    );
+    assert.ok(!error, "Should not return an error from embed");
+    assert.ok(embeddings, "Should return embeddings from embed");
+    assert.equal(embeddings?.length, 2, "Should return two embeddings");
+    assert.equal(embeddings?.[0]?.length, 768, "Should return 768 dimensions");
+  });
+
+  test("embedding: error", async () => {
+    const { error, embeddings } = await embed("Err_Embed", "Embedding test", {
+      model: "nonexistent-model",
+      dimensions: 123,
+    });
+    assert.ok(error, "Should return an error from embed");
+    assert.ok(!embeddings, "Should not return embeddings from embed");
   });
 
   test("proseCompletion: minimal", async () => {
