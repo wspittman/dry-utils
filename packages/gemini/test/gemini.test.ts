@@ -45,6 +45,9 @@ const { embed, jsonCompletion, proseCompletion, subscribeGeminiLogging } =
 
 const { MockGeminiClient } = await import("./mockGeminiClient.ts");
 
+const DEBUG = false;
+const debugFn = (x: unknown) => console.dir(x, { depth: null });
+
 function proseCall(
   params: CompletionParams
 ): Promise<CompletionResponse<string>> {
@@ -89,9 +92,9 @@ function embedCall(params: EmbedParams): Promise<EmbeddingResponse> {
 
 describe("AI: Gemini", () => {
   const geminiMock = new MockGeminiClient();
-  const logFn = mock.fn();
-  const errFn = mock.fn();
-  const aggFn = mock.fn();
+  const logFn = mock.fn(DEBUG ? debugFn : undefined);
+  const errFn = mock.fn(DEBUG ? debugFn : undefined);
+  const aggFn = mock.fn(DEBUG ? debugFn : undefined);
   subscribeGeminiLogging({ log: logFn, error: errFn, aggregate: aggFn });
 
   const errLog = { error: 1, generate: 1 };

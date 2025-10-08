@@ -10,15 +10,18 @@ import {
 
 // GEMINI_API_KEY present in .env
 
+const DEBUG = false;
+const debugFn = (x: unknown) => console.dir(x, { depth: null });
+
 const aiActionLog = { agg: 1 };
 
 describe("Gemini E2E Flow", () => {
   // Note: Each test is dependent on the previous one
   let history: Content[] = [];
 
-  const logFn = mock.fn();
-  const errorFn = mock.fn();
-  const aggFn = mock.fn();
+  const logFn = mock.fn(DEBUG ? debugFn : undefined);
+  const errorFn = mock.fn(DEBUG ? debugFn : undefined);
+  const aggFn = mock.fn(DEBUG ? debugFn : undefined);
   subscribeGeminiLogging({ log: logFn, error: errorFn, aggregate: aggFn });
 
   function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
