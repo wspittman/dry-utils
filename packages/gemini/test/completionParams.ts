@@ -1,13 +1,18 @@
 import type { Content, GenerateContentParameters } from "@google/genai";
 import assert from "node:assert/strict";
 import { z } from "zod";
+import {
+  createContent,
+  createMessages,
+  toolToGeminiTool,
+} from "../src/shaping.ts";
 import type {
   CompletionOptions,
   Context,
   ReasoningEffort,
   Tool,
-} from "../src/gemini.ts";
-import { proseSchema, toJSONSchema } from "../src/zodUtils.ts";
+} from "../src/types.ts";
+import { proseSchema } from "../src/zodUtils.ts";
 
 /**
  * Flattened parameters for calling jsonCompletion or proseCompletion in tests
@@ -106,7 +111,8 @@ export function validateAPIParams(
   actual: GenerateContentParameters,
   used: CompletionParams
 ): void {
-  const { thread, input, schema, context, tools, model, reasoningEffort } = used;
+  const { thread, input, schema, context, tools, model, reasoningEffort } =
+    used;
 
   const fullThread: Content[] =
     typeof thread === "string" ? [createContent(thread)] : thread;
@@ -152,44 +158,3 @@ export function validateAPIParams(
     "config.thinkingConfig"
   );
 }
-
-// #region Reformatting Helpers, copy/pasted from gemini.ts
-
-function toolToGeminiTool({ name, description, parameters }: Tool) {
-  return {
-    functionDeclarations: [
-      {
-        name,
-        description,
-        parameters: parameters
-          ? (toJSONSchema(parameters) as Record<string, unknown>)
-          : undefined,
-      },
-    ],
-  };
-}
-
-function createContent(text: string, role: string = "user"): Content {
-  return {
-    role,
-    parts: [{ text }],
-  };
-}
-
-function createMessages(
-  thread: Content[],
-  input: string,
-  context: Context[]
-): Content[] {
-  return [
-    ...thread,
-    ...context.map(({ description, content }) =>
-      createContent(
-        `Useful context: ${description}\n${JSON.stringify(content)}`
-      )
-    ),
-    createContent(input),
-  ];
-}
-
-// #endregion

@@ -1,7 +1,12 @@
 import type { Content } from "@google/genai";
 import assert from "node:assert/strict";
 import { afterEach, describe, mock, test } from "node:test";
-import { proseCompletion, subscribeGeminiLogging, z } from "../src/index.ts";
+import {
+  embed,
+  proseCompletion,
+  subscribeGeminiLogging,
+  z,
+} from "../src/index.ts";
 
 // GEMINI_API_KEY present in .env
 
@@ -26,6 +31,37 @@ describe("Gemini E2E Flow", () => {
     logFn.mock.resetCalls();
     errorFn.mock.resetCalls();
     aggFn.mock.resetCalls();
+  });
+
+  test("embedding: minimal", async () => {
+    const { error, embeddings } = await embed("Min_Embed", "Embedding test");
+    assert.ok(!error, "Should not return an error from embed");
+    assert.ok(embeddings, "Should return embeddings from embed");
+    assert.equal(embeddings?.length, 1, "Should return one embedding");
+  });
+
+  test("embedding: full", async () => {
+    const { error, embeddings } = await embed(
+      "Full_Embed",
+      ["Embedding test", "This is a test of Gemini embeddings"],
+      {
+        model: "gemini-embedding-001",
+        dimensions: 768,
+      }
+    );
+    assert.ok(!error, "Should not return an error from embed");
+    assert.ok(embeddings, "Should return embeddings from embed");
+    assert.equal(embeddings?.length, 2, "Should return two embeddings");
+    assert.equal(embeddings?.[0]?.length, 768, "Should return 768 dimensions");
+  });
+
+  test("embedding: error", async () => {
+    const { error, embeddings } = await embed("Err_Embed", "Embedding test", {
+      model: "nonexistent-model",
+      dimensions: 123,
+    });
+    assert.ok(error, "Should return an error from embed");
+    assert.ok(!embeddings, "Should not return embeddings from embed");
   });
 
   test("proseCompletion: minimal", async () => {

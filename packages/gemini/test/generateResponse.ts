@@ -5,7 +5,7 @@ import {
   type GenerateContentResponseUsageMetadata,
 } from "@google/genai";
 import assert from "node:assert/strict";
-import type { CompletionResponse } from "../src/gemini.ts";
+import type { CompletionResponse } from "../src/types.ts";
 import { proseSchema } from "../src/zodUtils.ts";
 
 type Completion = CompletionResponse<unknown>;
