@@ -48,10 +48,15 @@ describe("Async/Batch", () => {
   });
 
   test("batch: invalid size", async () => {
-    await assert.rejects(batch("invalid", [1], batchFn, 0), {
-      name: "RangeError",
-      message: "Batch size must be at least 1",
-    });
+    const invalidSizes = [0, -1, -5, 2.5];
+
+    for (const size of invalidSizes) {
+      await assert.rejects(batch("invalid", [1], batchFn, size), {
+        name: "RangeError",
+        message: "Batch size must be a positive integer",
+      });
+    }
+
     callCounts(0, 0, 0);
   });
 
