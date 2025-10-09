@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-text",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Personal, hyper-specific collection of HTML and Markdown conversion utilities",
   "type": "module",
   "sideEffects": false,
