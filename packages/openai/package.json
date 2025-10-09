@@ -42,7 +42,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "openai": "^5.16.0",
+    "openai": "^6.2.0",
     "zod": "^4.1.3"
   },
   "devDependencies": {
