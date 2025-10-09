@@ -2,17 +2,16 @@ import type { Content } from "@google/genai";
 import assert from "node:assert/strict";
 import { afterEach, describe, mock, test } from "node:test";
 import {
+  embed,
   proseCompletion,
   subscribeGeminiLogging,
-  zBoolean,
-  zEnum,
-  zNumber,
-  zObj,
-  zObjArray,
-  zString,
+  z,
 } from "../src/index.ts";
 
 // GEMINI_API_KEY present in .env
+
+const DEBUG = false;
+const debugFn = (x: unknown) => console.dir(x, { depth: null });
 
 const aiActionLog = { agg: 1 };
 
@@ -20,9 +19,9 @@ describe("Gemini E2E Flow", () => {
   // Note: Each test is dependent on the previous one
   let history: Content[] = [];
 
-  const logFn = mock.fn();
-  const errorFn = mock.fn();
-  const aggFn = mock.fn();
+  const logFn = mock.fn(DEBUG ? debugFn : undefined);
+  const errorFn = mock.fn(DEBUG ? debugFn : undefined);
+  const aggFn = mock.fn(DEBUG ? debugFn : undefined);
   subscribeGeminiLogging({ log: logFn, error: errorFn, aggregate: aggFn });
 
   function logCounts({ log = 0, error = 0, agg = 0 }, msg = "") {
@@ -35,6 +34,37 @@ describe("Gemini E2E Flow", () => {
     logFn.mock.resetCalls();
     errorFn.mock.resetCalls();
     aggFn.mock.resetCalls();
+  });
+
+  test("embedding: minimal", async () => {
+    const { error, embeddings } = await embed("Min_Embed", "Embedding test");
+    assert.ok(!error, "Should not return an error from embed");
+    assert.ok(embeddings, "Should return embeddings from embed");
+    assert.equal(embeddings?.length, 1, "Should return one embedding");
+  });
+
+  test("embedding: full", async () => {
+    const { error, embeddings } = await embed(
+      "Full_Embed",
+      ["Embedding test", "This is a test of Gemini embeddings"],
+      {
+        model: "gemini-embedding-001",
+        dimensions: 768,
+      }
+    );
+    assert.ok(!error, "Should not return an error from embed");
+    assert.ok(embeddings, "Should return embeddings from embed");
+    assert.equal(embeddings?.length, 2, "Should return two embeddings");
+    assert.equal(embeddings?.[0]?.length, 768, "Should return 768 dimensions");
+  });
+
+  test("embedding: error", async () => {
+    const { error, embeddings } = await embed("Err_Embed", "Embedding test", {
+      model: "nonexistent-model",
+      dimensions: 123,
+    });
+    assert.ok(error, "Should return an error from embed");
+    assert.ok(!embeddings, "Should not return embeddings from embed");
   });
 
   test("proseCompletion: minimal", async () => {
@@ -78,22 +108,32 @@ describe("Gemini E2E Flow", () => {
           {
             name: "Obey",
             description: "Obey the user",
-            parameters: zObj("Just say true", {
-              obey: zBoolean("Choose to obey?"),
-            }),
+            parameters: z
+              .object({
+                obey: z.boolean().describe("Choose to obey?"),
+              })
+              .describe("Just say true"),
           },
           { name: "Reject", description: "Reject the user" },
           {
             name: "Ignore_Tool",
             description: "Ignore the user",
-            parameters: zObj("Ignorable", {
-              zObjArray: zObjArray("Ignored zObjArray", {
-                zString: zString("Ignored zString"),
-                zNumber: zNumber("Ignored zNumber"),
-                zBoolean: zBoolean("Ignored zBoolean"),
-                zEnum: zEnum("Ignored zEnum", ["value1", "value2", "value3"]),
-              }),
-            }),
+            parameters: z
+              .object({
+                zObjArray: z.array(
+                  z
+                    .object({
+                      zString: z.string().describe("Ignored zString"),
+                      zNumber: z.number().describe("Ignored zNumber"),
+                      zBoolean: z.boolean().describe("Ignored zBoolean"),
+                      zEnum: z
+                        .enum(["value1", "value2", "value3"])
+                        .describe("Ignored zEnum"),
+                    })
+                    .describe("Ignored zObjArray")
+                ),
+              })
+              .describe("Ignorable"),
           },
         ],
         model: "gemini-2.0-flash-lite",

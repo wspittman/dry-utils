@@ -17,6 +17,9 @@ export async function batch<T>(
   size = 5
 ): Promise<void> {
   if (!values.length) return;
+  if (size < 1) {
+    throw new RangeError("Batch size must be at least 1");
+  }
 
   diag.log(`Batch_${name}`, values.length);
 

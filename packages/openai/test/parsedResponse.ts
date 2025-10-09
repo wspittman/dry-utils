@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { APIError } from "openai";
-import {
-  type ParsedResponse,
-  type ParsedResponseOutputItem,
-  type ResponseStatus,
-  type ResponseUsage,
+import type {
+  ParsedResponse,
+  ParsedResponseOutputItem,
+  ResponseStatus,
+  ResponseUsage,
 } from "openai/resources/responses/responses";
-import type { CompletionResponse } from "../src/openai.ts";
+import type { CompletionResponse } from "../src/types.ts";
 
 type Parsed = ParsedResponse<unknown>;
 type Completion = CompletionResponse<unknown>;

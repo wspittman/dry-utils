@@ -3,13 +3,14 @@ import {
   type ResponseCreateParams,
   type ResponseInputItem,
 } from "openai/resources/responses/responses";
-import { z, ZodType } from "zod";
+import { z } from "zod";
 import {
-  type CompletionOptions,
-  type Context,
-  type Tool,
-} from "../src/openai.ts";
-import { toJSONSchema, zObj, zString } from "../src/zod.ts";
+  createMessages,
+  getTextFormat,
+  toolToOpenAITool,
+} from "../src/shaping.ts";
+import type { CompletionOptions, Tool } from "../src/types.ts";
+import { proseSchema } from "../src/zodUtils.ts";
 
 /**
  * Flattened parameters for calling jsonCompletion or proseCompletion in tests
@@ -26,17 +27,14 @@ export interface CompletionParams {
   context?: CompletionOptions["context"];
   tools?: Tool[];
   model?: string;
+  reasoningEffort?: CompletionOptions["reasoningEffort"];
 }
-
-const defaultSchema = zObj("A wrapper around the completion content", {
-  content: zString("The completion content"),
-});
 
 const defaultParams: CompletionParams = {
   action: "test",
   thread: "system prompt",
   input: "user input",
-  schema: defaultSchema,
+  schema: proseSchema,
 };
 
 const fullThread: ResponseInputItem[] = [
@@ -68,7 +66,7 @@ const fullTools: Tool[] = [
   {
     name: "tool2",
     description: "desc2",
-    parameters: zObj("Tool 2 params", { a: z.string() }),
+    parameters: z.object({ a: z.string() }).describe("Tool 2 params"),
   },
 ];
 
@@ -95,7 +93,7 @@ export const ParamTemplates: Record<string, CompletionParams> = {
   inputStringEmpty: mp({ input: "" }),
   inputObjectEmpty: mp({ input: {} }),
   inputObject: mp({ input: { key1: "value1", key2: "value2" } }),
-  schemaMinimal: mp({ schema: zObj("Empty object", {}) }),
+  schemaMinimal: mp({ schema: z.object({}).describe("Empty object") }),
   contextEmpty: mp({ context: [] }),
   contextOne: mp({ context: [{ description: "desc1", content: { a: 1 } }] }),
   contextTwo: mp({
@@ -108,6 +106,7 @@ export const ParamTemplates: Record<string, CompletionParams> = {
   toolsOne: mp({ tools: fullTools.slice(0, 1) }),
   toolsFull: mp({ tools: fullTools }),
   model: mp({ model: "gpt-5-fake" }),
+  reasoningEffort: mp({ reasoningEffort: "medium" }),
 };
 
 /**
@@ -119,7 +118,16 @@ export function validateAPIParams(
   actual: ResponseCreateParams,
   used: CompletionParams
 ): void {
-  const { action, thread, input, schema, context, tools, model } = used;
+  const {
+    action,
+    thread,
+    input,
+    schema,
+    context,
+    tools,
+    model,
+    reasoningEffort,
+  } = used;
 
   const fullThread: ResponseInputItem[] =
     typeof thread === "string"
@@ -140,53 +148,9 @@ export function validateAPIParams(
     tools?.map((x) => toolToOpenAITool(x)) ?? [],
     "tools"
   );
+  assert.deepEqual(
+    actual.reasoning,
+    reasoningEffort === undefined ? undefined : { effort: reasoningEffort },
+    "reasoning"
+  );
 }
-
-// #region Reformatting Helpers, copy/pasted from openai.ts
-
-function getTextFormat<T>(action: string, schema: ZodType<T>) {
-  return {
-    // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
-    format: {
-      name: action,
-      schema: toJSONSchema(schema),
-      type: "json_schema" as const,
-      strict: true,
-    },
-  };
-}
-
-function toolToOpenAITool({ name, description, parameters }: Tool) {
-  // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
-
-  // Parameters are optional in our Tool type but required by OpenAI
-  const defaultParams = parameters ?? zObj("No parameters", {});
-
-  return {
-    type: "function" as const,
-    name,
-    description,
-    parameters: toJSONSchema(defaultParams),
-    strict: true,
-  };
-}
-
-function createMessages(
-  thread: ResponseInputItem[],
-  input: string,
-  context: Context[]
-): ResponseInputItem[] {
-  return [
-    ...thread,
-    ...context.map(
-      ({ description, content }) =>
-        ({
-          role: "user",
-          content: `Useful context: ${description}\n${JSON.stringify(content)}`,
-        } as ResponseInputItem)
-    ),
-    { role: "user", content: input },
-  ];
-}
-
-// #endregion

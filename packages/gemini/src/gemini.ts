@@ -1,4 +1,5 @@
 import {
+  EmbedContentResponse,
   FunctionCallingConfigMode,
   GenerateContentResponse,
   GoogleGenAI,
@@ -7,37 +8,36 @@ import {
 import { setTimeout } from "node:timers/promises";
 import type { ZodType } from "zod";
 import { diag } from "./diagnostics.ts";
-import { toJSONSchema, zObj, zString } from "./zod.ts";
+import {
+  completionToResponse,
+  createContent,
+  createMessages,
+  embeddingToResponse,
+  toolToGeminiTool,
+} from "./shaping.ts";
+import type {
+  Bag,
+  CompletionOptions,
+  CompletionResponse,
+  Context,
+  EmbeddingOptions,
+  EmbeddingResponse,
+  ReasoningEffort,
+  Tool,
+} from "./types.ts";
+import { proseSchema } from "./zodUtils.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
 
-export interface Context {
-  description: string;
-  content: Record<string, unknown>;
-}
+const REASONING_BUDGETS: Record<ReasoningEffort, number> = {
+  minimal: 0,
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+};
 
-export interface Tool {
-  name: string;
-  description: string;
-  parameters?: ZodType<object>;
-}
-
-export interface CompletionOptions {
-  context?: Context[];
-  tools?: Tool[];
-  model?: string;
-}
-
-export interface CompletionResponse<T> {
-  thread?: Content[];
-  content?: T;
-  toolCalls?: {
-    name: string;
-    args: Record<string, unknown>;
-  }[];
-  error?: string;
-}
+// #region Completion
 
 /**
  * Makes a Gemini prose completion request.
@@ -54,14 +54,11 @@ export async function proseCompletion(
   input: string | object,
   options?: CompletionOptions
 ): Promise<CompletionResponse<string>> {
-  const schema = zObj("A wrapper around the completion content", {
-    content: zString("The completion content"),
-  });
   const { content, ...rest } = await jsonCompletion(
     action,
     thread,
     input,
-    schema,
+    proseSchema,
     options
   );
 
@@ -87,7 +84,12 @@ export async function jsonCompletion<T extends object>(
   thread: Content[] | string,
   input: string | object,
   schema: ZodType<T>,
-  { context, tools, model = "gemini-2.0-flash-lite" }: CompletionOptions = {}
+  {
+    context,
+    tools,
+    model = "gemini-2.0-flash-lite",
+    reasoningEffort,
+  }: CompletionOptions = {}
 ): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
@@ -99,30 +101,33 @@ export async function jsonCompletion<T extends object>(
     input = JSON.stringify(input);
   }
 
-  return await apiCall(
+  return await apiCompletion(
     model,
     action,
     thread,
     input,
     schema,
     context ?? [],
-    tools ?? []
+    tools ?? [],
+    reasoningEffort
   );
 }
 
-async function apiCall<T extends object>(
+async function apiCompletion<T extends object>(
   model: string,
   action: string,
   thread: Content[],
   input: string,
   schema: ZodType<T>,
   context: Context[],
-  tools: Tool[]
+  tools: Tool[],
+  reasoningEffort?: ReasoningEffort
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const [systemPrompt, ...restOfThread] = thread;
+  const isEmptySystemPrompt = !systemPrompt || !systemPrompt.parts?.[0]?.text;
   const messages = createMessages(restOfThread, input, context);
-  const newThread = [systemPrompt!, ...messages];
+  const newThread = [systemPrompt ?? createContent(""), ...messages];
 
   /*
   https://github.com/google-gemini/cookbook/issues/393
@@ -143,11 +148,15 @@ async function apiCall<T extends object>(
     },
   ];
 
+  const thinkingBudget =
+    reasoningEffort === undefined
+      ? undefined
+      : REASONING_BUDGETS[reasoningEffort];
   const body = {
     model,
     contents: messages,
     config: {
-      systemInstruction: systemPrompt,
+      systemInstruction: isEmptySystemPrompt ? undefined : systemPrompt,
       //responseMimeType: "application/json",
       //responseSchema: zodToOpenAPISchema(schema),
       toolConfig: {
@@ -156,6 +165,11 @@ async function apiCall<T extends object>(
         },
       },
       tools: tools.map(toolToGeminiTool),
+      ...(thinkingBudget !== undefined && {
+        thinkingConfig: {
+          thinkingBudget,
+        },
+      }),
     },
   };
 
@@ -178,8 +192,57 @@ async function apiCall<T extends object>(
   }
 }
 
+// #endregion
+
+// #region Embedding
+
+/**
+ * Generates embeddings for the provided text input.
+ * Includes automatic retries with exponential backoff for rate limiting.
+ * @param action The name of the action for logging purposes.
+ * @param input The text or list of texts to embed.
+ * @param options Optional object containing the model name and dimensionality.
+ * @returns An object containing embedding vectors or an error.
+ */
+export async function embed(
+  action: string,
+  input: string | string[],
+  { model = "gemini-embedding-001", dimensions }: EmbeddingOptions = {}
+): Promise<EmbeddingResponse> {
+  const inputs = Array.isArray(input) ? input : [input];
+  const body = {
+    model,
+    contents: inputs,
+    config: dimensions ? { outputDimensionality: dimensions } : undefined,
+  };
+
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const start = Date.now();
+      const embeddingResponse = await getClient().models.embedContent(body);
+      const duration = Date.now() - start;
+
+      const result = embeddingToResponse(embeddingResponse);
+      logEmbedAction(action, inputs, duration, embeddingResponse, result);
+      return result;
+    } catch (error) {
+      const response = errorToResponse(error, attempt);
+      if (response) return response;
+
+      await backoff(action, attempt);
+      attempt++;
+    }
+  }
+}
+
+// #endregion
+
+// #region Client
+
 let _client: GoogleGenAI;
-function getClient() {
+export function getClient(): GoogleGenAI {
   if (!_client) {
     _client = new GoogleGenAI({
       apiKey: process.env["GEMINI_API_KEY"],
@@ -197,112 +260,6 @@ export function setTestClient(client: unknown): void {
   _client = client as GoogleGenAI;
 }
 
-// #region Object Creation
-
-function toolToGeminiTool({ name, description, parameters }: Tool) {
-  return {
-    functionDeclarations: [
-      {
-        name,
-        description,
-        parameters: parameters
-          ? (toJSONSchema(parameters) as Record<string, unknown>)
-          : undefined,
-      },
-    ],
-  };
-}
-
-function createContent(text: string, role: string = "user"): Content {
-  return {
-    role,
-    parts: [{ text }],
-  };
-}
-
-function createMessages(
-  thread: Content[],
-  input: string,
-  context: Context[]
-): Content[] {
-  return [
-    ...thread,
-    ...context.map(({ description, content }) =>
-      createContent(
-        `Useful context: ${description}\n${JSON.stringify(content)}`
-      )
-    ),
-    createContent(input),
-  ];
-}
-
-function completionToResponse<T>(
-  completion: GenerateContentResponse,
-  thread: Content[],
-  schema: ZodType<T>
-): CompletionResponse<T> {
-  const { content, finishReason, finishMessage } =
-    completion.candidates?.[0] ?? {};
-
-  if (!finishReason) {
-    return { error: "No finish reason in response" };
-  }
-
-  if (["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT"].includes(finishReason)) {
-    return { error: `Refusal: ${finishReason}: ${finishMessage}` };
-  }
-
-  if (finishReason === "STOP") {
-    if (!content) {
-      return { error: "Finish reason STOP, but content is empty" };
-    }
-
-    const [functionCall] = completion.functionCalls ?? [];
-
-    if (functionCall && functionCall.name !== "response") {
-      const { name, args } = functionCall;
-
-      return !name
-        ? { error: "Function call returned, but name is empty" }
-        : {
-            toolCalls: [
-              {
-                name,
-                args: args ?? {},
-              },
-            ],
-            thread: [...thread, content],
-          };
-    }
-
-    /*
-    https://github.com/google-gemini/cookbook/issues/393
-    Gemini API refuses requests for "JSON response OR tool call"
-    The request must be either for "JSON response" or "freeform response OR tool call".
-
-    As a workaround, we forced the response to be a tool call.
-    We should never receive raw text.
-    */
-    //const rawText = completion.text;
-    //if (rawText) {
-    //  const parsed = JSON.parse(rawText);
-    if (functionCall?.name === "response") {
-      const moreParsed = schema.parse(functionCall.args);
-
-      return {
-        content: moreParsed,
-        thread: [...thread, content],
-      };
-    }
-
-    return { error: "Finish reason STOP, but no text provided" };
-  }
-
-  return {
-    error: `Unexpected Finish Reason: ${finishReason}: ${finishMessage}`,
-  };
-}
-
 // #endregion
 
 // #region Errors
@@ -310,7 +267,7 @@ function completionToResponse<T>(
 function errorToResponse(
   error: unknown,
   attempt: number
-): CompletionResponse<never> | undefined {
+): { error: string } | undefined {
   const errorType = getErrorType(error);
 
   if (errorType === "Too Long") {
@@ -371,7 +328,7 @@ function logLLMAction<T>(
   try {
     if (!apiResponse?.usageMetadata) return;
 
-    const blob: Record<string, unknown> = {
+    const blob: Bag = {
       action,
       input,
       duration,
@@ -389,7 +346,7 @@ function logLLMAction<T>(
     } = apiResponse.usageMetadata;
     const { finishReason } = apiResponse.candidates?.[0] ?? {};
 
-    const dense: Record<string, unknown> = {
+    const dense: Bag = {
       name: action,
       in: input.length > 100 ? input.slice(0, 97) + "..." : input,
       tokens: totalTokenCount,
@@ -419,8 +376,7 @@ function logLLMAction<T>(
       dense["out"] = rest;
     }
 
-    const metrics: Record<string, number> = {};
-    [
+    const metrics = createMetrics(dense, [
       "tokens",
       "inTokens",
       "outTokens",
@@ -428,16 +384,59 @@ function logLLMAction<T>(
       "thoughtTokens",
       "toolTokens",
       "ms",
-    ].forEach((x) => {
-      if (typeof dense[x] === "number") {
-        metrics[x] = dense[x];
-      }
-    });
+    ]);
 
     diag.aggregate(action, blob, dense, metrics);
   } catch (error) {
     diag.error("LogLLMAction", error);
   }
+}
+
+function logEmbedAction(
+  action: string,
+  inputs: string[],
+  duration: number,
+  apiResponse: EmbedContentResponse,
+  response: EmbeddingResponse
+) {
+  try {
+    const blob: Bag = {
+      action,
+      inputs,
+      duration,
+      apiResponse,
+      response,
+    };
+
+    let preview = `${inputs.length} items: `;
+    for (const item of inputs) {
+      if (preview.length > 100) break;
+      preview += `[${item}] | `;
+    }
+
+    const dense: Bag = {
+      name: action,
+      in: preview.length > 100 ? preview.slice(0, 97) + "..." : preview,
+      count: (response.embeddings ?? []).length,
+      ms: duration,
+    };
+
+    const metrics = createMetrics(dense, ["ms"]);
+
+    diag.aggregate(action, blob, dense, metrics);
+  } catch (error) {
+    diag.error("LogEmbedAction", error);
+  }
+}
+
+function createMetrics(dense: Bag, keys: string[]): Record<string, number> {
+  const metrics: Record<string, number> = {};
+  keys.forEach((x) => {
+    if (typeof dense[x] === "number") {
+      metrics[x] = dense[x];
+    }
+  });
+  return metrics;
 }
 
 // #endregion
