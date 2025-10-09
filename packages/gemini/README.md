@@ -34,6 +34,8 @@ npm install dry-utils-gemini
 
 Generate structured responses with schema validation. The `jsonCompletion` and `proseCompletion` functions return a `thread` object that can be passed to subsequent calls to maintain conversation history.
 
+By default completions target `gemini-2.0-flash-lite`. You can override the model or opt into deeper reasoning per request with the `model` and `reasoningEffort` options.
+
 ```typescript
 import { jsonCompletion, z } from "dry-utils-gemini";
 
@@ -69,6 +71,22 @@ if (result1.content && result1.thread) {
   if (result2.content) {
     console.log("Gluten-Free Recipe:", result2.content);
   }
+}
+```
+
+To opt into deeper reasoning on a follow-up request you can supply the `reasoningEffort` option. Valid values are `"minimal"`, `"low"`, `"medium"`, and `"high"`.
+
+```typescript
+if (result1.thread) {
+  const result3 = await jsonCompletion(
+    "ModifyRecipeWithReasoning",
+    result1.thread,
+    "Double-check the ingredient amounts and explain any changes.",
+    recipeSchema,
+    {
+      reasoningEffort: "medium",
+    }
+  );
 }
 ```
 
@@ -198,11 +216,12 @@ const result = await jsonCompletion(
 
 ### Model Selection
 
-You can specify a different Gemini model using the `model` property in the `options` object. The default is `gemini-2.0-flash`.
+You can specify a different Gemini model using the `model` property in the `options` object. The default is `gemini-2.0-flash-lite`.
 
 ```typescript
 const result = await jsonCompletion("...", "...", "...", someSchema, {
   model: "gemini-1.5-pro-latest", // Specify a different model
+  reasoningEffort: "low", // Optional reasoning budget
 });
 ```
 

@@ -18,15 +18,16 @@ npm install dry-utils-text
 
 ## Features
 
-- **Markdown to HTML**: Convert Markdown content to sanitized HTML
-- **HTML Sanitization**: Clean and sanitize HTML content for secure rendering
-- **HTML Standardization**: Normalize untrusted HTML through a Markdown conversion cycle
+- **Markdown to HTML**: Convert Markdown content to sanitized HTML using Showdown with sensible defaults (tables, GitHub-style headers, and indented sublist fixes).
+- **HTML Sanitization**: Clean and sanitize HTML content for secure rendering while automatically locking down external links.
+- **HTML Standardization**: Normalize untrusted HTML through a Markdown conversion cycle for consistent downstream rendering.
+- **Configurable Pipelines**: Override Showdown or Turndown options when you need bespoke Markdown or HTML output.
 
 ## Usage
 
 ### Convert Markdown to HTML
 
-Convert Markdown content to sanitized HTML with proper security measures:
+Convert Markdown content to sanitized HTML with proper security measures. Pass Showdown converter options to customize the output:
 
 ```typescript
 import { markdownToHtml } from "dry-utils-text";
@@ -50,7 +51,7 @@ const safeHtml = sanitizeHtmlContent(unsafeHtml);
 
 ### Standardize Untrusted HTML
 
-Process untrusted HTML by converting it to Markdown and back to sanitized HTML:
+Process untrusted HTML by converting it to Markdown and back to sanitized HTML. You can override the Showdown or Turndown options used during the conversion cycle:
 
 ```typescript
 import { standardizeUntrustedHtml } from "dry-utils-text";
@@ -64,5 +65,5 @@ const standardizedHtml = standardizeUntrustedHtml(untrustedHtml);
 ### Security Features
 
 - External links automatically get `target="_blank"` and `rel="noopener noreferrer"` attributes
-- Dangerous HTML elements and attributes are stripped
-- HTML entities are properly decoded
+- Dangerous HTML elements and attributes are stripped using `sanitize-html`'s default allowlists with extra link hardening
+- HTML entities are properly decoded before sanitization to avoid double-encoding issues

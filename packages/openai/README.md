@@ -34,6 +34,8 @@ npm install dry-utils-openai
 
 Generate structured responses with schema validation. You can also provide additional context and specify a model.
 
+Completions default to `gpt-5-nano` and return the `thread` that you can feed back into later calls.
+
 ```typescript
 import { jsonCompletion, z } from "dry-utils-openai";
 
@@ -65,13 +67,26 @@ const result = await jsonCompletion(
   "Create a recipe for chocolate chip cookies", // User input
   recipeSchema, // Schema for validation
   {
-    model: "gpt-4-turbo", // Specify the model to use
+    model: "gpt-4.1", // Override the default model when needed
     context,
   }
 );
 
 if (result.content) {
   console.log("Recipe:", result.content);
+}
+
+// Later in the flow you can continue the conversation and opt into deeper reasoning:
+if (result.thread) {
+  const followUp = await jsonCompletion(
+    "ModifyRecipe",
+    result.thread,
+    "Now produce a grocery list and explain your choices.",
+    recipeSchema,
+    {
+      reasoningEffort: "medium",
+    }
+  );
 }
 ```
 
@@ -87,7 +102,7 @@ const result = await proseCompletion(
   "SummarizeArticle", // Action name for logging
   "You are a helpful summarization assistant", // Initial prompt
   "Summarize this article in 3 bullet points: " + articleText, // User input
-  { model: "gpt-4-turbo" }
+  { model: "gpt-4o-mini" }
 );
 
 if (result.content) {
