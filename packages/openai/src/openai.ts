@@ -140,7 +140,15 @@ async function apiCompletion<T extends object>(
       const duration = Date.now() - start;
 
       const response = completionToResponse(completion, messages);
-      logLLMAction(action, input, duration, completion, response);
+      logLLMAction(
+        action,
+        model,
+        input,
+        context,
+        duration,
+        completion,
+        response,
+      );
       return response;
     } catch (error) {
       const response = errorToResponse(error, attempt);
@@ -190,7 +198,14 @@ export async function embed(
       const duration = Date.now() - start;
 
       const result = embeddingToResponse(embeddingResponse);
-      logEmbedAction(action, inputs, duration, embeddingResponse, result);
+      logEmbedAction(
+        action,
+        model,
+        inputs,
+        duration,
+        embeddingResponse,
+        result,
+      );
       return result;
     } catch (error) {
       const response = errorToResponse(error, attempt);
@@ -289,7 +304,9 @@ async function backoff(action: string, attempt: number) {
 
 function logLLMAction<T>(
   action: string,
+  model: string,
   input: string,
+  context: Context[],
   duration: number,
   apiResponse: ParsedResponse<T>,
   response?: CompletionResponse<T>,
@@ -299,7 +316,9 @@ function logLLMAction<T>(
 
     const blob: Bag = {
       action,
+      model,
       input,
+      context,
       duration,
       apiResponse,
       response,
@@ -313,6 +332,8 @@ function logLLMAction<T>(
 
     const dense: Bag = {
       name: action,
+      model,
+      contextCount: context.length,
       in: input.length > 100 ? input.slice(0, 97) + "..." : input,
       tokens: total_tokens,
       inTokens: input_tokens,
@@ -363,6 +384,7 @@ function logLLMAction<T>(
 
 function logEmbedAction(
   action: string,
+  model: string,
   inputs: string[],
   duration: number,
   apiResponse: CreateEmbeddingResponse,
@@ -371,6 +393,7 @@ function logEmbedAction(
   try {
     const blob: Bag = {
       action,
+      model,
       inputs,
       duration,
       apiResponse,
@@ -387,6 +410,7 @@ function logEmbedAction(
 
     const dense: Bag = {
       name: action,
+      model,
       in: preview.length > 100 ? preview.slice(0, 97) + "..." : preview,
       count: (response.embeddings ?? []).length,
       tokens: total_tokens,

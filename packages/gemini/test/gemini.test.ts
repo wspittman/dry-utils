@@ -125,6 +125,13 @@ describe("AI: Gemini", () => {
     assert.equal(geminiMock.getEmbedCallCount(), embed, "embed count");
   }
 
+  function getLastAggregate() {
+    return aggFn.mock.calls.at(-1)?.arguments[0] as {
+      blob: Record<string, unknown>;
+      dense: Record<string, unknown>;
+    };
+  }
+
   Object.entries(ParamTemplates).forEach(([name, params]) => {
     test(`Params: ${name}`, async () => {
       await jsonCall(params);
@@ -188,6 +195,20 @@ describe("AI: Gemini", () => {
       ),
       "thread entries should all be Content objects",
     );
+  });
+
+  test("Aggregate logs include completion model and context", async () => {
+    await jsonCall(ParamTemplates["contextTwo"]!);
+
+    callCounts(defaultLog);
+    const aggregate = getLastAggregate();
+    assert.equal(aggregate.blob["model"], "gemini-2.5-flash-lite");
+    assert.deepEqual(aggregate.blob["context"], [
+      { description: "desc1", content: { a: 1 } },
+      { description: "desc2", content: { b: 2 } },
+    ]);
+    assert.equal(aggregate.dense["model"], "gemini-2.5-flash-lite");
+    assert.equal(aggregate.dense["contextCount"], 2);
   });
 
   test("Response Rate Limit", async () => {
@@ -260,5 +281,15 @@ describe("AI: Gemini", () => {
     const result = await embedCall(EmbedParamTemplates["default"]!);
     callCounts({ log: 3, agg: 1, embed: 4 });
     validateEmbedResponse(result, response);
+  });
+
+  test("Aggregate logs include embedding model", async () => {
+    geminiMock.mockEmbedResponseOnce(EmbedResponseTemplates["default"]!);
+    await embedCall(EmbedParamTemplates["customModel"]!);
+
+    callCounts(defaultEmbedLog);
+    const aggregate = getLastAggregate();
+    assert.equal(aggregate.blob["model"], "gemini-embedding-001-custom");
+    assert.equal(aggregate.dense["model"], "gemini-embedding-001-custom");
   });
 });

@@ -121,6 +121,13 @@ describe("AI: OpenAI", () => {
     assert.equal(openAIMock.getEmbedCallCount(), embed, "embed count");
   }
 
+  function getLastAggregate() {
+    return aggFn.mock.calls.at(-1)?.arguments[0] as {
+      blob: Record<string, unknown>;
+      dense: Record<string, unknown>;
+    };
+  }
+
   Object.entries(ParamErrorTemplates).forEach(([name, params]) => {
     test(`Params Error: ${name}`, async () => {
       const result = await jsonCall(params);
@@ -179,6 +186,30 @@ describe("AI: OpenAI", () => {
 
     callCounts(defaultLog);
     validateAPIResponse(result, ResponseTemplates["default"]!, "complete");
+  });
+
+  test("Aggregate logs include completion model and context", async () => {
+    await jsonCall(ParamTemplates["contextTwo"]!);
+
+    callCounts(defaultLog);
+    const aggregate = getLastAggregate();
+    assert.equal(aggregate.blob["model"], "gpt-5-nano");
+    assert.deepEqual(aggregate.blob["context"], [
+      { description: "desc1", content: { a: 1 } },
+      { description: "desc2", content: { b: 2 } },
+    ]);
+    assert.equal(aggregate.dense["model"], "gpt-5-nano");
+    assert.equal(aggregate.dense["contextCount"], 2);
+  });
+
+  test("Aggregate logs include embedding model", async () => {
+    openAIMock.mockEmbedResponseOnce(EmbedResponseTemplates["default"]!);
+    await embedCall(EmbedParamTemplates["customModel"]!);
+
+    callCounts(defaultEmbedLog);
+    const aggregate = getLastAggregate();
+    assert.equal(aggregate.blob["model"], "text-embedding-3-small-custom");
+    assert.equal(aggregate.dense["model"], "text-embedding-3-small-custom");
   });
 
   test("Response Rate Limit", async () => {

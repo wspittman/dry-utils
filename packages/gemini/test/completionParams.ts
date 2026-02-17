@@ -130,7 +130,7 @@ export function validateAPIParams(
     },
   ];
 
-  assert.equal(actual.model, model ?? "gemini-2.0-flash-lite", "model");
+  assert.equal(actual.model, model ?? "gemini-2.5-flash-lite", "model");
   assert.deepEqual(
     actual.contents,
     createMessages(restOfThread, fullInput, context ?? []),
