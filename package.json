@@ -17,7 +17,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "clean": "git clean -fdx node_modules && git clean -fdx **/dist/ **/tsconfig.tsbuildinfo",
+    "clean": "git clean -fdx -- \":(glob)**/node_modules/**\" \":(glob)**/deploy/**\" \":(glob)**/dist/**\" \":(glob)**/*.tsbuildinfo\"",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
     "e2e": "npm run e2e --workspaces",
