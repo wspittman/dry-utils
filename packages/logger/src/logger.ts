@@ -61,9 +61,9 @@ function getSimpleVal(val: unknown, depth = 0): unknown {
       return Object.fromEntries(
         Object.entries(val).map(([key, value]) => {
           return [key, getSimpleVal(value, depth + 1)];
-        })
+        }),
       );
-    } catch (err) {
+    } catch {
       // Handle potential errors when converting objects
       return "[Unserializable Object]";
     }
@@ -73,8 +73,8 @@ function getSimpleVal(val: unknown, depth = 0): unknown {
 }
 
 const addSplat = format((info: LoggerInfo) => {
-  const { [Symbol.for("splat")]: splat } = info;
-  const val = Array.isArray(splat) ? splat[0] : splat;
+  const splat = (info as Record<symbol, unknown>)[Symbol.for("splat")];
+  const val = Array.isArray(splat) ? (splat as unknown[])[0] : splat;
   info.simpleSplat = getSimpleVal(val);
   info.fullSplat = val;
   return info;
@@ -82,13 +82,13 @@ const addSplat = format((info: LoggerInfo) => {
 
 const formatPrint = (splatType: string) =>
   format.printf((info: LoggerInfo) => {
-    const { timestamp, level, message } = info;
-    const splat = info[splatType];
+    const { timestamp = "", level, message } = info;
+    const splat = info[splatType as keyof LoggerInfo];
     const isCollapse = Array.isArray(splat) && typeof splat[0] !== "object";
     const expandVal = isCollapse ? undefined : 2;
     const splatString =
-      splat == null ? "" : `: ${JSON.stringify(splat, null, expandVal)}`;
-    return `${timestamp} [${level.toUpperCase()}]: ${message}${splatString}`;
+      splat == null ? "" : `: ${JSON.stringify(splat, null, expandVal) ?? ""}`;
+    return `${timestamp} [${level.toUpperCase()}]: ${String(message)}${splatString}`;
   });
 
 /**
@@ -100,7 +100,7 @@ const formatPrint = (splatType: string) =>
  */
 export function createCustomLogger(
   options: LoggerConfig = {},
-  omitInitMsg = false
+  omitInitMsg = false,
 ): Logger {
   const config = { ...DEFAULT_LOGGER_CONFIG, ...options };
   const start = new Date();
@@ -156,6 +156,6 @@ export const logger: Logger = new Proxy({} as Logger, {
     if (!_defaultLogger) {
       _defaultLogger = createCustomLogger(_defaultConfig);
     }
-    return _defaultLogger[prop as keyof Logger];
+    return _defaultLogger[prop as keyof Logger] as unknown;
   },
 });

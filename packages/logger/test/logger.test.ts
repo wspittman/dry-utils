@@ -32,7 +32,7 @@ describe("Winston/Logger: createCustomLogger", () => {
       assert.equal(
         logger.level,
         config?.level ?? "info",
-        "Logger should have correct level"
+        "Logger should have correct level",
       );
       assert.equal(logger.transports.length, 2);
 
@@ -41,7 +41,7 @@ describe("Winston/Logger: createCustomLogger", () => {
       assert.equal(
         consoleOut.level,
         config?.consoleLevel ?? "info",
-        "Console transport should have correct level"
+        "Console transport should have correct level",
       );
 
       const fileOut = logger.transports[1] as typeof transports.File;
@@ -49,12 +49,12 @@ describe("Winston/Logger: createCustomLogger", () => {
       assert.equal(
         fileOut.level,
         config?.fileLevel ?? "debug",
-        "File transport should have correct level"
+        "File transport should have correct level",
       );
       assert.equal(
         fileOut.filename,
         config?.filename ?? "app.log",
-        "File transport should have correct filename"
+        "File transport should have correct filename",
       );
     });
   });
@@ -119,7 +119,7 @@ describe("Winston/Logger: format", () => {
       assert.match(
         result["timestamp"],
         /\d{2}:\d{2}.\d{3}/,
-        "Should match timestamp format"
+        "Should match timestamp format",
       );
 
       // To make sure it doesn't fail on the next assertion
@@ -134,7 +134,7 @@ function getTransportTransform(
   index: number,
   name: string,
   val: unknown,
-  simple: unknown
+  simple: unknown,
 ) {
   const input = getFullInfo(name, val, simple);
   const logger = createCustomLogger(testConfig, true);
@@ -164,7 +164,7 @@ describe("Winston/Logger: console format", () => {
 
         assert.equal(result, `00:00.000 [INFO]: ${name}${message}`);
       });
-    }
+    },
   );
 });
 
@@ -182,7 +182,7 @@ describe("Winston/Logger: file format", () => {
 
         assert.equal(result, `00:00.000 [INFO]: ${name}${message}`);
       });
-    }
+    },
   );
 });
 
