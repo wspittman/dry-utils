@@ -6,7 +6,6 @@ import { batch, subscribeAsyncLogging } from "../src/index.ts";
 
 /**
  * Mocks timers for testing
- * Note: MockTimers in node:test is still Stability: 1 - Experimental in Node v22
  * @param context - The test context
  * @returns A function to tick the mocked timers
  */

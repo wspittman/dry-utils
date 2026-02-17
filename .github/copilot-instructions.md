@@ -15,7 +15,7 @@ This is a TypeScript monorepo containing a collection of independent utility pac
 
 ## Prerequisites
 
-- Node.js >=22.0.0
+- Node.js >=24.0.0
 - For `packages/cosmosdb`, a Azure CosmosDB Emulator or an Azure CosmosDB account
 
 ## Installation
