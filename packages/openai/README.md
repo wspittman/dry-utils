@@ -69,7 +69,7 @@ const result = await jsonCompletion(
   {
     model: "gpt-4.1", // Override the default model when needed
     context,
-  }
+  },
 );
 
 if (result.content) {
@@ -85,7 +85,7 @@ if (result.thread) {
     recipeSchema,
     {
       reasoningEffort: "medium",
-    }
+    },
   );
 }
 ```
@@ -102,7 +102,7 @@ const result = await proseCompletion(
   "SummarizeArticle", // Action name for logging
   "You are a helpful summarization assistant", // Initial prompt
   "Summarize this article in 3 bullet points: " + articleText, // User input
-  { model: "gpt-4o-mini" }
+  { model: "gpt-4o-mini" },
 );
 
 if (result.content) {
@@ -155,7 +155,7 @@ const result = await jsonCompletion(
   }),
   {
     tools: [searchTool],
-  }
+  },
 );
 
 if (result.toolCalls) {

@@ -118,7 +118,7 @@ export function validateAPIError(actual: Completion, expected: string): void {
 export function validateAPIResponse(
   actual: Completion,
   used: Parsed,
-  contentOverride?: unknown
+  contentOverride?: unknown,
 ): void {
   const expected = simpleCompletionResponse(used);
 
@@ -126,7 +126,7 @@ export function validateAPIResponse(
   assert.deepEqual(
     actual.content,
     contentOverride ?? expected.content,
-    "content"
+    "content",
   );
   assert.deepEqual(actual.toolCalls, expected.toolCalls, "toolCalls");
   assert.equal(actual.error, expected.error, "error");
@@ -162,7 +162,7 @@ function simpleCompletionResponse({ output }: Parsed): Completion {
 function createResponse(
   output: Partial<ParsedResponseOutputItem<unknown>>,
   status: ResponseStatus = "completed",
-  incompleteReason?: "max_output_tokens" | "content_filter"
+  incompleteReason?: "max_output_tokens" | "content_filter",
 ) {
   const id = "68b0a7bfbdec819089297fac49dba44c07a2bc259d9e1681";
   const mergedResponse = {

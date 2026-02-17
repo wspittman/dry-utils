@@ -51,7 +51,7 @@ const DEBUG = false;
 const debugFn = (x: unknown) => console.dir(x, { depth: null });
 
 function proseCall(
-  params: CompletionParams
+  params: CompletionParams,
 ): Promise<CompletionResponse<string>> {
   const { action, thread, input, context, tools, model, reasoningEffort } =
     params;
@@ -65,7 +65,7 @@ function proseCall(
 }
 
 function jsonCall(
-  params: CompletionParams
+  params: CompletionParams,
 ): Promise<CompletionResponse<unknown>> {
   const {
     action,
@@ -148,7 +148,7 @@ describe("AI: OpenAI", () => {
         callCounts(errLog);
         validateAPIError(result, expected);
       });
-    }
+    },
   );
 
   Object.entries(ResponseErrorTemplates).forEach(
@@ -160,7 +160,7 @@ describe("AI: OpenAI", () => {
         callCounts(defaultLog);
         validateAPIError(result, expected);
       });
-    }
+    },
   );
 
   Object.entries(ResponseTemplates).forEach(([name, response]) => {
@@ -225,7 +225,7 @@ describe("AI: OpenAI", () => {
         callCounts(defaultEmbedLog);
         validateEmbedError(result, expected);
       });
-    }
+    },
   );
 
   Object.entries(EmbedThrownTemplates).forEach(([name, [error, expected]]) => {

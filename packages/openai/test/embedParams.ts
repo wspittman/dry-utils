@@ -30,7 +30,7 @@ export const EmbedParamTemplates: Record<string, EmbedParams> = {
 
 export function validateEmbedAPIParams(
   actual: EmbeddingCreateParams,
-  used: EmbedParams
+  used: EmbedParams,
 ): void {
   const inputs = Array.isArray(used.input) ? used.input : [used.input];
   assert.equal(actual.model, used.model ?? "text-embedding-3-small", "model");

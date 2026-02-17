@@ -116,7 +116,7 @@ export const ParamTemplates: Record<string, CompletionParams> = {
  */
 export function validateAPIParams(
   actual: ResponseCreateParams,
-  used: CompletionParams
+  used: CompletionParams,
 ): void {
   const {
     action,
@@ -140,17 +140,17 @@ export function validateAPIParams(
   assert.deepEqual(
     actual.input,
     createMessages(fullThread, fullInput, context ?? []),
-    "input"
+    "input",
   );
   assert.deepEqual(actual.text, getTextFormat(action, schema), "text");
   assert.deepEqual(
     actual.tools,
     tools?.map((x) => toolToOpenAITool(x)) ?? [],
-    "tools"
+    "tools",
   );
   assert.deepEqual(
     actual.reasoning,
     reasoningEffort === undefined ? undefined : { effort: reasoningEffort },
-    "reasoning"
+    "reasoning",
   );
 }
