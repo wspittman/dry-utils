@@ -31,9 +31,12 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "lint": "eslint",
+    "format": "prettier . --check",
+    "format:write": "prettier . --write",
     "pretest": "tsc --noEmit",
     "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "build": "tsc -p tsconfig.json",
     "link": "npm link",
     "unlink": "npm unlink --global",
     "prepublishOnly": "npm run build && npm run test",
@@ -48,11 +51,15 @@
     "turndown": "^7.2.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@types/node": "^22.13.10",
     "@types/sanitize-html": "^2.13.0",
     "@types/showdown": "^2.0.6",
     "@types/turndown": "^5.0.5",
+    "eslint": "^9.39.1",
+    "prettier": "^3.7.4",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.49.0"
   }
 }
