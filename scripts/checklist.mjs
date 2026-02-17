@@ -27,6 +27,12 @@ if (!!isFull) {
   npmCommand("run", "clean");
   npmCommand("install");
 }
+
 npmCommand("run", "lint");
 npmCommand("run", "format:write");
 npmCommand("run", "test");
+
+if (!!isFull) {
+  npmCommand("run", "build");
+  npmCommand("run", "e2e");
+}
