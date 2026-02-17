@@ -106,7 +106,7 @@ await container.deleteItem("user123", "partition1");
 // Query items
 const activeUsers = await container.query(
   "SELECT * FROM c WHERE c.status = @status",
-  { parameters: [{ name: "@status", value: "active" }] }
+  { parameters: [{ name: "@status", value: "active" }] },
 );
 ```
 

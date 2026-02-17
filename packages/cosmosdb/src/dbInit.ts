@@ -72,7 +72,7 @@ export async function connectDB({
 async function createContainer(
   database: Database,
   options: ContainerOptions,
-  attempt = 1
+  attempt = 1,
 ): Promise<Container<ItemDefinition> | undefined> {
   const { name, partitionKey, indexExclusions = "none" } = options;
   try {
@@ -92,7 +92,7 @@ async function createContainer(
     if (attempt < MAX_CREATE_ATTEMPTS) {
       diag.error(
         "CreateContainer",
-        `Failed to create container: ${name} (attempt ${attempt})`
+        `Failed to create container: ${name} (attempt ${attempt})`,
       );
       return createContainer(database, options, attempt + 1);
     }

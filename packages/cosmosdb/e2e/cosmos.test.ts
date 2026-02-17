@@ -14,7 +14,7 @@ const DATABASE_KEY =
   "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 const DATABASE_LOCAL_CERT_PATH = path.resolve(
   process.cwd(),
-  "cosmosdbcert.cer"
+  "cosmosdbcert.cer",
 );
 
 export interface Model {

@@ -1,5 +1,7 @@
 import {
+  ClientContext,
   Container as AzureContainer,
+  Database,
   Item,
   Items,
   QueryIterator,
@@ -61,8 +63,10 @@ function stringifyQuery(q: string | SqlQuerySpec) {
 }
 
 mock.method(Item.prototype, "read", function () {
-  // @ts-ignore
-  let { id, partitionKey: pkey } = this;
+  // @ts-expect-error - mock doesn't match Azure Cosmos Item exactly
+  const { id } = this;
+  // @ts-expect-error - mock doesn't match Azure Cosmos Item exactly
+  let { partitionKey: pkey } = this;
   pkey = Array.isArray(pkey) ? pkey[0] : pkey;
 
   if (id === "err") throw new Error("Error Time");
@@ -72,7 +76,7 @@ mock.method(Item.prototype, "read", function () {
 });
 
 mock.method(QueryIterator.prototype, "fetchAll", function () {
-  // @ts-ignore
+  // @ts-expect-error - mock doesn't match Azure Cosmos QueryIterator exactly
   const { query, options: { partitionKey: pkey } = {} } = this;
 
   if (pkey === "err") throw new Error("Error Time");
@@ -101,16 +105,16 @@ mock.method(Items.prototype, "upsert", function (item: { id: string }) {
 });
 
 mock.method(Item.prototype, "delete", function () {
-  // @ts-ignore
+  // @ts-expect-error - mock doesn't match Azure Cosmos Item exactly
   if (this.id === "err") throw new Error("Error Time");
   return mockResponse({});
 });
 
 function getContainer() {
   const ac = new AzureContainer(
-    { id: "MockDatabase" } as any,
+    { id: "MockDatabase" } as unknown as Database,
     "MockContainer",
-    {} as any
+    {} as unknown as ClientContext,
   );
   return new Container<Entry>("MockContainer", ac);
 }
@@ -154,68 +158,68 @@ describe("DB: Container", () => {
 
   test(
     "getItem: found",
-    testSuccess(async (c) => c.getItem("1", "item"), mockDB[0])
+    testSuccess(async (c) => c.getItem("1", "item"), mockDB[0]),
   );
 
   test(
     "getItem: not found",
-    testSuccess(async (c) => c.getItem("-1", "item"), undefined)
+    testSuccess(async (c) => c.getItem("-1", "item"), undefined),
   );
 
   test(
     "getItem: error",
-    testError(async (c) => c.getItem("err", "item"))
+    testError(async (c) => c.getItem("err", "item")),
   );
 
   test(
     "getItemsByPartitionKey: found",
-    testSuccess(async (c) => c.getItemsByPartitionKey("item"), mockDB)
+    testSuccess(async (c) => c.getItemsByPartitionKey("item"), mockDB),
   );
 
   test(
     "getItemsByPartitionKey: not found",
-    testSuccess(async (c) => c.getItemsByPartitionKey("nonexistent"), [])
+    testSuccess(async (c) => c.getItemsByPartitionKey("nonexistent"), []),
   );
 
   test(
     "getItemsByPartitionKey: error",
-    testError(async (c) => c.getItemsByPartitionKey("err"))
+    testError(async (c) => c.getItemsByPartitionKey("err")),
   );
 
   test(
     "getIdsByPartitionKey: found",
     testSuccess(
       async (c) => c.getIdsByPartitionKey("item"),
-      mockDB.map((item) => item.id)
-    )
+      mockDB.map((item) => item.id),
+    ),
   );
 
   test(
     "getIdsByPartitionKey: not found",
-    testSuccess(async (c) => c.getIdsByPartitionKey("nonexistent"), [])
+    testSuccess(async (c) => c.getIdsByPartitionKey("nonexistent"), []),
   );
 
   test(
     "getIdsByPartitionKey: error",
-    testError(async (c) => c.getIdsByPartitionKey("err"))
+    testError(async (c) => c.getIdsByPartitionKey("err")),
   );
 
   test(
     "getCount: success",
-    testSuccess(async (c) => c.getCount(), mockDB.length)
+    testSuccess(async (c) => c.getCount(), mockDB.length),
   );
 
   test(
     "query: all",
-    testSuccess(async (c) => c.query<Entry>("SELECT * FROM c"), mockDB)
+    testSuccess(async (c) => c.query<Entry>("SELECT * FROM c"), mockDB),
   );
 
   test(
     "query: with partition key",
     testSuccess(
       async (c) => c.query<Entry>("SELECT * FROM c", { partitionKey: "item" }),
-      mockDB
-    )
+      mockDB,
+    ),
   );
 
   test(
@@ -223,8 +227,8 @@ describe("DB: Container", () => {
     testSuccess(
       async (c) =>
         c.query<Entry>("SELECT * FROM c", { partitionKey: "nonexistent" }),
-      []
-    )
+      [],
+    ),
   );
 
   test(
@@ -237,35 +241,35 @@ describe("DB: Container", () => {
         };
         return c.query<Entry>(querySpec);
       },
-      mockDB.filter((item) => item.val > 400)
-    )
+      mockDB.filter((item) => item.val > 400),
+    ),
   );
 
   test(
     "query: error",
-    testError(async (c) => c.query("SELECT * FROM c", { partitionKey: "err" }))
+    testError(async (c) => c.query("SELECT * FROM c", { partitionKey: "err" })),
   );
 
   test(
     "upsertItem: success",
     testSuccess(
       async (c) => c.upsertItem({ id: "1", pkey: "item", val: 999 }),
-      undefined
-    )
+      undefined,
+    ),
   );
 
   test(
     "upsertItem: error",
-    testError(async (c) => c.upsertItem({ id: "err", pkey: "item", val: 500 }))
+    testError(async (c) => c.upsertItem({ id: "err", pkey: "item", val: 500 })),
   );
 
   test(
     "deleteItem: success",
-    testSuccess(async (c) => c.deleteItem("1", "item"), undefined)
+    testSuccess(async (c) => c.deleteItem("1", "item"), undefined),
   );
 
   test(
     "deleteItem: error",
-    testError(async (c) => c.deleteItem("err", "item"))
+    testError(async (c) => c.deleteItem("err", "item")),
   );
 });

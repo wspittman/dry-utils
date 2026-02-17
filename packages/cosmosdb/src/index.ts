@@ -8,7 +8,7 @@ export { Query } from "./Query.ts";
 export { Container };
 
 export async function dbConnect(
-  options: DBOptions
+  options: DBOptions,
 ): Promise<Record<string, Container<ItemDefinition>>> {
   return await connectDB(options);
 }

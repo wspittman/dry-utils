@@ -31,7 +31,7 @@ export class Container<Item extends ItemDefinition> {
    */
   async getItem(
     id: string,
-    partitionKey: string
+    partitionKey: string,
   ): Promise<(Item & Resource) | undefined> {
     try {
       const response = await this.container.item(id, partitionKey).read<Item>();
@@ -49,7 +49,7 @@ export class Container<Item extends ItemDefinition> {
    * @returns Array of items in the partition
    */
   async getItemsByPartitionKey(
-    partitionKey: string
+    partitionKey: string,
   ): Promise<(Item & Resource)[]> {
     try {
       const response = await this.container.items
@@ -92,7 +92,7 @@ export class Container<Item extends ItemDefinition> {
    */
   async query<T>(
     query: string | SqlQuerySpec,
-    options?: FeedOptions
+    options?: FeedOptions,
   ): Promise<T[]> {
     try {
       const response = await this.container.items
@@ -149,7 +149,7 @@ function logDBAction(
   container: string,
   response: ItemResponse<ItemDefinition> | FeedResponse<unknown>,
   pkey?: PartitionKey,
-  query?: string | SqlQuerySpec
+  query?: string | SqlQuerySpec,
 ) {
   try {
     const { ru, ms, bytes, count, rest } = extractResponse(response);
@@ -196,13 +196,14 @@ function logDBAction(
 }
 
 function extractResponse(
-  response: ItemResponse<ItemDefinition> | FeedResponse<unknown>
+  response: ItemResponse<ItemDefinition> | FeedResponse<unknown>,
 ) {
   const ru = response.requestCharge;
   const { requestDurationInMs, totalResponsePayloadLengthInBytes } =
     response.diagnostics.clientSideRequestStatistics;
 
   // No response .item, .resource, .resources to avoid IDs
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { item, resource, resources, ...rest } = response as unknown as {
     item?: unknown;
     resource?: unknown;

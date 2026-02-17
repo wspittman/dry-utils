@@ -52,12 +52,12 @@ mock.method(
 
     return {
       container: new Container(
-        { id: "MockDatabase" } as any,
+        { id: "MockDatabase" } as unknown as Database,
         dataId,
-        {} as any
+        {} as unknown as ClientContext,
       ),
     };
-  }
+  },
 );
 
 // #endregion
