@@ -36,12 +36,12 @@
     "format:write": "prettier . --write",
     "pretest": "tsc --noEmit",
     "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "e2e": "echo \"No e2e tests for async package\"",
     "build": "tsc -p tsconfig.json",
     "link": "npm link",
     "unlink": "npm unlink --global",
     "prepublishOnly": "npm run build && npm run test",
-    "publish-package": "npm publish --access public",
-    "e2e": "echo \"No e2e tests for async package\""
+    "publish-package": "npm publish --access public"
   },
   "license": "MIT",
   "devDependencies": {

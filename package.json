@@ -18,9 +18,12 @@
   },
   "scripts": {
     "clean": "git clean -fdx -- \":(glob)**/node_modules/**\" \":(glob)**/deploy/**\" \":(glob)**/dist/**\" \":(glob)**/*.tsbuildinfo\"",
-    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "format": "npm run format --workspaces",
+    "format:write": "npm run format:write --workspaces",
     "test": "npm run test --workspaces",
     "e2e": "npm run e2e --workspaces",
+    "build": "npm run build --workspaces",
     "link": "npm run link --workspaces",
     "unlink": "npm run unlink --workspaces",
     "publish-packages": "npm run publish-package --workspaces"
