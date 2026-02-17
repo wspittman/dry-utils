@@ -136,7 +136,7 @@ describe("Gemini E2E Flow", () => {
               .describe("Ignorable"),
           },
         ],
-        model: "gemini-2.0-flash-lite",
+        model: "gemini-2.5-flash-lite",
       },
     );
     assert.ok(response, "Should return a response from proseCompletion");

@@ -30,6 +30,8 @@ import { proseSchema } from "./zodUtils.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
+const DEFAULT_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
 
 const REASONING_BUDGETS: Record<ReasoningEffort, number> = {
   minimal: 0,
@@ -88,7 +90,7 @@ export async function jsonCompletion<T extends object>(
   {
     context,
     tools,
-    model = "gemini-2.0-flash-lite",
+    model = DEFAULT_MODEL,
     reasoningEffort,
   }: CompletionOptions = {},
 ): Promise<CompletionResponse<T>> {
@@ -208,7 +210,7 @@ async function apiCompletion<T extends object>(
 export async function embed(
   action: string,
   input: string | string[],
-  { model = "gemini-embedding-001", dimensions }: EmbeddingOptions = {},
+  { model = DEFAULT_EMBEDDING_MODEL, dimensions }: EmbeddingOptions = {},
 ): Promise<EmbeddingResponse> {
   const inputs = Array.isArray(input) ? input : [input];
   const body = {
