@@ -1,5 +1,6 @@
 import {
   EmbedContentResponse,
+  FinishReason,
   FunctionCallingConfigMode,
   GenerateContentResponse,
   GoogleGenAI,
@@ -52,14 +53,14 @@ export async function proseCompletion(
   action: string,
   thread: Content[] | string,
   input: string | object,
-  options?: CompletionOptions
+  options?: CompletionOptions,
 ): Promise<CompletionResponse<string>> {
   const { content, ...rest } = await jsonCompletion(
     action,
     thread,
     input,
     proseSchema,
-    options
+    options,
   );
 
   if (content) {
@@ -89,7 +90,7 @@ export async function jsonCompletion<T extends object>(
     tools,
     model = "gemini-2.0-flash-lite",
     reasoningEffort,
-  }: CompletionOptions = {}
+  }: CompletionOptions = {},
 ): Promise<CompletionResponse<T>> {
   // Start thread from initial developer prompt
   if (typeof thread === "string") {
@@ -109,7 +110,7 @@ export async function jsonCompletion<T extends object>(
     schema,
     context ?? [],
     tools ?? [],
-    reasoningEffort
+    reasoningEffort,
   );
 }
 
@@ -121,7 +122,7 @@ async function apiCompletion<T extends object>(
   schema: ZodType<T>,
   context: Context[],
   tools: Tool[],
-  reasoningEffort?: ReasoningEffort
+  reasoningEffort?: ReasoningEffort,
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const [systemPrompt, ...restOfThread] = thread;
@@ -207,7 +208,7 @@ async function apiCompletion<T extends object>(
 export async function embed(
   action: string,
   input: string | string[],
-  { model = "gemini-embedding-001", dimensions }: EmbeddingOptions = {}
+  { model = "gemini-embedding-001", dimensions }: EmbeddingOptions = {},
 ): Promise<EmbeddingResponse> {
   const inputs = Array.isArray(input) ? input : [input];
   const body = {
@@ -266,7 +267,7 @@ export function setTestClient(client: unknown): void {
 
 function errorToResponse(
   error: unknown,
-  attempt: number
+  attempt: number,
 ): { error: string } | undefined {
   const errorType = getErrorType(error);
 
@@ -293,12 +294,14 @@ function getErrorType(error: unknown): "429" | "Too Long" | "Other" {
   if (error instanceof Error && error.name === "ClientError") {
     try {
       const embeddedMessage = error.message.slice(error.message.indexOf("{"));
-      const parsed = JSON.parse(embeddedMessage);
-      const { code } = parsed.error as {
-        code: number;
-        message: string;
-        status: string;
+      const parsed = JSON.parse(embeddedMessage) as {
+        error: {
+          code: number;
+          message: string;
+          status: string;
+        };
       };
+      const { code } = parsed.error;
 
       if (code === 429) return "429";
     } catch (e) {
@@ -323,7 +326,7 @@ function logLLMAction<T>(
   input: string,
   duration: number,
   apiResponse: GenerateContentResponse,
-  response?: CompletionResponse<T>
+  response?: CompletionResponse<T>,
 ) {
   try {
     if (!apiResponse?.usageMetadata) return;
@@ -367,12 +370,12 @@ function logLLMAction<T>(
       dense["cacheTokens"] = cachedContentTokenCount;
     }
 
-    if (finishReason !== "STOP") {
+    if (finishReason !== FinishReason.STOP) {
       dense["finishReason"] = finishReason;
     }
 
     if (response) {
-      const { thread, ...rest } = response;
+      const { thread: _, ...rest } = response;
       dense["out"] = rest;
     }
 
@@ -397,7 +400,7 @@ function logEmbedAction(
   inputs: string[],
   duration: number,
   apiResponse: EmbedContentResponse,
-  response: EmbeddingResponse
+  response: EmbeddingResponse,
 ) {
   try {
     const blob: Bag = {

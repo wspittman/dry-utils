@@ -30,7 +30,7 @@ export const EmbedParamTemplates: Record<string, EmbedParams> = {
 
 export function validateEmbedAPIParams(
   actual: EmbedContentParameters,
-  used: EmbedParams
+  used: EmbedParams,
 ): void {
   const inputs = Array.isArray(used.input) ? used.input : [used.input];
   assert.equal(actual.model, used.model ?? "gemini-embedding-001", "model");
@@ -39,7 +39,7 @@ export function validateEmbedAPIParams(
     assert.equal(
       actual.config?.outputDimensionality,
       used.dimensions,
-      "config.outputDimensionality"
+      "config.outputDimensionality",
     );
   } else {
     assert.equal(actual.config?.outputDimensionality, undefined);

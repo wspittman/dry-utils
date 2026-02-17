@@ -49,7 +49,7 @@ const DEBUG = false;
 const debugFn = (x: unknown) => console.dir(x, { depth: null });
 
 function proseCall(
-  params: CompletionParams
+  params: CompletionParams,
 ): Promise<CompletionResponse<string>> {
   const { action, thread, input, context, tools, model, reasoningEffort } =
     params;
@@ -63,7 +63,7 @@ function proseCall(
 }
 
 function jsonCall(
-  params: CompletionParams
+  params: CompletionParams,
 ): Promise<CompletionResponse<unknown>> {
   const {
     action,
@@ -143,7 +143,7 @@ describe("AI: Gemini", () => {
         callCounts(errLog);
         validateAPIError(result, expected);
       });
-    }
+    },
   );
 
   Object.entries(ResponseErrorTemplates).forEach(
@@ -155,7 +155,7 @@ describe("AI: Gemini", () => {
         callCounts(defaultLog);
         validateAPIError(result, expected);
       });
-    }
+    },
   );
 
   Object.entries(ResponseTemplates).forEach(([name, response]) => {
@@ -184,9 +184,9 @@ describe("AI: Gemini", () => {
     assert.ok(result.thread, "thread should be defined");
     assert.ok(
       result.thread!.every(
-        (message) => message && typeof message.role === "string"
+        (message) => message && typeof message.role === "string",
       ),
-      "thread entries should all be Content objects"
+      "thread entries should all be Content objects",
     );
   });
 
@@ -234,7 +234,7 @@ describe("AI: Gemini", () => {
         callCounts(defaultEmbedLog);
         validateEmbedError(result, expected);
       });
-    }
+    },
   );
 
   Object.entries(EmbedThrownTemplates).forEach(([name, [error, expected]]) => {

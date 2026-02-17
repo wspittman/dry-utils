@@ -21,7 +21,7 @@ const usage: GenerateContentResponseUsageMetadata = {
 
 const defaultResponse = createResponse(
   { content: "complete" },
-  FinishReason.STOP
+  FinishReason.STOP,
 );
 
 export class ClientError extends Error {
@@ -53,7 +53,7 @@ export const ResponseTemplates: Record<string, GenerateContentResponse> = {
   default: defaultResponse,
   toolCall: createResponse(
     { name: "my_tool", args: { content: "tool call content" } },
-    FinishReason.STOP
+    FinishReason.STOP,
   ),
 };
 
@@ -81,7 +81,7 @@ export function validateAPIError(actual: Completion, expected: string): void {
 export function validateAPIResponse(
   actual: Completion,
   used: GenerateContentResponse,
-  contentOverride?: unknown
+  contentOverride?: unknown,
 ): void {
   const expected = simpleCompletionResponse(used);
 
@@ -89,7 +89,7 @@ export function validateAPIResponse(
   assert.deepEqual(
     actual.content,
     contentOverride ?? expected.content,
-    "content"
+    "content",
   );
   assert.deepEqual(actual.toolCalls, expected.toolCalls, "toolCalls");
   assert.equal(actual.error, expected.error, "error");
@@ -99,7 +99,8 @@ function simpleCompletionResponse({
   candidates,
   functionCalls,
 }: GenerateContentResponse): Completion {
-  const content = candidates?.[0]?.content!;
+  const candidate = candidates![0]!;
+  const content = candidate.content!;
   const fn = functionCalls![0]! as Required<FunctionCall>;
   const { name, args } = fn;
 
@@ -117,7 +118,7 @@ function simpleCompletionResponse({
 function createResponse(
   output: Record<string, unknown>,
   finishReason?: FinishReason,
-  finishMessage?: string
+  finishMessage?: string,
 ) {
   const response: GenerateContentResponse = {
     candidates: [
