@@ -33,7 +33,7 @@ import { batch } from "dry-utils-async";
 // Example: Process user IDs in batches of 3
 const userIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-await batch(
+const failures = await batch(
   "ProcessUsers", // Operation name for logging
   userIds, // Array of values to process
   async (id) => {
@@ -43,6 +43,17 @@ await batch(
   },
   3, // Batch size (3 concurrent operations)
 );
+
+if (failures.length > 0) {
+  console.warn(`Failed to process ${failures.length} users`);
+
+  for (const failure of failures) {
+    console.error(
+      `userIds[${failure.index}] failed for value ${failure.value}`,
+      failure.error,
+    );
+  }
+}
 ```
 
 ### Subscribing to Logging Events

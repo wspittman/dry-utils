@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test, type TestContext } from "node:test";
 // Note: Destructuring functions such as import { setTimeout } from 'node:timers' is currently not supported by [Mock Timers] API.
 import timers from "node:timers/promises";
-import { batch, subscribeAsyncLogging } from "../src/index.ts";
+import {
+  batch,
+  type BatchFailure,
+  subscribeAsyncLogging,
+} from "../src/index.ts";
 
 /**
  * Mocks timers for testing
@@ -12,9 +16,7 @@ import { batch, subscribeAsyncLogging } from "../src/index.ts";
 function mockTimers(context: TestContext) {
   context.mock.timers.enable({ apis: ["setTimeout"] });
   return async (ms: number) => {
-    // Advance the mocked timers by the given number of milliseconds
     context.mock.timers.tick(ms);
-    // Force the event loop to run all pending callbacks
     await timers.setImmediate();
   };
 }
@@ -42,7 +44,8 @@ describe("Async/Batch", () => {
   });
 
   test("batch: empty", async () => {
-    await batch("empty", [], batchFn);
+    const failures = await batch("empty", [], batchFn);
+    assert.deepEqual(failures, []);
     callCounts(0, 0, 0);
   });
 
@@ -80,7 +83,12 @@ describe("Async/Batch", () => {
       const tick = mockTimers(context);
 
       let isPending = true;
-      batch(name, values, batchFn).then(() => (isPending = false));
+      let failures: BatchFailure<number>[] | undefined = undefined;
+
+      batch(name, values, batchFn).then((batchFailures) => {
+        failures = batchFailures;
+        isPending = false;
+      });
 
       const errsForBatch = (n: number) =>
         values.slice(n * 5, (n + 1) * 5).filter(Boolean).length;
@@ -102,6 +110,20 @@ describe("Async/Batch", () => {
 
       callCounts(2, errCount, values.length, "after completion");
       assert.ok(!isPending, "Batch should be complete");
+      assert.ok(failures, "Batch should return failures");
+      assert.equal(failures.length, errCount);
+
+      const expectedFailures = values
+        .map((value, index) => ({ index, value }))
+        .filter(({ value }) => Boolean(value));
+      assert.deepEqual(
+        failures.map(({ index, value }) => ({ index, value })),
+        expectedFailures,
+      );
+      failures.forEach(({ error }) => {
+        assert.ok(error instanceof Error);
+        assert.equal(error.message, "Negative");
+      });
     });
   }
 });

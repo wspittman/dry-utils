@@ -1,2 +1,2 @@
-export { batch } from "./batch.ts";
+export { batch, type BatchFailure } from "./batch.ts";
 export { subscribeAsyncLogging } from "./diagnostics.ts";
