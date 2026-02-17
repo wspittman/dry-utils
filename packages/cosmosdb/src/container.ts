@@ -203,7 +203,6 @@ function extractResponse(
     response.diagnostics.clientSideRequestStatistics;
 
   // No response .item, .resource, .resources to avoid IDs
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { item, resource, resources, ...rest } = response as unknown as {
     item?: unknown;
     resource?: unknown;
