@@ -41,7 +41,7 @@ await batch(
     const user = await fetchUser(id);
     await updateUserStatus(user);
   },
-  3 // Batch size (3 concurrent operations)
+  3, // Batch size (3 concurrent operations)
 );
 ```
 

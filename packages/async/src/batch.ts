@@ -14,7 +14,7 @@ export async function batch<T>(
   name: string,
   values: T[],
   fn: (value: T) => Promise<void>,
-  size = 5
+  size = 5,
 ): Promise<void> {
   if (!values.length) return;
   if (!Number.isInteger(size) || size <= 0) {
