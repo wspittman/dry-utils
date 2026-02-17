@@ -8,7 +8,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 Prerequisites:
 
-- Node.js >=22.0.0
+- Node.js >=24.0.0
 - When using OpenAI, you will need to set up an OpenAI account and create an API key. The OpenAI code expect .env to contain OPENAI_API_KEY, which is referenced directly in the OpenAI SDK.
 
 Install:

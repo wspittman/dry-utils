@@ -6,7 +6,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 ## Prerequisites
 
-- Node.js >=22.0.0
+- Node.js >=24.0.0
 - [Azure CosmosDB Emulator](https://learn.microsoft.com/en-us/azure/cosmos-db/local-emulator)
 - [Azure CosmosDB Account](https://azure.microsoft.com/en-us/services/cosmos-db/)
 

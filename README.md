@@ -17,7 +17,7 @@ This repository is structured as a monorepo containing several packages:
 
 ## Prerequisites
 
-All packages require Node.js >=22.0.0
+All packages require Node.js >=24.0.0
 
 ### CosmosDB
 

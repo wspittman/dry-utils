@@ -20,7 +20,8 @@ function npmCommand(cmd, ...args) {
 }
 
 const d = new Date();
-d.setDate(d.getDate() - 7);
+// temporary set to 0 instead of 7 for full eslint 10 support
+d.setDate(d.getDate() - 0);
 const lastWeek = d.toISOString().slice(0, 10);
 
 if (!!isFull) {

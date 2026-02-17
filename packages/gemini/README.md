@@ -8,7 +8,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 Prerequisites:
 
-- Node.js >=22.0.0
+- Node.js >=24.0.0
 - When using Gemini, you will need to set up a Gemini account and create an API key. The Gemini code expect .env to contain GEMINI_API_KEY, which is referenced directly in the Gemini SDK.
 
 Install:

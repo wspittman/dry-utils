@@ -8,7 +8,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 Prerequisites:
 
-- Node.js >=22.0.0
+- Node.js >=24.0.0
 
 Install:
 
