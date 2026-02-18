@@ -1,9 +1,17 @@
-import type { ContainerRequest, Database, ItemDefinition } from "@azure/cosmos";
+import type {
+  Container as AzureContainer,
+  ContainerRequest,
+  Database,
+  ItemDefinition,
+} from "@azure/cosmos";
 import { CosmosClient } from "@azure/cosmos";
 import fs from "node:fs";
 import https from "node:https";
 import { Container } from "./container.ts";
 import { diag } from "./diagnostics.ts";
+import { MockAzureContainer } from "./mockAzureContainer.ts";
+
+type ContainerMap = Record<string, Container<ItemDefinition>>;
 
 export interface ContainerOptions {
   name: string;
@@ -17,6 +25,7 @@ export interface DBOptions {
   name: string;
   localCertPath?: string;
   containers: ContainerOptions[];
+  mockDBData?: Record<string, ItemDefinition[]>;
 }
 
 const MAX_CREATE_ATTEMPTS = 3;
@@ -33,7 +42,12 @@ export async function connectDB({
   name,
   localCertPath,
   containers,
-}: DBOptions): Promise<Record<string, Container<ItemDefinition>>> {
+  mockDBData,
+}: DBOptions): Promise<ContainerMap> {
+  if (mockDBData) {
+    return connectMockDB(containers, mockDBData);
+  }
+
   let agent;
   if (localCertPath) {
     agent = new https.Agent({ ca: fs.readFileSync(localCertPath) });
@@ -45,7 +59,7 @@ export async function connectDB({
     id: name,
   });
 
-  const containerMap: Record<string, Container<ItemDefinition>> = {};
+  const containerMap: ContainerMap = {};
 
   const containerPromises = containers.map((c) => createContainer(database, c));
   const results = await Promise.allSettled(containerPromises);
@@ -113,4 +127,25 @@ function getIndexingPolicy(exclusions: "all" | string[]) {
     includedPaths: all,
     excludedPaths: ['/"_etag"/?', ...exclusions].map((path) => ({ path })),
   };
+}
+
+function connectMockDB(
+  containers: ContainerOptions[],
+  data: Record<string, ItemDefinition[]>,
+): ContainerMap {
+  const containerMap: ContainerMap = {};
+
+  containers.forEach((c) => {
+    const items = data[c.name] ?? [];
+    const azureContainer = new MockAzureContainer(
+      c.partitionKey,
+      items,
+    ) as unknown as AzureContainer;
+
+    containerMap[c.name] = new Container(c.name, azureContainer);
+  });
+
+  diag.log("ConnectMockDB", "Mock CosmosDB connected");
+
+  return containerMap;
 }
