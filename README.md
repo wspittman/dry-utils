@@ -10,6 +10,7 @@ This repository is structured as a monorepo containing several packages:
 
 - [dry-utils-async](#dry-utils-async) - Utilities for handling common asynchronous programming patterns
 - [dry-utils-cosmosdb](#dry-utils-cosmosdb) - CosmosDB abstractions for simplified database interactions
+- [dry-utils-cdbemulator](#dry-utils-cdbemulator) - Local in-memory Cosmos compatibility emulator
 - [dry-utils-gemini](#dry-utils-gemini) - Utilities for working with the Gemini API
 - [dry-utils-logger](#dry-utils-logger) - Winston wrapper logger with simplified configuration
 - [dry-utils-openai](#dry-utils-openai) - Utilities for working with the OpenAI API
@@ -52,6 +53,7 @@ dry-utils packages are available on npm.
 # Install the specific package you need
 npm install dry-utils-async
 npm install dry-utils-cosmosdb
+npm install dry-utils-cdbemulator
 npm install dry-utils-gemini
 npm install dry-utils-logger
 npm install dry-utils-openai
@@ -83,6 +85,19 @@ CosmosDB abstractions for simplified database interactions.
 - Logging: Built-in logging for database operations with RU consumption tracking
 
 [View dry-utils-cosmosdb documentation](./packages/cosmosdb/README.md)
+
+### dry-utils-cdbemulator
+
+Minimal in-memory emulator that implements the small `@azure/cosmos` surface used by `dry-utils-cosmosdb` for local testing workflows.
+
+**Features:**
+
+- Local CosmosClient: In-memory database and container lifecycle with `createIfNotExists` semantics
+- CRUD Compatibility: Supports `upsert`, `read`, `delete`, and `readAll` operations with partition keys
+- Minimal Query Engine: Supports `SELECT *`, `SELECT c.id`, `SELECT VALUE COUNT(1)`, `TOP`, comparisons, and `CONTAINS`
+- Telemetry Shape: Includes response charge and diagnostics fields expected by consumers
+
+[View dry-utils-cdbemulator documentation](./packages/cdbemulator/README.md)
 
 ### dry-utils-gemini
 

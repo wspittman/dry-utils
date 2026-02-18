@@ -1,0 +1,56 @@
+{
+  "name": "dry-utils-cdbemulator",
+  "version": "0.1.0",
+  "description": "Minimal local emulator compatibility layer for @azure/cosmos",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wspittman/dry-utils.git",
+    "directory": "packages/cdbemulator"
+  },
+  "author": "William Pittman",
+  "homepage": "https://github.com/wspittman/dry-utils/tree/main/packages/cdbemulator#readme",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "eslint",
+    "format": "prettier . --check",
+    "format:write": "prettier . --write",
+    "pretest": "tsc --noEmit",
+    "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "e2e": "echo \"No e2e tests for cdbemulator package\"",
+    "build": "tsc -p tsconfig.json",
+    "link": "npm link",
+    "unlink": "npm unlink --global",
+    "prepublishOnly": "npm run build && npm run test",
+    "publish-package": "npm publish --access public"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.10.0",
+    "eslint": "^10.0.0",
+    "prettier": "^3.7.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.49.0"
+  }
+}
