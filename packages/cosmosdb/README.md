@@ -42,9 +42,9 @@ npm install dry-utils-cosmosdb
 Connect to your database and initialize containers:
 
 ```typescript
-import { dbConnect } from "dry-utils-cosmosdb";
+import { connectDB } from "dry-utils-cosmosdb";
 
-const db = await dbConnect({
+const db = await connectDB({
   endpoint: "https://your-cosmos-instance.documents.azure.com:443/",
   key: "your-cosmos-db-key",
   name: "your-database-name",
@@ -83,6 +83,40 @@ const query = new Query()
 // Execute the query
 const results = await container.query(query.build(100));
 ```
+
+### Mock Database (Testing)
+
+For tests, you can bypass Azure entirely by supplying `mockDBOptions`.
+
+```typescript
+import { connectDB } from "dry-utils-cosmosdb";
+
+const db = await connectDB({
+  endpoint: "unused-for-mock",
+  key: "unused-for-mock",
+  name: "unused-for-mock",
+  containers: [{ name: "users", partitionKey: "userId" }],
+  mockDBOptions: {
+    users: {
+      data: [
+        { id: "1", userId: "u-1", status: "active" },
+        { id: "2", userId: "u-2", status: "inactive" },
+      ],
+      queries: [
+        {
+          matcher: /WHERE c\.status = @status/,
+          func: (items, getParam) => {
+            const status = getParam<string>("@status");
+            return items.filter((item) => item.status === status);
+          },
+        },
+      ],
+    },
+  },
+});
+```
+
+The `queries` matchers let you intercept query text and return custom results from fixture data.
 
 ### CRUD Operations
 
