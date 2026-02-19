@@ -46,7 +46,7 @@ export async function batch<T>(
         diag.error(`Batch_${name}: at values[${i + index}]`, r.reason);
         failures.push({
           index: i + index,
-          value: batch[index],
+          value: batch[index]!,
           error: r.reason,
         });
       }
