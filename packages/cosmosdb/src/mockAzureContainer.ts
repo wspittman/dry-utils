@@ -6,13 +6,33 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 
+const FORCE_ERROR = "FORCE_ERROR";
+
+interface QueryDef {
+  matcher: string | RegExp;
+  func: (
+    items: Item[],
+    getParam: <T>(name: string) => T | undefined,
+  ) => unknown[];
+}
+
+export interface MockAzureContainerOptions {
+  data?: Item[];
+  queries?: QueryDef[];
+}
+
 export class MockAzureContainer {
   // Data structure: { pkey: { id: item } }
-  private readonly data: Record<string, Record<string, Item>> = {};
-  private readonly pkey: string;
+  readonly #data: Record<string, Record<string, Item>> = {};
+  readonly #pkey: string;
+  readonly #queries: QueryDef[] = [];
 
-  constructor(pkey: string, data: Item[] = []) {
-    this.pkey = pkey;
+  constructor(
+    pkey: string,
+    { data = [], queries = [] }: MockAzureContainerOptions = {},
+  ) {
+    this.#pkey = pkey;
+    this.#queries = queries;
     data.forEach((item) => this._addItem(item));
   }
 
@@ -29,29 +49,69 @@ export class MockAzureContainer {
       throw new Error("Item must have an id property");
     }
 
-    const pk = item[this.pkey] as string;
+    const pk = item[this.#pkey] as string;
     if (typeof pk !== "string") {
       throw new Error(`Partition key must be string. Found ${typeof pk}`);
     }
 
-    this.data[pk] ??= {};
-    this.data[pk][item.id] = item;
+    this._checkForceError(pk);
+    this.#data[pk] ??= {};
+    this.#data[pk][item.id] = { ...item };
   }
 
   _getItem(id: string, pkey: string): Item | undefined {
-    return this.data[pkey]?.[id];
+    this._checkForceError(pkey);
+    return this.#data[pkey]?.[id];
   }
 
   _getPartition(pkey: string): Item[] {
-    return Object.values(this.data[pkey] ?? {});
+    this._checkForceError(pkey);
+    return Object.values(this.#data[pkey] ?? {});
+  }
+
+  _getAllItems(): Item[] {
+    return Object.values(this.#data).flatMap((partition) =>
+      Object.values(partition),
+    );
+  }
+
+  _query(query: SqlQuerySpec, pkey?: string): unknown[] {
+    const items = pkey ? this._getPartition(pkey) : this._getAllItems();
+    const queryStr = query.query;
+
+    if (queryStr === "SELECT c.id FROM c") {
+      return items.map((item) => ({ id: item.id }));
+    }
+
+    if (queryStr === "SELECT VALUE COUNT(1) FROM c") {
+      return [items.length];
+    }
+
+    for (const { matcher, func } of this.#queries) {
+      if (
+        (typeof matcher === "string" && matcher === queryStr) ||
+        (matcher instanceof RegExp && matcher.test(queryStr))
+      ) {
+        return func(items, (name) => getParam(query, name));
+      }
+    }
+
+    return items;
   }
 
   _deleteItem(id: string, pkey: string): Item | undefined {
+    this._checkForceError(pkey);
     const item = this._getItem(id, pkey);
-    if (this.data[pkey]) {
-      delete this.data[pkey][id];
+    if (this.#data[pkey]) {
+      delete this.#data[pkey][id];
     }
     return item;
+  }
+
+  _checkForceError(pkey: string): void {
+    if (pkey === FORCE_ERROR) {
+      throw new Error("Error Time");
+    }
   }
 }
 
@@ -73,21 +133,15 @@ class MockItems {
     return new MockQueryIterator<T>(items);
   }
 
-  query<T extends Item>(
+  query<T>(
     query: string | SqlQuerySpec,
-    options?: FeedOptions,
+    { partitionKey }: FeedOptions = {},
   ): MockQueryIterator<T> {
-    if (typeof query !== "string") {
-      throw new Error("Only string queries are supported in mock query");
-    }
-    if (!options?.partitionKey || typeof options.partitionKey !== "string") {
-      throw new Error("String partition key is required for mock query");
-    }
-    // This is a very naive query implementation that only supports "SELECT * FROM c"
-    if (query.trim().toUpperCase() !== "SELECT * FROM C") {
-      throw new Error("Only 'SELECT * FROM c' queries are supported in mock");
-    }
-    const items = this.#container._getPartition(options.partitionKey) as T[];
+    const items = this.#container._query(
+      typeof query === "string" ? { query } : query,
+      partitionKey as string,
+    ) as T[];
+
     return new MockQueryIterator<T>(items);
   }
 
@@ -121,7 +175,7 @@ class MockItem {
   }
 }
 
-class MockQueryIterator<T extends Item> {
+class MockQueryIterator<T> {
   #items: T[];
 
   constructor(items: T[]) {
@@ -142,9 +196,7 @@ function mockItemResponse<T extends Item>(
   } as ItemResponse<T>);
 }
 
-function mockFeedResponse<T extends Item>(
-  resources: T[],
-): Promise<FeedResponse<T>> {
+function mockFeedResponse<T>(resources: T[]): Promise<FeedResponse<T>> {
   return Promise.resolve({
     resources,
     ...mockDiagnostics(),
@@ -162,3 +214,9 @@ const mockDiagnostics = () => {
     },
   };
 };
+
+function getParam<T>(query: SqlQuerySpec, name: string): T | undefined {
+  const { parameters = [] } = query;
+  const param = parameters.find((p) => p.name === name);
+  return param ? (param.value as T) : undefined;
+}
