@@ -56,22 +56,24 @@ export class MockAzureContainer {
 
     this._checkForceError(pk);
     this.#data[pk] ??= {};
-    this.#data[pk][item.id] = { ...item };
+    this.#data[pk][item.id] = structuredClone(item);
   }
 
   _getItem(id: string, pkey: string): Item | undefined {
     this._checkForceError(pkey);
-    return this.#data[pkey]?.[id];
+    return structuredClone(this.#data[pkey]?.[id]);
   }
 
   _getPartition(pkey: string): Item[] {
     this._checkForceError(pkey);
-    return Object.values(this.#data[pkey] ?? {});
+    return Object.values(this.#data[pkey] ?? {}).map((item) =>
+      structuredClone(item),
+    );
   }
 
   _getAllItems(): Item[] {
     return Object.values(this.#data).flatMap((partition) =>
-      Object.values(partition),
+      Object.values(partition).map((item) => structuredClone(item)),
     );
   }
 
