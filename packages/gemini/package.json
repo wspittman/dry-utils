@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-gemini",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Personal, hyper-specific collection of Gemini API utilities",
   "type": "module",
   "sideEffects": false,
