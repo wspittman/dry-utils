@@ -1,7 +1,5 @@
 cosmosdbcert.cer
 .env
-agent_notes/
-agent_scripts/
 
 # Dependency directories
 node_modules/

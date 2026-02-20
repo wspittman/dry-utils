@@ -40,7 +40,7 @@ export const EmbedThrownTemplates: Record<string, [APIError, string]> = {
 export const EmbedRateLimitTemplate: [
   APIError,
   string,
-  CreateEmbeddingResponse
+  CreateEmbeddingResponse,
 ] = [
   createErr(429, "rate_limit_exceeded", "Rate limit exceeded"),
   "OpenAI Back Off Limit Exceeded",
@@ -49,7 +49,7 @@ export const EmbedRateLimitTemplate: [
 
 export function validateEmbedResponse(
   actual: EmbeddingResponse,
-  used: CreateEmbeddingResponse
+  used: CreateEmbeddingResponse,
 ): void {
   assert.ok(!actual.error, `Should not have error: ${actual.error}`);
   assert.ok(actual.embeddings, "embeddings should exist");
@@ -59,7 +59,7 @@ export function validateEmbedResponse(
 
 export function validateEmbedError(
   actual: EmbeddingResponse,
-  expected: string
+  expected: string,
 ): void {
   assert.ok(!actual.embeddings, "embeddings should not exist");
   assert.equal(actual.error, expected);

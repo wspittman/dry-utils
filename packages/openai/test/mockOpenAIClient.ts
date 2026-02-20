@@ -25,11 +25,11 @@ export class MockOpenAIClient {
    */
   constructor() {
     this.mockParse = mock.method(Responses.prototype, "parse", () =>
-      Promise.resolve(ResponseTemplates["default"])
+      Promise.resolve(ResponseTemplates["default"]),
     );
 
     this.mockEmbed = mock.method(Embeddings.prototype, "create", () =>
-      Promise.resolve(EmbedResponseTemplates["default"])
+      Promise.resolve(EmbedResponseTemplates["default"]),
     );
   }
 
@@ -78,9 +78,7 @@ export class MockOpenAIClient {
    * @param response The response to return
    */
   mockResponseOnce(response: ParsedResponse<unknown>): void {
-    this.mockParse.mock.mockImplementationOnce(
-      () => Promise.resolve(response) as any
-    );
+    this.mockParse.mock.mockImplementationOnce(() => Promise.resolve(response));
   }
 
   /**
@@ -88,9 +86,7 @@ export class MockOpenAIClient {
    * @param response The embedding response to return
    */
   mockEmbedResponseOnce(response: CreateEmbeddingResponse): void {
-    this.mockEmbed.mock.mockImplementationOnce(
-      () => Promise.resolve(response) as any
-    );
+    this.mockEmbed.mock.mockImplementationOnce(() => Promise.resolve(response));
   }
 
   /**
@@ -98,9 +94,7 @@ export class MockOpenAIClient {
    * @param error The error to throw
    */
   mockErrorOnce(error: APIError): void {
-    this.mockParse.mock.mockImplementationOnce(
-      () => Promise.reject(error) as any
-    );
+    this.mockParse.mock.mockImplementationOnce(() => Promise.reject(error));
   }
 
   /**
@@ -108,9 +102,7 @@ export class MockOpenAIClient {
    * @param error The error to throw
    */
   mockEmbedErrorOnce(error: APIError): void {
-    this.mockEmbed.mock.mockImplementationOnce(
-      () => Promise.reject(error) as any
-    );
+    this.mockEmbed.mock.mockImplementationOnce(() => Promise.reject(error));
   }
 
   /**
@@ -123,9 +115,9 @@ export class MockOpenAIClient {
       this.mockParse.mock.mockImplementationOnce(
         () =>
           response instanceof APIError
-            ? (Promise.reject(response) as any)
-            : (Promise.resolve(response) as any),
-        i
+            ? Promise.reject(response)
+            : Promise.resolve(response),
+        i,
       );
     }
   }
@@ -140,9 +132,9 @@ export class MockOpenAIClient {
       this.mockEmbed.mock.mockImplementationOnce(
         () =>
           response instanceof APIError
-            ? (Promise.reject(response) as any)
-            : (Promise.resolve(response) as any),
-        i
+            ? Promise.reject(response)
+            : Promise.resolve(response),
+        i,
       );
     }
   }

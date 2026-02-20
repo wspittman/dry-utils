@@ -17,7 +17,7 @@ This repository is structured as a monorepo containing several packages:
 
 ## Prerequisites
 
-All packages require Node.js >=22.0.0
+All packages require Node.js >=24.0.0
 
 ### CosmosDB
 
@@ -140,9 +140,14 @@ HTML and Markdown conversion utilities with sanitization for safe rendering.
 This monorepo provides several npm scripts to help with development:
 
 - `npm run clean` - Clean the repository by removing all untracked files and directories
-- `npm run build` - Build all packages in the monorepo
+- `npm run lint` - Run eslint for every package
+- `npm run format` - Check formatting for every package
+- `npm run format:write` - Apply formatting updates for every package
 - `npm run test` - Run tests for all packages
 - `npm run e2e` - Run end-to-end tests for all packages
+- `npm run pre-checkin` - Run lint, format:write, and tests
+- `npm run pre-deploy` - Run pre-checkin plus e2e and build
+- `npm run build` - Build all packages in the monorepo
 - `npm run link` - Create symbolic links for all packages to use them locally
 - `npm run unlink` - Remove symbolic links created by the link command
 - `npm run publish-packages` - Publish packages to npm registry

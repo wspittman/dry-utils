@@ -59,7 +59,7 @@ class Diagnostics {
     tag: string,
     blob: Record<string, unknown>,
     dense: Record<string, unknown>,
-    metrics: Record<string, number>
+    metrics: Record<string, number>,
   ): void {
     if (this.aggChannel.hasSubscribers) {
       this.aggChannel.publish({ tag, blob, dense, metrics });

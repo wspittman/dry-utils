@@ -7,6 +7,7 @@ import type {
 } from "openai/resources/responses/responses";
 import z, { toJSONSchema, type ZodType } from "zod";
 import type {
+  Bag,
   CompletionResponse,
   Context,
   EmbeddingResponse,
@@ -15,7 +16,7 @@ import type {
 
 export function getTextFormat<T>(
   action: string,
-  schema: ZodType<T>
+  schema: ZodType<T>,
 ): ResponseTextConfig {
   return {
     // Don't use OpenAI's built-in Zod helpers because they don't work with Zod v4
@@ -50,7 +51,7 @@ export function toolToOpenAITool({
 export function createMessages(
   thread: ResponseInputItem[],
   input: string,
-  context: Context[]
+  context: Context[],
 ): ResponseInputItem[] {
   return [
     ...thread,
@@ -59,7 +60,7 @@ export function createMessages(
         ({
           role: "user",
           content: `Useful context: ${description}\n${JSON.stringify(content)}`,
-        } as ResponseInputItem)
+        }) as ResponseInputItem,
     ),
     { role: "user", content: input },
   ];
@@ -67,7 +68,7 @@ export function createMessages(
 
 export function completionToResponse<T>(
   completion: ParsedResponse<T>,
-  thread: ResponseInputItem[]
+  thread: ResponseInputItem[],
 ): CompletionResponse<T> {
   if (completion.status === "incomplete") {
     const reason = completion.incomplete_details?.reason;
@@ -99,11 +100,16 @@ export function completionToResponse<T>(
     } else if (output.type === "function_call") {
       result.toolCalls ??= [];
 
-      let args = output.parsed_arguments;
+      let args = output.parsed_arguments as Bag;
 
       // I'm seeing an issue where this just repeats the output block for one level nested
-      if (args && "call_id" in args) {
-        args = args.parsed_arguments;
+      if (
+        args &&
+        typeof args === "object" &&
+        "call_id" in args &&
+        "parsed_arguments" in args
+      ) {
+        args = args["parsed_arguments"] as Bag;
       }
 
       result.toolCalls.push({

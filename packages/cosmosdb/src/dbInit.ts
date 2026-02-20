@@ -1,9 +1,20 @@
-import type { ContainerRequest, Database, ItemDefinition } from "@azure/cosmos";
+import type {
+  Container as AzureContainer,
+  ContainerRequest,
+  Database,
+  ItemDefinition,
+} from "@azure/cosmos";
 import { CosmosClient } from "@azure/cosmos";
 import fs from "node:fs";
 import https from "node:https";
 import { Container } from "./container.ts";
 import { diag } from "./diagnostics.ts";
+import {
+  MockAzureContainer,
+  type MockAzureContainerOptions,
+} from "./mockAzureContainer.ts";
+
+type ContainerMap = Record<string, Container<ItemDefinition>>;
 
 export interface ContainerOptions {
   name: string;
@@ -17,6 +28,7 @@ export interface DBOptions {
   name: string;
   localCertPath?: string;
   containers: ContainerOptions[];
+  mockDBOptions?: Record<string, MockAzureContainerOptions>;
 }
 
 const MAX_CREATE_ATTEMPTS = 3;
@@ -33,7 +45,12 @@ export async function connectDB({
   name,
   localCertPath,
   containers,
-}: DBOptions): Promise<Record<string, Container<ItemDefinition>>> {
+  mockDBOptions,
+}: DBOptions): Promise<ContainerMap> {
+  if (mockDBOptions) {
+    return connectMockDB(containers, mockDBOptions);
+  }
+
   let agent;
   if (localCertPath) {
     agent = new https.Agent({ ca: fs.readFileSync(localCertPath) });
@@ -45,7 +62,7 @@ export async function connectDB({
     id: name,
   });
 
-  const containerMap: Record<string, Container<ItemDefinition>> = {};
+  const containerMap: ContainerMap = {};
 
   const containerPromises = containers.map((c) => createContainer(database, c));
   const results = await Promise.allSettled(containerPromises);
@@ -72,7 +89,7 @@ export async function connectDB({
 async function createContainer(
   database: Database,
   options: ContainerOptions,
-  attempt = 1
+  attempt = 1,
 ): Promise<Container<ItemDefinition> | undefined> {
   const { name, partitionKey, indexExclusions = "none" } = options;
   try {
@@ -92,7 +109,7 @@ async function createContainer(
     if (attempt < MAX_CREATE_ATTEMPTS) {
       diag.error(
         "CreateContainer",
-        `Failed to create container: ${name} (attempt ${attempt})`
+        `Failed to create container: ${name} (attempt ${attempt})`,
       );
       return createContainer(database, options, attempt + 1);
     }
@@ -113,4 +130,24 @@ function getIndexingPolicy(exclusions: "all" | string[]) {
     includedPaths: all,
     excludedPaths: ['/"_etag"/?', ...exclusions].map((path) => ({ path })),
   };
+}
+
+function connectMockDB(
+  containers: ContainerOptions[],
+  mockDBOptions: Record<string, MockAzureContainerOptions>,
+): ContainerMap {
+  const containerMap: ContainerMap = {};
+
+  containers.forEach((c) => {
+    const azureContainer = new MockAzureContainer(
+      c.partitionKey,
+      mockDBOptions[c.name],
+    ) as unknown as AzureContainer;
+
+    containerMap[c.name] = new Container(c.name, azureContainer);
+  });
+
+  diag.log("ConnectMockDB", "Mock CosmosDB connected");
+
+  return containerMap;
 }

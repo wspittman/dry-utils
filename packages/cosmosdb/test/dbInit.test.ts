@@ -52,12 +52,12 @@ mock.method(
 
     return {
       container: new Container(
-        { id: "MockDatabase" } as any,
+        { id: "MockDatabase" } as unknown as Database,
         dataId,
-        {} as any
+        {} as unknown as ClientContext,
       ),
     };
-  }
+  },
 );
 
 // #endregion
@@ -133,5 +133,34 @@ describe("DB: DBInit", () => {
       // The mock hacks the container ID to include the id, pkey, and index exclusions
       assert.equal(result["id"]?.container.id, expected, "Container ID");
     });
+  });
+
+  test("ConnectDB w/ mock data", async () => {
+    const options = {
+      ...connectOptions,
+      containers: [{ name: "id", partitionKey: "pkey" }],
+      mockDBOptions: {
+        id: {
+          data: [
+            { id: "item1", pkey: "p1", value: "test1" },
+            { id: "item2", pkey: "p1", value: "test2" },
+            { id: "item3", pkey: "p2", value: "test3" },
+          ],
+        },
+      },
+    };
+
+    const result = await connectDB(options);
+
+    assert.equal(Object.keys(result).length, 1, "ContainerMap");
+    callCounts(1, 0, "Mock Data");
+
+    const container = result["id"];
+    assert.ok(container, "Container should be created");
+
+    const items = await container.getItemsByPartitionKey("p1");
+    assert.equal(items.length, 2, "Should retrieve correct number of items");
+    assert.equal(items[0]?.["value"], "test1", "First item value match");
+    assert.equal(items[1]?.["value"], "test2", "Second item value match");
   });
 });

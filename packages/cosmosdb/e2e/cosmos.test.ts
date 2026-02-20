@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { after, afterEach, describe, mock, test } from "node:test";
 import {
+  connectDB,
   Container,
-  dbConnect,
   Query,
   subscribeCosmosDBLogging,
 } from "../src/index.ts";
@@ -14,7 +14,7 @@ const DATABASE_KEY =
   "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 const DATABASE_LOCAL_CERT_PATH = path.resolve(
   process.cwd(),
-  "cosmosdbcert.cer"
+  "cosmosdbcert.cer",
 );
 
 export interface Model {
@@ -57,7 +57,7 @@ describe("CosmosDB E2E Flow", () => {
   });
 
   test("dbConnect", async () => {
-    const containers = await dbConnect({
+    const containers = await connectDB({
       endpoint: DATABASE_URL,
       key: DATABASE_KEY,
       name: "test_db",
@@ -70,13 +70,13 @@ describe("CosmosDB E2E Flow", () => {
       ],
     });
 
-    assert.ok(containers, "dbConnect returns containers map");
+    assert.ok(containers, "connectDB returns containers map");
     assert.equal(Object.keys(containers).length, 1, "Containers has one item");
 
     container = containers[containerName] as Container<Model>;
 
     assert.ok(container, "testContainer should be created");
-    logCounts({ log: 1 }, "dbConnect");
+    logCounts({ log: 1 }, "connectDB");
   });
 
   test("upsertItem", async () => {

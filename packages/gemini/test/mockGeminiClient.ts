@@ -81,8 +81,8 @@ export class MockGeminiClient {
    * @param response The response to return
    */
   mockResponseOnce(response: GenerateContentResponse): void {
-    this.mockGenerate.mock.mockImplementationOnce(
-      () => Promise.resolve(response) as any
+    this.mockGenerate.mock.mockImplementationOnce(() =>
+      Promise.resolve(response),
     );
   }
 
@@ -91,9 +91,7 @@ export class MockGeminiClient {
    * @param response The response to return
    */
   mockEmbedResponseOnce(response: EmbedContentResponse): void {
-    this.mockEmbed.mock.mockImplementationOnce(
-      () => Promise.resolve(response) as any
-    );
+    this.mockEmbed.mock.mockImplementationOnce(() => Promise.resolve(response));
   }
 
   /**
@@ -101,9 +99,7 @@ export class MockGeminiClient {
    * @param error The error to throw
    */
   mockErrorOnce(error: ClientError): void {
-    this.mockGenerate.mock.mockImplementationOnce(
-      () => Promise.reject(error) as any
-    );
+    this.mockGenerate.mock.mockImplementationOnce(() => Promise.reject(error));
   }
 
   /**
@@ -111,9 +107,7 @@ export class MockGeminiClient {
    * @param error The error to throw
    */
   mockEmbedErrorOnce(error: ClientError): void {
-    this.mockEmbed.mock.mockImplementationOnce(
-      () => Promise.reject(error) as any
-    );
+    this.mockEmbed.mock.mockImplementationOnce(() => Promise.reject(error));
   }
 
   /**
@@ -122,13 +116,13 @@ export class MockGeminiClient {
    */
   mockMany(responses: (ClientError | GenerateContentResponse)[]): void {
     for (let i = 0; i < responses.length; i++) {
-      const response = responses[i];
+      const response = responses[i]!;
       this.mockGenerate.mock.mockImplementationOnce(
         () =>
           response instanceof ClientError
-            ? (Promise.reject(response) as any)
-            : (Promise.resolve(response) as any),
-        i
+            ? Promise.reject(response)
+            : Promise.resolve(response),
+        i,
       );
     }
   }
@@ -139,13 +133,13 @@ export class MockGeminiClient {
    */
   mockEmbedMany(responses: (ClientError | EmbedContentResponse)[]): void {
     for (let i = 0; i < responses.length; i++) {
-      const response = responses[i];
+      const response = responses[i]!;
       this.mockEmbed.mock.mockImplementationOnce(
         () =>
           response instanceof ClientError
-            ? (Promise.reject(response) as any)
-            : (Promise.resolve(response) as any),
-        i
+            ? Promise.reject(response)
+            : Promise.resolve(response),
+        i,
       );
     }
   }

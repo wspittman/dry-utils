@@ -44,14 +44,14 @@ export async function proseCompletion(
   action: string,
   thread: ResponseInputItem[] | string,
   input: string | object,
-  options?: CompletionOptions
+  options?: CompletionOptions,
 ): Promise<CompletionResponse<string>> {
   const { content, ...rest } = await jsonCompletion(
     action,
     thread,
     input,
     proseSchema,
-    options
+    options,
   );
 
   if (content) {
@@ -81,7 +81,7 @@ export async function jsonCompletion<T extends object>(
     tools,
     model = "gpt-5-nano",
     reasoningEffort,
-  }: CompletionOptions = {}
+  }: CompletionOptions = {},
 ): Promise<CompletionResponse<T>> {
   const actionError = validateAction(action);
   if (actionError) {
@@ -106,7 +106,7 @@ export async function jsonCompletion<T extends object>(
     schema,
     context ?? [],
     tools ?? [],
-    reasoningEffort
+    reasoningEffort,
   );
 }
 
@@ -118,7 +118,7 @@ async function apiCompletion<T extends object>(
   schema: ZodType<T>,
   context: Context[],
   simpleTools: Tool[],
-  reasoningEffort?: ReasoningEffort
+  reasoningEffort?: ReasoningEffort,
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const messages = createMessages(thread, input, context);
@@ -135,12 +135,20 @@ async function apiCompletion<T extends object>(
     try {
       const start = Date.now();
       const completion = await getClient().responses.parse<typeof body, T>(
-        body
+        body,
       );
       const duration = Date.now() - start;
 
       const response = completionToResponse(completion, messages);
-      logLLMAction(action, input, duration, completion, response);
+      logLLMAction(
+        action,
+        model,
+        input,
+        context,
+        duration,
+        completion,
+        response,
+      );
       return response;
     } catch (error) {
       const response = errorToResponse(error, attempt);
@@ -167,7 +175,7 @@ async function apiCompletion<T extends object>(
 export async function embed(
   action: string,
   input: string | string[],
-  { model = "text-embedding-3-small", dimensions }: EmbeddingOptions = {}
+  { model = "text-embedding-3-small", dimensions }: EmbeddingOptions = {},
 ): Promise<EmbeddingResponse> {
   const actionError = validateAction(action);
   if (actionError) {
@@ -190,7 +198,14 @@ export async function embed(
       const duration = Date.now() - start;
 
       const result = embeddingToResponse(embeddingResponse);
-      logEmbedAction(action, inputs, duration, embeddingResponse, result);
+      logEmbedAction(
+        action,
+        model,
+        inputs,
+        duration,
+        embeddingResponse,
+        result,
+      );
       return result;
     } catch (error) {
       const response = errorToResponse(error, attempt);
@@ -232,7 +247,7 @@ function validateAction(action: string) {
 
 function errorToResponse(
   error: unknown,
-  attempt: number
+  attempt: number,
 ): CompletionResponse<never> | undefined {
   const errorType = getErrorType(error);
 
@@ -257,10 +272,16 @@ function errorToResponse(
 
 function getErrorType(error: unknown): "429" | "Too Long" | "Other" {
   if (error instanceof OpenAI.APIError) {
-    const { code, status, error: innerError } = error;
+    const code = error.code;
+    const status = error.status as number;
+    const innerError = error.error as object | undefined;
     if (
       code === "context_length_exceeded" ||
       (code === "rate_limit_exceeded" &&
+        typeof innerError === "object" &&
+        innerError !== null &&
+        "message" in innerError &&
+        typeof innerError.message === "string" &&
         innerError.message.startsWith("Request too large"))
     ) {
       return "Too Long";
@@ -283,17 +304,21 @@ async function backoff(action: string, attempt: number) {
 
 function logLLMAction<T>(
   action: string,
+  model: string,
   input: string,
+  context: Context[],
   duration: number,
   apiResponse: ParsedResponse<T>,
-  response?: CompletionResponse<T>
+  response?: CompletionResponse<T>,
 ) {
   try {
     if (!apiResponse?.usage) return;
 
     const blob: Bag = {
       action,
+      model,
       input,
+      context,
       duration,
       apiResponse,
       response,
@@ -307,6 +332,8 @@ function logLLMAction<T>(
 
     const dense: Bag = {
       name: action,
+      model,
+      contextCount: context.length,
       in: input.length > 100 ? input.slice(0, 97) + "..." : input,
       tokens: total_tokens,
       inTokens: input_tokens,
@@ -357,14 +384,16 @@ function logLLMAction<T>(
 
 function logEmbedAction(
   action: string,
+  model: string,
   inputs: string[],
   duration: number,
   apiResponse: CreateEmbeddingResponse,
-  response: EmbeddingResponse
+  response: EmbeddingResponse,
 ) {
   try {
     const blob: Bag = {
       action,
+      model,
       inputs,
       duration,
       apiResponse,
@@ -381,6 +410,7 @@ function logEmbedAction(
 
     const dense: Bag = {
       name: action,
+      model,
       in: preview.length > 100 ? preview.slice(0, 97) + "..." : preview,
       count: (response.embeddings ?? []).length,
       tokens: total_tokens,

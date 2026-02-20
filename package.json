@@ -14,13 +14,18 @@
   "author": "William Pittman",
   "homepage": "https://github.com/wspittman/dry-utils#readme",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
-    "clean": "git clean -fdx node_modules && git clean -fdx **/dist/ **/tsconfig.tsbuildinfo",
-    "build": "npm run build --workspaces",
+    "clean": "git clean -fdx -- \":(glob)**/node_modules/**\" \":(glob)**/deploy/**\" \":(glob)**/dist/**\" \":(glob)**/*.tsbuildinfo\"",
+    "lint": "npm run lint --workspaces",
+    "format": "npm run format --workspaces",
+    "format:write": "npm run format:write --workspaces",
     "test": "npm run test --workspaces",
     "e2e": "npm run e2e --workspaces",
+    "pre-checkin": "node scripts/checklist.mjs",
+    "pre-deploy": "node scripts/checklist.mjs -- full",
+    "build": "npm run build --workspaces",
     "link": "npm run link --workspaces",
     "unlink": "npm run unlink --workspaces",
     "publish-packages": "npm run publish-package --workspaces"

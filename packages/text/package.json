@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-text",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Personal, hyper-specific collection of HTML and Markdown conversion utilities",
   "type": "module",
   "sideEffects": false,
@@ -25,20 +25,23 @@
   "author": "William Pittman",
   "homepage": "https://github.com/wspittman/dry-utils/tree/main/packages/text#readme",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "lint": "eslint",
+    "format": "prettier . --check",
+    "format:write": "prettier . --write",
     "pretest": "tsc --noEmit",
     "test": "node --import tsx/esm --test test/**/*.test.ts",
+    "e2e": "echo \"No e2e tests for text package\"",
+    "build": "tsc -p tsconfig.json",
     "link": "npm link",
     "unlink": "npm unlink --global",
     "prepublishOnly": "npm run build && npm run test",
-    "publish-package": "npm publish --access public",
-    "e2e": "echo \"No e2e tests for text package\""
+    "publish-package": "npm publish --access public"
   },
   "license": "MIT",
   "dependencies": {
@@ -48,11 +51,15 @@
     "turndown": "^7.2.0"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.10.0",
     "@types/sanitize-html": "^2.13.0",
     "@types/showdown": "^2.0.6",
     "@types/turndown": "^5.0.5",
+    "eslint": "^10.0.0",
+    "prettier": "^3.7.4",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.49.0"
   }
 }

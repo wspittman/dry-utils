@@ -15,7 +15,8 @@ const html = {
   headersWithId:
     '<h1 id="header1">Header 1</h1>\n<h2 id="header2">Header 2</h2>',
   list: "<ul>\n<li>Item 1</li>\n<li>Item 2</li>\n</ul>",
-  nestedList: "<ol>\n<li>Item 1<ul>\n<li>Nested 1</li>\n<li>Nested 2</li></ul></li>\n</ol>",
+  nestedList:
+    "<ol>\n<li>Item 1<ul>\n<li>Nested 1</li>\n<li>Nested 2</li></ul></li>\n</ol>",
   codeBlock: "<pre><code>code block\n</code></pre>",
   codeInline: "<p>This is <code>inline code</code></p>",
   linkEmpty: "<a>Text</a>",
@@ -126,20 +127,17 @@ describe("HtmlDown: standardizeUntrustedHtml", () => {
   });
 
   test("standardizeUntrustedHtml: converter options override", () => {
-    const result = standardizeUntrustedHtml(
-      encode(html.table),
-      { tables: false },
-    );
+    const result = standardizeUntrustedHtml(encode(html.table), {
+      tables: false,
+    });
 
     assert.equal(result, html.tableParagraphs);
   });
 
   test("standardizeUntrustedHtml: turndown options applied", () => {
-    const result = standardizeUntrustedHtml(
-      encode("<p></p>"),
-      undefined,
-      { blankReplacement: () => "BLANK" },
-    );
+    const result = standardizeUntrustedHtml(encode("<p></p>"), undefined, {
+      blankReplacement: () => "BLANK",
+    });
 
     assert.equal(result, html.blankParagraph);
   });

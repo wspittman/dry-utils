@@ -1,8 +1,9 @@
-import type {
-  Content,
-  EmbedContentResponse,
-  Tool as GeminiTool,
-  GenerateContentResponse,
+import {
+  FinishReason,
+  type Content,
+  type EmbedContentResponse,
+  type Tool as GeminiTool,
+  type GenerateContentResponse,
 } from "@google/genai";
 import type { ZodType } from "zod";
 import type {
@@ -33,14 +34,14 @@ export function toolToGeminiTool({
 export function createMessages(
   thread: Content[],
   input: string,
-  context: Context[]
+  context: Context[],
 ): Content[] {
   return [
     ...thread,
     ...context.map(({ description, content }) =>
       createContent(
-        `Useful context: ${description}\n${JSON.stringify(content)}`
-      )
+        `Useful context: ${description}\n${JSON.stringify(content)}`,
+      ),
     ),
     createContent(input),
   ];
@@ -56,7 +57,7 @@ export function createContent(text: string, role: string = "user"): Content {
 export function completionToResponse<T>(
   completion: GenerateContentResponse,
   thread: Content[],
-  schema: ZodType<T>
+  schema: ZodType<T>,
 ): CompletionResponse<T> {
   const { content, finishReason, finishMessage } =
     completion.candidates?.[0] ?? {};
@@ -65,11 +66,18 @@ export function completionToResponse<T>(
     return { error: "No finish reason in response" };
   }
 
-  if (["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT"].includes(finishReason)) {
+  if (
+    [
+      FinishReason.SAFETY,
+      FinishReason.BLOCKLIST,
+      FinishReason.PROHIBITED_CONTENT,
+      FinishReason.SPII,
+    ].includes(finishReason)
+  ) {
     return { error: `Refusal: ${finishReason}: ${finishMessage}` };
   }
 
-  if (finishReason === "STOP") {
+  if (finishReason === FinishReason.STOP) {
     if (!content) {
       return { error: "Finish reason STOP, but content is empty" };
     }

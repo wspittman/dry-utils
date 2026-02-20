@@ -50,7 +50,7 @@ describe("Gemini E2E Flow", () => {
       {
         model: "gemini-embedding-001",
         dimensions: 768,
-      }
+      },
     );
     assert.ok(!error, "Should not return an error from embed");
     assert.ok(embeddings, "Should return embeddings from embed");
@@ -71,7 +71,7 @@ describe("Gemini E2E Flow", () => {
     const response = await proseCompletion(
       "Test_Simple",
       "Follow the user's instructions explicitly",
-      "Repeat the word 'complete' back to me, only that single word"
+      "Repeat the word 'complete' back to me, only that single word",
     );
     assert.ok(response, "Should return a response from proseCompletion");
 
@@ -81,7 +81,7 @@ describe("Gemini E2E Flow", () => {
     assert.equal(
       content?.trim().toLowerCase(),
       "complete",
-      "Content should be 'complete'"
+      "Content should be 'complete'",
     );
     assert.equal(thread?.length, 3, "Thread should have three messages");
     assert.deepEqual(rest, {}, "Rest should be empty object");
@@ -130,14 +130,14 @@ describe("Gemini E2E Flow", () => {
                         .enum(["value1", "value2", "value3"])
                         .describe("Ignored zEnum"),
                     })
-                    .describe("Ignored zObjArray")
+                    .describe("Ignored zObjArray"),
                 ),
               })
               .describe("Ignorable"),
           },
         ],
-        model: "gemini-2.0-flash-lite",
-      }
+        model: "gemini-2.5-flash-lite",
+      },
     );
     assert.ok(response, "Should return a response from proseCompletion");
 
@@ -147,7 +147,7 @@ describe("Gemini E2E Flow", () => {
     assert.deepEqual(
       toolCalls,
       [{ name: "Obey", args: { obey: true } }],
-      "ToolCalls should be Obey tool"
+      "ToolCalls should be Obey tool",
     );
 
     assert.equal(thread?.length, 6, "Thread should have six messages");

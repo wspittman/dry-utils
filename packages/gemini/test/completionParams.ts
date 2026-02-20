@@ -109,7 +109,7 @@ export const ParamTemplates: Record<string, CompletionParams> = {
  */
 export function validateAPIParams(
   actual: GenerateContentParameters,
-  used: CompletionParams
+  used: CompletionParams,
 ): void {
   const { thread, input, schema, context, tools, model, reasoningEffort } =
     used;
@@ -130,21 +130,21 @@ export function validateAPIParams(
     },
   ];
 
-  assert.equal(actual.model, model ?? "gemini-2.0-flash-lite", "model");
+  assert.equal(actual.model, model ?? "gemini-2.5-flash-lite", "model");
   assert.deepEqual(
     actual.contents,
     createMessages(restOfThread, fullInput, context ?? []),
-    "contents"
+    "contents",
   );
   assert.deepEqual(
     actual.config?.systemInstruction,
     isEmptySystemPrompt ? undefined : systemPrompt,
-    "config.systemInstruction"
+    "config.systemInstruction",
   );
   assert.deepEqual(
     actual.config?.tools,
     toolsWithSchema.map(toolToGeminiTool),
-    "config.tools"
+    "config.tools",
   );
   const expectedThinkingBudget =
     reasoningEffort === undefined
@@ -155,6 +155,6 @@ export function validateAPIParams(
     expectedThinkingBudget === undefined
       ? undefined
       : { thinkingBudget: expectedThinkingBudget },
-    "config.thinkingConfig"
+    "config.thinkingConfig",
   );
 }

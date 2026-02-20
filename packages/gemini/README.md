@@ -8,7 +8,7 @@ I do not anticipate that you will find this repository useful. It is hyper-speci
 
 Prerequisites:
 
-- Node.js >=22.0.0
+- Node.js >=24.0.0
 - When using Gemini, you will need to set up a Gemini account and create an API key. The Gemini code expect .env to contain GEMINI_API_KEY, which is referenced directly in the Gemini SDK.
 
 Install:
@@ -54,7 +54,7 @@ const result1 = await jsonCompletion(
   "GenerateRecipe", // Action name for logging
   "You are a helpful cooking assistant", // Initial prompt
   "Create a recipe for chocolate chip cookies", // User input
-  recipeSchema // Schema for validation
+  recipeSchema, // Schema for validation
 );
 
 if (result1.content && result1.thread) {
@@ -65,7 +65,7 @@ if (result1.content && result1.thread) {
     "ModifyRecipe",
     result1.thread, // Continue the conversation
     "Now, make it gluten-free.",
-    recipeSchema
+    recipeSchema,
   );
 
   if (result2.content) {
@@ -85,7 +85,7 @@ if (result1.thread) {
     recipeSchema,
     {
       reasoningEffort: "medium",
-    }
+    },
   );
 }
 ```
@@ -101,7 +101,7 @@ import { proseCompletion } from "dry-utils-gemini";
 const result = await proseCompletion(
   "SummarizeArticle", // Action name for logging
   "You are a helpful summarization assistant", // Initial prompt
-  "Summarize this article in 3 bullet points: " + articleText // User input
+  "Summarize this article in 3 bullet points: " + articleText, // User input
 );
 
 if (result.content) {
@@ -163,7 +163,7 @@ const result = await jsonCompletion(
   responseSchema,
   {
     tools: [getCurrentWeatherTool],
-  }
+  },
 );
 
 // 4. Handle the response
@@ -172,7 +172,7 @@ if (result.toolCalls) {
   const toolCall = result.toolCalls[0];
   if (toolCall.name === "getCurrentWeather") {
     console.log(
-      `The model wants to know the weather in ${toolCall.args.location}`
+      `The model wants to know the weather in ${toolCall.args.location}`,
     );
     // In a real app, you would execute the tool and send the result back to the model.
   }
@@ -210,7 +210,7 @@ const result = await jsonCompletion(
         content: userProfile,
       },
     ],
-  }
+  },
 );
 ```
 

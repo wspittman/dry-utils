@@ -60,7 +60,7 @@ describe("DB: Query", () => {
         params.map((param) => ({
           name: param,
           value: "value",
-        }))
+        })),
       );
     });
   });
@@ -88,7 +88,7 @@ describe("DB: Query", () => {
 
     assert.equal(
       result.query,
-      `SELECT * FROM c WHERE (c.str = @str) AND (ARRAY_CONTAINS(c.tags, @tag)) AND (CONTAINS(c.str2, @str2, true)) AND (c.obj.key > @key)`
+      `SELECT * FROM c WHERE (c.str = @str) AND (ARRAY_CONTAINS(c.tags, @tag)) AND (CONTAINS(c.str2, @str2, true)) AND (c.obj.key > @key)`,
     );
     assert.deepEqual(result.parameters, [
       { name: "@str", value: "text" },
@@ -108,7 +108,7 @@ describe("DB: Query", () => {
 
     assert.equal(
       result.query,
-      `SELECT * FROM c WHERE (c.str = @str) AND (ARRAY_CONTAINS(c.tags, @tag)) AND (CONTAINS(c.str, @str, true)) AND (c.obj.key > @tag)`
+      `SELECT * FROM c WHERE (c.str = @str) AND (ARRAY_CONTAINS(c.tags, @tag)) AND (CONTAINS(c.str, @str, true)) AND (c.obj.key > @tag)`,
     );
     assert.deepEqual(result.parameters, [
       { name: "@str", value: "text" },
