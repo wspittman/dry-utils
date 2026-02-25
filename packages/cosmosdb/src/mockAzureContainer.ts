@@ -8,7 +8,7 @@ import type {
 
 const FORCE_ERROR = "FORCE_ERROR";
 
-interface QueryDef {
+export interface MockQueryDef {
   matcher: string | RegExp;
   func: (
     items: Item[],
@@ -16,21 +16,13 @@ interface QueryDef {
   ) => unknown[];
 }
 
-export interface MockAzureContainerOptions {
-  data?: Item[];
-  queries?: QueryDef[];
-}
-
 export class MockAzureContainer {
   // Data structure: { pkey: { id: item } }
   readonly #data: Record<string, Record<string, Item>> = {};
   readonly #pkey: string;
-  readonly #queries: QueryDef[] = [];
+  readonly #queries: MockQueryDef[] = [];
 
-  constructor(
-    pkey: string,
-    { data = [], queries = [] }: MockAzureContainerOptions = {},
-  ) {
+  constructor(pkey: string, data: Item[] = [], queries: MockQueryDef[] = []) {
     this.#pkey = pkey;
     this.#queries = queries;
     data.forEach((item) => this._addItem(item));
