@@ -80,18 +80,23 @@ export class MockAzureContainer {
   _query(query: SqlQuerySpec, pkey?: string): unknown[] {
     const items = pkey ? this._getPartition(pkey) : this._getAllItems();
     const queryStr = query.query;
-    const projectedProperties = getSimpleSelectedProperties(queryStr);
 
-    if (projectedProperties) {
-      return items.map((item) => {
-        return Object.fromEntries(
-          projectedProperties.map((property) => [property, item[property]]),
-        );
-      });
+    if (queryStr === "SELECT * FROM c") {
+      return items;
     }
 
     if (queryStr === "SELECT VALUE COUNT(1) FROM c") {
       return [items.length];
+    }
+
+    const projectedProperties = getSimpleSelectedProperties(queryStr);
+
+    if (projectedProperties) {
+      return items.map((item) =>
+        Object.fromEntries(
+          projectedProperties.map((property) => [property, item[property]]),
+        ),
+      );
     }
 
     for (const { matcher, func } of this.#queries) {
@@ -229,27 +234,25 @@ function getParam<T>(query: SqlQuerySpec, name: string): T | undefined {
 }
 
 function getSimpleSelectedProperties(query: string): string[] | undefined {
-  const match = query.match(/^SELECT\s+(.+?)\s+FROM\s+c$/i);
-  if (!match) {
-    return undefined;
-  }
+  // Woo Regex!
+  // Matches "SELECT x from c"
+  // Where x is a comma-separated list of c.property (no spaces)
+  // Where property can be A-Za-z0-9_
+  const re =
+    /^SELECT\s+((?:c\.[A-Za-z0-9_]+)(?:\s*,\s*c\.[A-Za-z0-9_]+)*)\s+FROM\s+c$/i;
 
-  const selectClause = match[1]?.trim();
-  if (
-    !selectClause ||
-    selectClause === "*" ||
-    /^VALUE\s+/i.test(selectClause)
-  ) {
-    return undefined;
-  }
+  const match = query.match(re);
+  if (!match) return undefined;
+
+  const clause = match[1]?.trim();
+  if (!clause) return undefined;
 
   const properties: string[] = [];
-  for (const part of selectClause.split(",")) {
-    const propMatch = part.trim().match(/^c\.([A-Za-z_$][\w$]*)$/);
-    if (!propMatch) {
-      return undefined;
-    }
-    properties.push(propMatch[1]);
+  for (const part of clause.split(",")) {
+    // trim and remove "c." prefix
+    const propMatch = part.trim().slice(2);
+    if (!propMatch) return undefined;
+    properties.push(propMatch);
   }
 
   return properties;

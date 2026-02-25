@@ -11,12 +11,13 @@ interface Entry {
   id: string;
   pkey: string;
   val: number;
+  _ts: number;
 }
 
 const mockDB: Entry[] = [
-  { id: "1", pkey: "item", val: 123 },
-  { id: "2", pkey: "item", val: 456 },
-  { id: "3", pkey: "item", val: 789 },
+  { id: "1", pkey: "item", val: 123, _ts: 1234567890 },
+  { id: "2", pkey: "item", val: 456, _ts: 1234567891 },
+  { id: "3", pkey: "item", val: 789, _ts: 1234567892 },
 ];
 
 const connectOptions = {
@@ -172,11 +173,11 @@ describe("DB: Container", () => {
   );
 
   test(
-    "query: simple projection id and val",
+    "query: simple projection multiple properties",
     testSuccess(
       async (c) =>
-        c.query<Pick<Entry, "id" | "val">>("SELECT c.id, c.val FROM c"),
-      mockDB.map((item) => ({ id: item.id, val: item.val })),
+        c.query<Pick<Entry, "id" | "val">>("SELECT c.id, c.val, c._ts FROM c"),
+      mockDB.map((item) => ({ id: item.id, val: item.val, _ts: item._ts })),
     ),
   );
 
@@ -198,7 +199,8 @@ describe("DB: Container", () => {
   test(
     "upsertItem: success",
     testSuccess(
-      async (c) => c.upsertItem({ id: "1", pkey: "item", val: 999 }),
+      async (c) =>
+        c.upsertItem({ id: "1", pkey: "item", val: 999, _ts: 1234567899 }),
       undefined,
     ),
   );
@@ -206,7 +208,7 @@ describe("DB: Container", () => {
   test(
     "upsertItem: error",
     testError(async (c) =>
-      c.upsertItem({ id: "1", pkey: FORCE_ERROR, val: 500 }),
+      c.upsertItem({ id: "1", pkey: FORCE_ERROR, val: 500, _ts: 1234567899 }),
     ),
   );
 
