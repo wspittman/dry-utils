@@ -94,7 +94,9 @@ export class MockAzureContainer {
     if (projectedProperties) {
       return items.map((item) =>
         Object.fromEntries(
-          projectedProperties.map((property) => [property, item[property]]),
+          projectedProperties
+            .filter((property) => property in item)
+            .map((property) => [property, item[property]]),
         ),
       );
     }

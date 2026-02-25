@@ -176,7 +176,9 @@ describe("DB: Container", () => {
     "query: simple projection multiple properties",
     testSuccess(
       async (c) =>
-        c.query<Pick<Entry, "id" | "val">>("SELECT c.id, c.val, c._ts FROM c"),
+        c.query<Pick<Entry, "id" | "val">>(
+          "SELECT c.id, c.val, c._ts, c.notFound FROM c",
+        ),
       mockDB.map((item) => ({ id: item.id, val: item.val, _ts: item._ts })),
     ),
   );
