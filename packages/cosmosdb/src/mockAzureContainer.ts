@@ -16,8 +16,11 @@ interface QueryDef {
   ) => unknown[];
 }
 
-export interface MockAzureContainerOptions {
+export interface MockAzureContainerDataOptions {
   data?: Item[];
+}
+
+export interface MockAzureContainerQueryOptions {
   queries?: QueryDef[];
 }
 
@@ -29,7 +32,8 @@ export class MockAzureContainer {
 
   constructor(
     pkey: string,
-    { data = [], queries = [] }: MockAzureContainerOptions = {},
+    { data = [] }: MockAzureContainerDataOptions = {},
+    { queries = [] }: MockAzureContainerQueryOptions = {},
   ) {
     this.#pkey = pkey;
     this.#queries = queries;

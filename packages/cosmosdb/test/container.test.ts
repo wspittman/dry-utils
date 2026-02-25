@@ -29,9 +29,13 @@ const connectOptions = {
 async function getContainer() {
   const containerMap = await connectDB({
     ...connectOptions,
-    mockDBOptions: {
+    mockDBDataOptions: {
       mockContainer: {
         data: structuredClone(mockDB),
+      },
+    },
+    mockDBQueryOptions: {
+      mockContainer: {
         queries: [
           {
             matcher: "SELECT * FROM c WHERE c.val > @minValue",

@@ -86,7 +86,7 @@ const results = await container.query(query.build(100));
 
 ### Mock Database (Testing)
 
-For tests, you can bypass Azure entirely by supplying `mockDBOptions`.
+For tests, you can bypass Azure entirely by supplying `mockDBDataOptions` and optional `mockDBQueryOptions`.
 
 ```typescript
 import { connectDB } from "dry-utils-cosmosdb";
@@ -96,12 +96,16 @@ const db = await connectDB({
   key: "unused-for-mock",
   name: "unused-for-mock",
   containers: [{ name: "users", partitionKey: "userId" }],
-  mockDBOptions: {
+  mockDBDataOptions: {
     users: {
       data: [
         { id: "1", userId: "u-1", status: "active" },
         { id: "2", userId: "u-2", status: "inactive" },
       ],
+    },
+  },
+  mockDBQueryOptions: {
+    users: {
       queries: [
         {
           matcher: /WHERE c\.status = @status/,

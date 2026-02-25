@@ -139,7 +139,7 @@ describe("DB: DBInit", () => {
     const options = {
       ...connectOptions,
       containers: [{ name: "id", partitionKey: "pkey" }],
-      mockDBOptions: {
+      mockDBDataOptions: {
         id: {
           data: [
             { id: "item1", pkey: "p1", value: "test1" },
