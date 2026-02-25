@@ -80,9 +80,14 @@ export class MockAzureContainer {
   _query(query: SqlQuerySpec, pkey?: string): unknown[] {
     const items = pkey ? this._getPartition(pkey) : this._getAllItems();
     const queryStr = query.query;
+    const projectedProperties = getSimpleSelectedProperties(queryStr);
 
-    if (queryStr === "SELECT c.id FROM c") {
-      return items.map((item) => ({ id: item.id }));
+    if (projectedProperties) {
+      return items.map((item) => {
+        return Object.fromEntries(
+          projectedProperties.map((property) => [property, item[property]]),
+        );
+      });
     }
 
     if (queryStr === "SELECT VALUE COUNT(1) FROM c") {
@@ -221,4 +226,31 @@ function getParam<T>(query: SqlQuerySpec, name: string): T | undefined {
   const { parameters = [] } = query;
   const param = parameters.find((p) => p.name === name);
   return param ? (param.value as T) : undefined;
+}
+
+function getSimpleSelectedProperties(query: string): string[] | undefined {
+  const match = query.match(/^SELECT\s+(.+?)\s+FROM\s+c$/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const selectClause = match[1]?.trim();
+  if (
+    !selectClause ||
+    selectClause === "*" ||
+    /^VALUE\s+/i.test(selectClause)
+  ) {
+    return undefined;
+  }
+
+  const properties: string[] = [];
+  for (const part of selectClause.split(",")) {
+    const propMatch = part.trim().match(/^c\.([A-Za-z_$][\w$]*)$/);
+    if (!propMatch) {
+      return undefined;
+    }
+    properties.push(propMatch[1]);
+  }
+
+  return properties;
 }

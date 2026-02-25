@@ -172,6 +172,23 @@ describe("DB: Container", () => {
   );
 
   test(
+    "query: simple projection id and val",
+    testSuccess(
+      async (c) =>
+        c.query<Pick<Entry, "id" | "val">>("SELECT c.id, c.val FROM c"),
+      mockDB.map((item) => ({ id: item.id, val: item.val })),
+    ),
+  );
+
+  test(
+    "query: simple projection id only",
+    testSuccess(
+      async (c) => c.query<Pick<Entry, "id">>("SELECT c.id FROM c"),
+      mockDB.map((item) => ({ id: item.id })),
+    ),
+  );
+
+  test(
     "query: error",
     testError(async (c) =>
       c.query("SELECT * FROM c", { partitionKey: FORCE_ERROR }),
