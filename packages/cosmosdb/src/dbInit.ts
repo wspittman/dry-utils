@@ -9,11 +9,7 @@ import fs from "node:fs";
 import https from "node:https";
 import { Container } from "./container.ts";
 import { diag } from "./diagnostics.ts";
-import {
-  MockAzureContainer,
-  type MockAzureContainerDataOptions,
-  type MockAzureContainerQueryOptions,
-} from "./mockAzureContainer.ts";
+import { MockAzureContainer, type MockQueryDef } from "./mockAzureContainer.ts";
 
 type ContainerMap = Record<string, Container<ItemDefinition>>;
 
@@ -29,8 +25,8 @@ export interface DBOptions {
   name: string;
   localCertPath?: string;
   containers: ContainerOptions[];
-  mockDBDataOptions?: Record<string, MockAzureContainerDataOptions>;
-  mockDBQueryOptions?: Record<string, MockAzureContainerQueryOptions>;
+  mockDBData?: Record<string, ItemDefinition[]>;
+  mockDBQueries?: Record<string, MockQueryDef[]>;
 }
 
 const MAX_CREATE_ATTEMPTS = 3;
@@ -41,18 +37,12 @@ const MAX_CREATE_ATTEMPTS = 3;
  * @throws {Error} If database connection fails
  * @returns Map of container names to container instances
  */
-export async function connectDB({
-  endpoint,
-  key,
-  name,
-  localCertPath,
-  containers,
-  mockDBDataOptions,
-  mockDBQueryOptions,
-}: DBOptions): Promise<ContainerMap> {
-  if (mockDBDataOptions || mockDBQueryOptions) {
-    return connectMockDB(containers, mockDBDataOptions, mockDBQueryOptions);
+export async function connectDB(options: DBOptions): Promise<ContainerMap> {
+  if (options.mockDBData || options.mockDBQueries) {
+    return connectMockDB(options);
   }
+
+  const { endpoint, key, name, localCertPath, containers } = options;
 
   let agent;
   if (localCertPath) {
@@ -135,18 +125,18 @@ function getIndexingPolicy(exclusions: "all" | string[]) {
   };
 }
 
-function connectMockDB(
-  containers: ContainerOptions[],
-  mockDBDataOptions: Record<string, MockAzureContainerDataOptions> = {},
-  mockDBQueryOptions: Record<string, MockAzureContainerQueryOptions> = {},
-): ContainerMap {
+function connectMockDB({
+  containers,
+  mockDBData,
+  mockDBQueries,
+}: DBOptions): ContainerMap {
   const containerMap: ContainerMap = {};
 
   containers.forEach((c) => {
     const azureContainer = new MockAzureContainer(
       c.partitionKey,
-      mockDBDataOptions[c.name],
-      mockDBQueryOptions[c.name],
+      mockDBData?.[c.name],
+      mockDBQueries?.[c.name],
     ) as unknown as AzureContainer;
 
     containerMap[c.name] = new Container(c.name, azureContainer);

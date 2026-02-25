@@ -86,7 +86,7 @@ const results = await container.query(query.build(100));
 
 ### Mock Database (Testing)
 
-For tests, you can bypass Azure entirely by supplying `mockDBDataOptions` and optional `mockDBQueryOptions`.
+For tests, you can bypass Azure entirely by supplying `mockDBData` and optional `mockDBQueries`.
 
 ```typescript
 import { connectDB } from "dry-utils-cosmosdb";
@@ -96,31 +96,27 @@ const db = await connectDB({
   key: "unused-for-mock",
   name: "unused-for-mock",
   containers: [{ name: "users", partitionKey: "userId" }],
-  mockDBDataOptions: {
-    users: {
-      data: [
-        { id: "1", userId: "u-1", status: "active" },
-        { id: "2", userId: "u-2", status: "inactive" },
-      ],
-    },
+  mockDBData: {
+    users: [
+      { id: "1", userId: "u-1", status: "active" },
+      { id: "2", userId: "u-2", status: "inactive" },
+    ],
   },
-  mockDBQueryOptions: {
-    users: {
-      queries: [
-        {
-          matcher: /WHERE c\.status = @status/,
-          func: (items, getParam) => {
-            const status = getParam<string>("@status");
-            return items.filter((item) => item.status === status);
-          },
+  mockDBQueries: {
+    users: [
+      {
+        matcher: /WHERE c\.status = @status/,
+        func: (items, getParam) => {
+          const status = getParam<string>("@status");
+          return items.filter((item) => item.status === status);
         },
-      ],
-    },
+      },
+    ],
   },
 });
 ```
 
-The `queries` matchers let you intercept query text and return custom results from fixture data.
+The `mockDBQueries` matchers let you intercept query text and return custom results from fixture data.
 
 ### CRUD Operations
 
