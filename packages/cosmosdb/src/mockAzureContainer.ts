@@ -8,7 +8,7 @@ import type {
 
 const FORCE_ERROR = "FORCE_ERROR";
 
-interface QueryDef {
+export interface MockQueryDef {
   matcher: string | RegExp;
   func: (
     items: Item[],
@@ -16,21 +16,13 @@ interface QueryDef {
   ) => unknown[];
 }
 
-export interface MockAzureContainerOptions {
-  data?: Item[];
-  queries?: QueryDef[];
-}
-
 export class MockAzureContainer {
   // Data structure: { pkey: { id: item } }
   readonly #data: Record<string, Record<string, Item>> = {};
   readonly #pkey: string;
-  readonly #queries: QueryDef[] = [];
+  readonly #queries: MockQueryDef[] = [];
 
-  constructor(
-    pkey: string,
-    { data = [], queries = [] }: MockAzureContainerOptions = {},
-  ) {
+  constructor(pkey: string, data: Item[] = [], queries: MockQueryDef[] = []) {
     this.#pkey = pkey;
     this.#queries = queries;
     data.forEach((item) => this._addItem(item));
@@ -81,12 +73,24 @@ export class MockAzureContainer {
     const items = pkey ? this._getPartition(pkey) : this._getAllItems();
     const queryStr = query.query;
 
-    if (queryStr === "SELECT c.id FROM c") {
-      return items.map((item) => ({ id: item.id }));
+    if (queryStr === "SELECT * FROM c") {
+      return items;
     }
 
     if (queryStr === "SELECT VALUE COUNT(1) FROM c") {
       return [items.length];
+    }
+
+    const projectedProperties = getSimpleSelectedProperties(queryStr);
+
+    if (projectedProperties) {
+      return items.map((item) =>
+        Object.fromEntries(
+          projectedProperties
+            .filter((property) => Object.hasOwn(item, property))
+            .map((property) => [property, item[property]]),
+        ),
+      );
     }
 
     for (const { matcher, func } of this.#queries) {
@@ -221,4 +225,29 @@ function getParam<T>(query: SqlQuerySpec, name: string): T | undefined {
   const { parameters = [] } = query;
   const param = parameters.find((p) => p.name === name);
   return param ? (param.value as T) : undefined;
+}
+
+function getSimpleSelectedProperties(query: string): string[] | undefined {
+  // Woo Regex!
+  // Matches "SELECT x from c"
+  // Where x is a comma-separated list of c.property (no spaces)
+  // Where property can be A-Za-z0-9_
+  const re =
+    /^SELECT\s+((?:c\.[A-Za-z0-9_]+)(?:\s*,\s*c\.[A-Za-z0-9_]+)*)\s+FROM\s+c$/i;
+
+  const match = query.match(re);
+  if (!match) return undefined;
+
+  const clause = match[1]?.trim();
+  if (!clause) return undefined;
+
+  const properties: string[] = [];
+  for (const part of clause.split(",")) {
+    // trim and remove "c." prefix
+    const propMatch = part.trim().slice(2);
+    if (!propMatch) return undefined;
+    properties.push(propMatch);
+  }
+
+  return properties;
 }
