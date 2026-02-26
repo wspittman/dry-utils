@@ -13,6 +13,9 @@ import { MockAzureContainer, type MockQueryDef } from "./mockAzureContainer.ts";
 
 type ContainerMap = Record<string, Container<ItemDefinition>>;
 
+export type MockDBData = Record<string, ItemDefinition[]>;
+export type MockDBQueries = Record<string, MockQueryDef[]>;
+
 export interface ContainerOptions {
   name: string;
   partitionKey: string;
@@ -25,8 +28,8 @@ export interface DBOptions {
   name: string;
   localCertPath?: string;
   containers: ContainerOptions[];
-  mockDBData?: Record<string, ItemDefinition[]>;
-  mockDBQueries?: Record<string, MockQueryDef[]>;
+  mockDBData?: MockDBData;
+  mockDBQueries?: MockDBQueries;
 }
 
 const MAX_CREATE_ATTEMPTS = 3;
