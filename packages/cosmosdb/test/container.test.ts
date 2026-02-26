@@ -177,7 +177,8 @@ describe("DB: Container", () => {
     testSuccess(
       async (c) =>
         c.query<Pick<Entry, "id" | "val">>(
-          "SELECT c.id, c.val, c._ts, c.notFound FROM c",
+          // 2x normal values, 1x starts with _, 1x not in item, 1x not in item but on object prototype
+          "SELECT c.id, c.val, c._ts, c.notFound, c.toString FROM c",
         ),
       mockDB.map((item) => ({ id: item.id, val: item.val, _ts: item._ts })),
     ),
