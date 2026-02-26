@@ -43,7 +43,10 @@ Individual packages support all of these commands except for `npm run pre-checki
 # Development Conventions
 
 - The project uses a monorepo structure using npm workspaces.
-- Keep `README.md` and any relevant `AGENTS.md` files updated when code or workflow changes affect them.
+- Documentation: Keep `README.md` and any relevant `AGENTS.md` files updated when code or workflow changes affect them.
+- Dependencies: Avoid adding new dependencies and warn when you do.
+- Quality checks: Always run `npm run pre-checkin` before committing code.
+- Knowledge sharing: If you learn something that wasn't obvious, add it to a root level `Learnings.md` file for review and inclusion in the main `AGENTS.md` docs.
 
 ## TypeScript
 
@@ -53,15 +56,8 @@ The project uses TypeScript with strict type checking. The `tsconfig.json` file 
 
 Use JSDoc comments for all public APIs and complex logic. This helps with code readability and provides useful information for developers using the code. Go light on comments otherwise. Never put comments at the end of lines. When writing @returns comments for async functions, prefer to describe the resolved value rather than the promise itself.
 
-## Dependencies
-
-Avoid adding new dependencies and warn when you do.
-
 ## Testing
 
 - Our tests are always written in Node's built-in `node:test` framework.
+- Use red/green TDD whenever possible.
 - Docs-only changes do not require tests, but note that testing was skipped in your summary.
-
-## Quality checks
-
-Always run `npm run pre-checkin` before committing code.
