@@ -5,7 +5,6 @@ import type {
   ParsedResponse,
   ResponseInputItem,
 } from "openai/resources/responses/responses";
-import type { ReasoningEffort } from "openai/resources/shared";
 import { type ZodType } from "zod";
 import { diag } from "./diagnostics.ts";
 import {
@@ -22,12 +21,12 @@ import type {
   Context,
   EmbeddingOptions,
   EmbeddingResponse,
-  Tool,
 } from "./types.ts";
 import { proseSchema } from "./zodUtils.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
+const DEFAULT_MODEL = "gpt-5-nano";
 
 // #region Completion
 
@@ -76,12 +75,7 @@ export async function jsonCompletion<T extends object>(
   thread: ResponseInputItem[] | string,
   input: string | object,
   schema: ZodType<T>,
-  {
-    context,
-    tools,
-    model = "gpt-5-nano",
-    reasoningEffort,
-  }: CompletionOptions = {},
+  options: CompletionOptions = {},
 ): Promise<CompletionResponse<T>> {
   const actionError = validateAction(action);
   if (actionError) {
@@ -98,27 +92,20 @@ export async function jsonCompletion<T extends object>(
     input = JSON.stringify(input);
   }
 
-  return await apiCompletion(
-    model,
-    action,
-    thread,
-    input,
-    schema,
-    context ?? [],
-    tools ?? [],
-    reasoningEffort,
-  );
+  return await apiCompletion(action, thread, input, schema, options);
 }
 
 async function apiCompletion<T extends object>(
-  model: string,
   action: string,
   thread: ResponseInputItem[],
   input: string,
   schema: ZodType<T>,
-  context: Context[],
-  simpleTools: Tool[],
-  reasoningEffort?: ReasoningEffort,
+  {
+    context = [],
+    tools = [],
+    model = DEFAULT_MODEL,
+    reasoningEffort,
+  }: CompletionOptions,
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
   const messages = createMessages(thread, input, context);
@@ -126,7 +113,7 @@ async function apiCompletion<T extends object>(
     model,
     input: messages,
     text: getTextFormat(action, schema),
-    tools: simpleTools.map((tool) => toolToOpenAITool(tool)),
+    tools: tools.map((tool) => toolToOpenAITool(tool)),
     reasoning:
       reasoningEffort === undefined ? undefined : { effort: reasoningEffort },
   };
