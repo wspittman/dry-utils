@@ -20,6 +20,7 @@ export interface ContainerOptions {
   name: string;
   partitionKey: string;
   indexExclusions?: "none" | "all" | string[];
+  ttlSeconds?: number;
 }
 
 export interface DBOptions {
@@ -46,6 +47,8 @@ export async function connectDB(options: DBOptions): Promise<ContainerMap> {
   }
 
   const { endpoint, key, name, localCertPath, containers } = options;
+
+  containers.forEach(({ name, ttlSeconds }) => validateTtl(name, ttlSeconds));
 
   let agent;
   if (localCertPath) {
@@ -87,7 +90,7 @@ async function createContainer(
   options: ContainerOptions,
   attempt = 1,
 ): Promise<Container<ItemDefinition> | undefined> {
-  const { name, partitionKey, indexExclusions = "none" } = options;
+  const { name, partitionKey, indexExclusions = "none", ttlSeconds } = options;
   try {
     const details: ContainerRequest = {
       id: name,
@@ -96,6 +99,10 @@ async function createContainer(
 
     if (indexExclusions !== "none") {
       details.indexingPolicy = getIndexingPolicy(indexExclusions);
+    }
+
+    if (ttlSeconds !== undefined) {
+      details.defaultTtl = ttlSeconds;
     }
 
     const { container: internalContainer } =
@@ -112,6 +119,14 @@ async function createContainer(
 
     diag.error("CreateContainer", error);
     return;
+  }
+}
+
+function validateTtl(name: string, value?: number) {
+  if (value === undefined || value === -1) return;
+
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`Container "${name}": Invalid ttlSeconds=${value}`);
   }
 }
 

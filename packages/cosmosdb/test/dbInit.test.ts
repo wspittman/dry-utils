@@ -31,7 +31,12 @@ let retryMap: Record<string, boolean> = {};
 mock.method(
   Containers.prototype,
   "createIfNotExists",
-  function ({ id = "oops", partitionKey, indexingPolicy }: ContainerRequest) {
+  function ({
+    id = "oops",
+    partitionKey,
+    indexingPolicy,
+    defaultTtl,
+  }: ContainerRequest) {
     if (id === "err") throw new Error("Error Time");
 
     if (id.startsWith("retry") && !retryMap[id]) {
@@ -48,6 +53,7 @@ mock.method(
         : partitionKey?.paths?.[0],
       indexingPolicy?.includedPaths?.map((p) => p.path).join(",") ?? "none",
       indexingPolicy?.excludedPaths?.map((p) => p.path).join(",") ?? "none",
+      defaultTtl !== undefined ? defaultTtl : "",
     ].join("~");
 
     return {
@@ -107,31 +113,48 @@ describe("DB: DBInit", () => {
     });
   });
 
-  const indexCases: [string, ContainerOptions["indexExclusions"], string][] = [
-    ["none", "none", "id~/pkey~none~none"],
-    ["all", "all", "id~/pkey~none~/*"],
-    ["empty", [], 'id~/pkey~/*~/"_etag"/?'],
-    ["one prop", ["prop1"], 'id~/pkey~/*~/"_etag"/?,prop1'],
+  const indexCases: [Partial<ContainerOptions>, string][] = [
+    [{ indexExclusions: "none" }, "id~/pkey~none~none~"],
+    [{ indexExclusions: "all" }, "id~/pkey~none~/*~"],
+    [{ indexExclusions: [] }, 'id~/pkey~/*~/"_etag"/?~'],
+    [{ indexExclusions: ["prop1"] }, 'id~/pkey~/*~/"_etag"/?,prop1~'],
     [
-      "three props",
-      ["prop1", "prop2", "prop3"],
-      'id~/pkey~/*~/"_etag"/?,prop1,prop2,prop3',
+      { indexExclusions: ["prop1", "prop2", "prop3"] },
+      'id~/pkey~/*~/"_etag"/?,prop1,prop2,prop3~',
     ],
+    [{ ttlSeconds: -1 }, "id~/pkey~none~none~-1"],
+    [{ ttlSeconds: 1 }, "id~/pkey~none~none~1"],
+    [{ ttlSeconds: 60 * 60 * 24 * 30 }, "id~/pkey~none~none~2592000"],
   ];
 
-  indexCases.forEach(([name, indexExclusions, expected]) => {
-    test(`ConnectDB w/ index exclusions: ${name}`, async () => {
+  indexCases.forEach(([testOpts, expected]) => {
+    test(`ConnectDB w/ ${JSON.stringify(testOpts)}`, async () => {
       const options = {
         ...connectOptions,
-        containers: [{ name: "id", partitionKey: "pkey", indexExclusions }],
+        containers: [{ name: "id", partitionKey: "pkey", ...testOpts }],
       };
 
       const result = await connectDB(options);
 
       assert.equal(Object.keys(result).length, 1, "ContainerMap");
-      callCounts(1, 0, name);
+      callCounts(1, 0);
       // The mock hacks the container ID to include the id, pkey, and index exclusions
       assert.equal(result["id"]?.container.id, expected, "Container ID");
+    });
+  });
+
+  const ttlInvalidCases: number[] = [0, -2, 1.5];
+
+  ttlInvalidCases.forEach((ttlSeconds) => {
+    test(`ConnectDB w/ invalid ttlSeconds=${ttlSeconds}`, async () => {
+      const options = {
+        ...connectOptions,
+        containers: [{ name: "id", partitionKey: "pkey", ttlSeconds }],
+      };
+
+      await assert.rejects(connectDB(options), {
+        message: `Container "id": Invalid ttlSeconds=${ttlSeconds}`,
+      });
     });
   });
 
