@@ -6,19 +6,20 @@ import type {
   ResponseInputItem,
 } from "openai/resources/responses/responses";
 import { type ZodType } from "zod";
+import { initBagger } from "./bagUtils.ts";
 import { diag } from "./diagnostics.ts";
 import {
   completionToResponse,
   createMessages,
   embeddingToResponse,
-  getTextFormat,
-  toolToOpenAITool,
+  toCompleteOptions,
+  toCompletionRequestBody,
+  toLogOptions,
 } from "./shaping.ts";
 import type {
   Bag,
   CompletionOptions,
   CompletionResponse,
-  Context,
   EmbeddingOptions,
   EmbeddingResponse,
 } from "./types.ts";
@@ -26,7 +27,7 @@ import { proseSchema } from "./zodUtils.ts";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF = 1000;
-const DEFAULT_MODEL = "gpt-5-nano";
+const FLEX_TIMEOUT_MS = 15 * 60 * 1000;
 
 // #region Completion
 
@@ -100,42 +101,36 @@ async function apiCompletion<T extends object>(
   thread: ResponseInputItem[],
   input: string,
   schema: ZodType<T>,
-  {
-    context = [],
-    tools = [],
-    model = DEFAULT_MODEL,
-    reasoningEffort,
-  }: CompletionOptions,
+  options: CompletionOptions,
 ): Promise<CompletionResponse<T>> {
   let attempt = 0;
-  const messages = createMessages(thread, input, context);
-  const body = {
-    model,
-    input: messages,
-    text: getTextFormat(action, schema),
-    tools: tools.map((tool) => toolToOpenAITool(tool)),
-    reasoning:
-      reasoningEffort === undefined ? undefined : { effort: reasoningEffort },
-  };
+  const fullOptions = toCompleteOptions(options);
+  const messages = createMessages(thread, input, fullOptions);
+  const body = toCompletionRequestBody(action, messages, schema, fullOptions);
 
   while (true) {
     try {
       const start = Date.now();
+
+      // Don't flex tier a final attempt
+      if (body.service_tier === "flex" && attempt === MAX_RETRIES) {
+        body.service_tier = undefined;
+      }
+
+      const timeout =
+        body.service_tier === "flex" ? FLEX_TIMEOUT_MS : undefined;
+
       const completion = await getClient().responses.parse<typeof body, T>(
         body,
+        { timeout },
       );
+
       const duration = Date.now() - start;
 
       const response = completionToResponse(completion, messages);
-      logLLMAction(
-        action,
-        model,
-        input,
-        context,
-        duration,
-        completion,
-        response,
-      );
+
+      logLLMAction(action, input, fullOptions, duration, completion, response);
+
       return response;
     } catch (error) {
       const response = errorToResponse(error, attempt);
@@ -291,9 +286,8 @@ async function backoff(action: string, attempt: number) {
 
 function logLLMAction<T>(
   action: string,
-  model: string,
   input: string,
-  context: Context[],
+  options: Required<CompletionOptions>,
   duration: number,
   apiResponse: ParsedResponse<T>,
   response?: CompletionResponse<T>,
@@ -301,58 +295,57 @@ function logLLMAction<T>(
   try {
     if (!apiResponse?.usage) return;
 
+    const [logOptions, denseLogOptions] = toLogOptions(options);
+
     const blob: Bag = {
       action,
-      model,
       input,
-      context,
+      ...logOptions,
       duration,
       apiResponse,
       response,
     };
 
-    const { total_tokens, input_tokens, output_tokens } = apiResponse.usage;
-    const { cached_tokens = 0 } = apiResponse.usage.input_tokens_details ?? {};
-    const { reasoning_tokens = 0 } =
-      apiResponse.usage.output_tokens_details ?? {};
-    const { status } = apiResponse;
+    const { usage, incomplete_details, output, status } = apiResponse;
+    const { total_tokens, input_tokens, output_tokens } = usage;
+    const { input_tokens_details, output_tokens_details } = usage;
+    const { reason } = incomplete_details ?? {};
+
+    const finishReason =
+      status !== "completed" ? `${status}${reason ? `: ${reason}` : ""}` : "";
+    const messages = output
+      .filter((x) => x.type === "message")
+      .map((x) => x.content[0]);
+    const refusal = messages.find((x) => x?.type === "refusal")?.refusal;
+    const { thread, ...responseNoThread } = response ?? {};
 
     const dense: Bag = {
       name: action,
-      model,
-      contextCount: context.length,
       in: input.length > 100 ? input.slice(0, 97) + "..." : input,
+      ...denseLogOptions,
+      // We want these even if they are zero
       tokens: total_tokens,
       inTokens: input_tokens,
       outTokens: output_tokens,
       ms: duration,
     };
 
-    if (cached_tokens) {
-      dense["cacheTokens"] = cached_tokens;
-    }
+    const bagger = initBagger(
+      {
+        ...input_tokens_details,
+        ...output_tokens_details,
+        finishReason,
+        refusal,
+        responseNoThread,
+      },
+      dense,
+    );
 
-    if (reasoning_tokens) {
-      dense["reasoningTokens"] = reasoning_tokens;
-    }
-
-    if (status !== "completed") {
-      const reason = apiResponse.incomplete_details?.reason;
-      dense["finishReason"] = `${status}${reason ? `: ${reason}` : ""}`;
-    }
-
-    const messages = apiResponse.output
-      .filter((x) => x.type === "message")
-      .map((x) => x.content[0]);
-    const refusal = messages.find((x) => x?.type === "refusal");
-    if (refusal) {
-      dense["refusal"] = refusal.refusal;
-    }
-
-    if (response) {
-      const { thread, ...rest } = response;
-      dense["out"] = rest;
-    }
+    bagger("cached_tokens", "cacheTokens");
+    bagger("reasoning_tokens", "reasoningTokens");
+    bagger("finishReason");
+    bagger("refusal");
+    bagger("responseNoThread", "out");
 
     const metrics = createMetrics(dense, [
       "tokens",

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { ReasoningEffort } from "openai/resources";
 import {
   type ResponseCreateParams,
   type ResponseInputItem,
@@ -27,7 +28,8 @@ export interface CompletionParams {
   context?: CompletionOptions["context"];
   tools?: Tool[];
   model?: string;
-  reasoningEffort?: CompletionOptions["reasoningEffort"];
+  reasoningEffort?: ReasoningEffort;
+  preferFlexProcessing?: boolean;
 }
 
 const defaultParams: CompletionParams = {
@@ -107,6 +109,7 @@ export const ParamTemplates: Record<string, CompletionParams> = {
   toolsFull: mp({ tools: fullTools }),
   model: mp({ model: "gpt-5-fake" }),
   reasoningEffort: mp({ reasoningEffort: "medium" }),
+  preferFlexProcessing: mp({ preferFlexProcessing: true }),
 };
 
 /**
@@ -127,6 +130,7 @@ export function validateAPIParams(
     tools,
     model,
     reasoningEffort,
+    preferFlexProcessing,
   } = used;
 
   const fullThread: ResponseInputItem[] =
@@ -139,7 +143,7 @@ export function validateAPIParams(
   assert.equal(actual.model, model ?? "gpt-5-nano", "model");
   assert.deepEqual(
     actual.input,
-    createMessages(fullThread, fullInput, context ?? []),
+    createMessages(fullThread, fullInput, { context }),
     "input",
   );
   assert.deepEqual(actual.text, getTextFormat(action, schema), "text");
@@ -152,5 +156,10 @@ export function validateAPIParams(
     actual.reasoning,
     reasoningEffort === undefined ? undefined : { effort: reasoningEffort },
     "reasoning",
+  );
+  assert.equal(
+    actual.service_tier,
+    preferFlexProcessing ? "flex" : undefined,
+    "service_tier",
   );
 }

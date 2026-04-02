@@ -11,6 +11,7 @@ export interface CompletionOptions {
   tools?: Tool[];
   model?: string;
   reasoningEffort?: ReasoningEffort;
+  preferFlexProcessing?: boolean;
 }
 
 export interface Context {

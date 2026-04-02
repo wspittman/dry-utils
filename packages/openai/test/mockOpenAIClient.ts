@@ -1,3 +1,4 @@
+import type { RequestOptions } from "node:https";
 import { mock } from "node:test";
 import { APIError } from "openai";
 import {
@@ -50,10 +51,11 @@ export class MockOpenAIClient {
   /**
    * @returns The parameters of the last call to the mock
    */
-  getLastCall(): ResponseCreateParams {
-    const { model, input, text, tools, reasoning } =
-      this.mockParse.mock.calls.at(-1)?.arguments[0] as ResponseCreateParams;
-    return { model, input, text, tools, reasoning };
+  getLastCall(): ResponseCreateParams & RequestOptions {
+    const [arg0, arg1] = this.mockParse.mock.calls.at(-1)?.arguments ?? [];
+    const { model, input, text, tools, reasoning, service_tier } = arg0!;
+    const { timeout } = arg1!;
+    return { model, input, text, tools, reasoning, service_tier, timeout };
   }
 
   /**

@@ -3,16 +3,91 @@ import type {
   Tool as OpenAITool,
   ParsedResponse,
   ResponseInputItem,
+  Responses,
   ResponseTextConfig,
 } from "openai/resources/responses/responses";
 import z, { toJSONSchema, type ZodType } from "zod";
+import { initBagger } from "./bagUtils.ts";
 import type {
   Bag,
+  CompletionOptions,
   CompletionResponse,
-  Context,
   EmbeddingResponse,
   Tool,
 } from "./types.ts";
+
+const DEFAULT_MODEL = "gpt-5-nano";
+
+export function toCompleteOptions(
+  options: CompletionOptions,
+): Required<CompletionOptions> {
+  return {
+    context: options.context ?? [],
+    tools: options.tools ?? [],
+    model: options.model ?? DEFAULT_MODEL,
+    reasoningEffort: options.reasoningEffort ?? null,
+    preferFlexProcessing: !!options.preferFlexProcessing,
+  };
+}
+
+export function toLogOptions(options: Required<CompletionOptions>): [Bag, Bag] {
+  const result: Bag = {};
+  const bagger = initBagger(options, result);
+
+  bagger("model");
+  bagger("reasoningEffort");
+  bagger("preferFlexProcessing");
+
+  const dResult: Bag = { ...result };
+  const dBagger = initBagger(options, dResult);
+
+  bagger("context");
+  dBagger("context", "contextCount", (context) => context.length);
+
+  bagger("tools", "tools", (tools) => tools.map((t) => t.name).join(","));
+
+  return [result, dResult];
+}
+
+export function createMessages(
+  thread: ResponseInputItem[],
+  input: string,
+  { context = [] }: CompletionOptions,
+): ResponseInputItem[] {
+  return [
+    ...thread,
+    ...context.map(
+      ({ description, content }) =>
+        ({
+          role: "user",
+          content: `Useful context: ${description}\n${JSON.stringify(content)}`,
+        }) as ResponseInputItem,
+    ),
+    { role: "user", content: input },
+  ];
+}
+
+export function toCompletionRequestBody<T extends object>(
+  action: string,
+  messages: ResponseInputItem[],
+  schema: ZodType<T>,
+  {
+    tools,
+    model,
+    reasoningEffort,
+    preferFlexProcessing,
+  }: Required<CompletionOptions>,
+): Parameters<Responses["parse"]>[0] {
+  return {
+    model,
+    input: messages,
+    text: getTextFormat(action, schema),
+    tools: tools.map((tool) => toolToOpenAITool(tool)),
+    reasoning:
+      reasoningEffort == null ? undefined : { effort: reasoningEffort },
+    service_tier: preferFlexProcessing ? ("flex" as const) : undefined,
+  };
+}
 
 export function getTextFormat<T>(
   action: string,
@@ -46,24 +121,6 @@ export function toolToOpenAITool({
     parameters: toJSONSchema(defaultParams),
     strict: true,
   };
-}
-
-export function createMessages(
-  thread: ResponseInputItem[],
-  input: string,
-  context: Context[],
-): ResponseInputItem[] {
-  return [
-    ...thread,
-    ...context.map(
-      ({ description, content }) =>
-        ({
-          role: "user",
-          content: `Useful context: ${description}\n${JSON.stringify(content)}`,
-        }) as ResponseInputItem,
-    ),
-    { role: "user", content: input },
-  ];
 }
 
 export function completionToResponse<T>(

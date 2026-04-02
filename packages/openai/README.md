@@ -25,6 +25,7 @@ npm install dry-utils-openai
 - **Conversation Threads**: Maintain conversation history by passing the thread between calls.
 - **Embeddings**: Generate text embeddings with automatic retries and diagnostics logging.
 - **Automatic Retries**: Built-in exponential backoff for rate limiting.
+- **Flex Processing Support**: Optionally prefer OpenAI flex processing with telemetry tracking, longer request timeouts, and a standard-tier final retry fallback.
 - **Error Handling**: Comprehensive error handling for common API issues.
 - **Logging**: Detailed logging via `node:diagnostics_channel` for API calls, errors, and performance metrics.
 
@@ -69,6 +70,7 @@ const result = await jsonCompletion(
   {
     model: "gpt-4.1", // Override the default model when needed
     context,
+    preferFlexProcessing: true, // Optional lower-cost flex tier with longer timeout and fallback retry
   },
 );
 
