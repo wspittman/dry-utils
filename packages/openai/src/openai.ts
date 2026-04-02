@@ -117,12 +117,12 @@ async function apiCompletion<T extends object>(
         body.service_tier = undefined;
       }
 
-      const timeout =
-        body.service_tier === "flex" ? FLEX_TIMEOUT_MS : undefined;
+      const rOpts =
+        body.service_tier === "flex" ? { timeout: FLEX_TIMEOUT_MS } : {};
 
       const completion = await getClient().responses.parse<typeof body, T>(
         body,
-        { timeout },
+        rOpts,
       );
 
       const duration = Date.now() - start;

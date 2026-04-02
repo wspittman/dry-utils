@@ -142,8 +142,14 @@ export function completionToResponse<T>(
   }
 
   const result: CompletionResponse<T> = {};
+  const outputs = completion.output.filter(
+    (x) =>
+      x.type === "message" ||
+      x.type === "function_call" ||
+      x.type === "reasoning",
+  );
 
-  for (const output of completion.output) {
+  for (const output of outputs) {
     if (output.type === "message") {
       const content = output.content[0];
 
@@ -176,7 +182,7 @@ export function completionToResponse<T>(
     }
   }
 
-  result.thread = [...thread, ...completion.output];
+  result.thread = [...thread, ...outputs];
   return result;
 }
 
