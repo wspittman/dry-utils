@@ -39,7 +39,10 @@ npm install dry-utils-cosmosdb
 
 ### Connecting to CosmosDB
 
-Connect to your database and initialize containers:
+Connect to your database and initialize containers
+
+- Use `indexExclusions` to specify paths to exclude from indexing for performance optimization. Set it to `"none"` to include all paths (default).
+- Use `ttlSeconds` to configure a container-wide TTL for all items (in seconds). Set it to `-1` to disable expiration while still enabling the TTL system for per-item overrides.
 
 ```typescript
 import { connectDB } from "dry-utils-cosmosdb";
@@ -58,6 +61,7 @@ const db = await connectDB({
       name: "products",
       partitionKey: "category",
       indexExclusions: "none", // default
+      ttlSeconds: 60 * 60 * 24 * 30, // 30 days
     },
   ],
 });

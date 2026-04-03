@@ -137,6 +137,8 @@ describe("OpenAI E2E Flow", () => {
           },
         ],
         model: "gpt-5-nano",
+        reasoningEffort: "minimal",
+        preferFlexProcessing: true,
       },
     );
     assert.ok(response, "Should return a response from proseCompletion");

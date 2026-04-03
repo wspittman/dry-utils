@@ -53,14 +53,23 @@ const debugFn = (x: unknown) => console.dir(x, { depth: null });
 function proseCall(
   params: CompletionParams,
 ): Promise<CompletionResponse<string>> {
-  const { action, thread, input, context, tools, model, reasoningEffort } =
-    params;
+  const {
+    action,
+    thread,
+    input,
+    context,
+    tools,
+    model,
+    reasoningEffort,
+    preferFlexProcessing,
+  } = params;
 
   return proseCompletion(action, thread, input, {
     context,
     tools,
     model,
     reasoningEffort,
+    preferFlexProcessing,
   });
 }
 
@@ -76,6 +85,7 @@ function jsonCall(
     tools,
     model,
     reasoningEffort,
+    preferFlexProcessing,
   } = params;
 
   return jsonCompletion(action, thread, input, schema, {
@@ -83,6 +93,7 @@ function jsonCall(
     tools,
     model,
     reasoningEffort,
+    preferFlexProcessing,
   });
 }
 
@@ -282,5 +293,28 @@ describe("AI: OpenAI", () => {
     const result = await embedCall(EmbedParamTemplates["default"]!);
     callCounts({ log: 3, agg: 1, embed: 4 });
     validateEmbedResponse(result, response);
+  });
+
+  test("Flex processing", async () => {
+    await jsonCall(ParamTemplates["preferFlexProcessing"]!);
+
+    const { timeout, service_tier } = openAIMock.getLastCall();
+    const aggregate = getLastAggregate();
+    callCounts(defaultLog);
+    assert.equal(aggregate.blob["preferFlexProcessing"], true);
+    assert.equal(aggregate.dense["preferFlexProcessing"], true);
+    assert.equal(service_tier, "flex");
+    assert.equal(timeout, 15 * 60 * 1000);
+  });
+
+  test("Final retry does not use flex processing", async () => {
+    const [error] = RateLimitTemplate;
+    openAIMock.mockMany([error, error, error, error]);
+
+    await jsonCall(ParamTemplates["preferFlexProcessing"]!);
+
+    const { timeout, service_tier } = openAIMock.getLastCall();
+    assert.equal(service_tier, undefined);
+    assert.equal(timeout, undefined);
   });
 });
