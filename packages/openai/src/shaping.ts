@@ -56,13 +56,10 @@ export function createMessages(
 ): ResponseInputItem[] {
   return [
     ...thread,
-    ...context.map(
-      ({ description, content }) =>
-        ({
-          role: "user",
-          content: `Useful context: ${description}\n${JSON.stringify(content)}`,
-        }) as ResponseInputItem,
-    ),
+    ...context.map(({ description, content }) => ({
+      role: "user",
+      content: `Useful context: ${description}\n${JSON.stringify(content)}`,
+    })),
     { role: "user", content: input },
   ];
 }
