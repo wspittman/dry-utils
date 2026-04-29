@@ -42,6 +42,15 @@ async function getContainer() {
             return items.filter((item) => item["val"] > minValue);
           },
         },
+        {
+          matcher: /^SELECT VALUE COUNT\(1\) FROM c WHERE/,
+          func: (items, getParam) => {
+            const minValue = getParam<number>("@val") ?? 0;
+            return [
+              items.filter((item) => (item["val"] as number) > minValue).length,
+            ];
+          },
+        },
       ],
     },
   });
@@ -134,6 +143,14 @@ describe("DB: Container", () => {
   test(
     "getCount: success",
     testSuccess(async (c) => c.getCount(), mockDB.length),
+  );
+
+  test(
+    "getCount: with condition",
+    testSuccess(
+      async (c) => c.getCount(["val", ">", 400]),
+      mockDB.filter((item) => item.val > 400).length,
+    ),
   );
 
   test(

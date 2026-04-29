@@ -65,17 +65,44 @@ describe("DB: Query", () => {
     });
   });
 
-  test("build: 0 clauses,  max = 24", () => {
-    const query = new Query();
-    const result = query.build(24);
+  test("top: applies TOP clause", () => {
+    const result = new Query().top(24).build();
 
-    assert.equal(result.query, "SELECT TOP 24 * FROM c ");
+    assert.equal(result.query, "SELECT TOP 24 * FROM c");
     assert.deepEqual(result.parameters, []);
   });
 
-  test("build: 0 clauses, max = 0", () => {
-    const query = new Query();
-    assert.rejects(async () => query.build(0));
+  test("top: throws when max < 1", () => {
+    assert.throws(() => new Query().top(0), {
+      message: "Query: Max results must be greater than 0",
+    });
+  });
+
+  test("select: ID", () => {
+    const result = new Query().select("ID").build();
+    assert.equal(result.query, "SELECT c.id FROM c");
+    assert.deepEqual(result.parameters, []);
+  });
+
+  test("select: COUNT", () => {
+    const result = new Query().select("COUNT").build();
+    assert.equal(result.query, "SELECT VALUE COUNT(1) FROM c");
+    assert.deepEqual(result.parameters, []);
+  });
+
+  test("constructor: with selector", () => {
+    const result = new Query("ID").build();
+    assert.equal(result.query, "SELECT c.id FROM c");
+    assert.deepEqual(result.parameters, []);
+  });
+
+  test("constructor: with selector and condition", () => {
+    const result = new Query("COUNT", ["status", "=", "active"]).build();
+    assert.equal(
+      result.query,
+      "SELECT VALUE COUNT(1) FROM c WHERE (c.status = @status)",
+    );
+    assert.deepEqual(result.parameters, [{ name: "@status", value: "active" }]);
   });
 
   test("build: stacked clauses", () => {

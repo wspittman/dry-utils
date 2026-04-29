@@ -9,6 +9,7 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 import { diag } from "./diagnostics.ts";
+import { Query, type Condition } from "./Query.ts";
 
 /**
  * Generic container class for database operations
@@ -69,18 +70,19 @@ export class Container<Item extends ItemDefinition> {
    * @returns Array of item IDs in the partition
    */
   async getIdsByPartitionKey(partitionKey: string): Promise<string[]> {
-    const result = await this.query<{ id: string }>("SELECT c.id FROM c", {
+    const result = await this.query<{ id: string }>(new Query("ID"), {
       partitionKey,
     });
     return result.map((entry) => entry.id);
   }
 
   /**
-   * Gets the total count of items in the container
-   * @returns The total number of items
+   * Gets the count of items in the container
+   * @param condition Optional condition to filter the items
+   * @returns The number of items matching the condition
    */
-  async getCount(): Promise<number | undefined> {
-    const response = await this.query<number>("SELECT VALUE COUNT(1) FROM c");
+  async getCount(condition?: Condition): Promise<number | undefined> {
+    const response = await this.query<number>(new Query("COUNT", condition));
     return response[0];
   }
 
@@ -91,9 +93,13 @@ export class Container<Item extends ItemDefinition> {
    * @returns Query results
    */
   async query<T>(
-    query: string | SqlQuerySpec,
+    query: string | SqlQuerySpec | Query,
     options?: FeedOptions,
   ): Promise<T[]> {
+    if (query instanceof Query) {
+      query = query.build();
+    }
+
     try {
       const response = await this.container.items
         .query<T>(query, options)
