@@ -87,6 +87,19 @@ export class Container<Item extends ItemDefinition> {
   }
 
   /**
+   * Gets the count of items bucketed by the distinct values of a property
+   * @param prop The property name to group by
+   * @returns Array of `{ name, count }` pairs, one per distinct value
+   */
+  async getCountBy(
+    prop: keyof Item & string,
+  ): Promise<{ name: string; count: number }[]> {
+    return this.query<{ name: string; count: number }>(
+      `SELECT c.${prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.${prop}) GROUP BY c.${prop}`,
+    );
+  }
+
+  /**
    * Executes a query against the container
    * @param query SQL query string or query spec
    * @param options Optional feed options including partition key

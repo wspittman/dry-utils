@@ -141,7 +141,7 @@ describe("DB: Container", () => {
   );
 
   test(
-    "getCount: success",
+    "getCount: no where clause",
     testSuccess(async (c) => c.getCount(), mockDB.length),
   );
 
