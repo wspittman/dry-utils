@@ -90,3 +90,27 @@ const payload = {
 };
 console.log("payload:", payload);
 log.info("payload", payload);
+
+// Error comparisons
+section("error: string message");
+console.error("something went wrong");
+log.error("something went wrong");
+
+section("error: Error object");
+const errObj = new Error("database connection failed");
+console.error("error:", errObj);
+log.error("error", errObj);
+
+section("error: object with details");
+const errDetails = { code: 500, message: "internal error", path: "/api/users" };
+console.error("error details:", errDetails);
+log.error("error details", errDetails);
+
+section("error: nested context");
+const errContext = {
+  requestId: "xyz-789",
+  error: { code: "TIMEOUT", retries: 3 },
+  user: { id: 99 },
+};
+console.error("error context:", errContext);
+log.error("error context", errContext);
