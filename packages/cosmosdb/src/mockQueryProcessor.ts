@@ -43,7 +43,7 @@ export interface MockQueryDef {
 
 const builtInProjects: MockQueryDef[] = [
   { matcher: "*", fn: ({ items }) => items },
-  { matcher: "VALUE COUNT(1)", fn: ({ items }) => [items.length] },
+  { matcher: /^VALUE COUNT\(1\)$/i, fn: ({ items }) => [items.length] },
   {
     // getCountBy: SELECT c.{prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.{prop}) GROUP BY c.{prop}
     matcher:

@@ -131,6 +131,18 @@ describe("DB: Container", () => {
   );
 
   test(
+    "query: VALUE COUNT(1) is case-insensitive",
+    testSuccess(
+      async (c) =>
+        c.query<number>({
+          query: "select value count(1) from c",
+          parameters: [],
+        }),
+      [mockDB.length],
+    ),
+  );
+
+  test(
     "getCount: with condition",
     testSuccess(
       async (c) => c.getCount(["val", ">", 400]),
