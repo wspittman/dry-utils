@@ -40,7 +40,7 @@ Raw SQL from `Container`:
 
 ## Phases
 
-### Phase 1: Implement native WHERE evaluation [ ]
+### Phase 1: Implement native WHERE evaluation [x]
 
 **Scope:** `mockAzureContainer.ts` — `_query` method.
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { connectDB } from "../src/dbInit.ts";
-import { Container, subscribeCosmosDBLogging } from "../src/index.ts";
+import { Container, Query, subscribeCosmosDBLogging } from "../src/index.ts";
 
 const FORCE_ERROR = "FORCE_ERROR";
 
@@ -33,22 +33,13 @@ async function getContainer() {
     mockDBData: {
       mockContainer: structuredClone(mockDB),
     },
-    mockDBQueries: {
+    mockDBFilters: {
       mockContainer: [
         {
-          matcher: "SELECT * FROM c WHERE c.val > @minValue",
-          func: (items, getParam) => {
-            const minValue = getParam<number>("@minValue") ?? 400;
+          matcher: "c.val > @minValue",
+          fn: ({ items, params }) => {
+            const minValue = params["@minValue"] ?? 400;
             return items.filter((item) => item["val"] > minValue);
-          },
-        },
-        {
-          matcher: /^SELECT VALUE COUNT\(1\) FROM c WHERE/,
-          func: (items, getParam) => {
-            const minValue = getParam<number>("@val") ?? 0;
-            return [
-              items.filter((item) => (item["val"] as number) > minValue).length,
-            ];
           },
         },
       ],
@@ -206,6 +197,53 @@ describe("DB: Container", () => {
     testSuccess(
       async (c) => c.query<Pick<Entry, "id">>("SELECT c.id FROM c"),
       mockDB.map((item) => ({ id: item.id })),
+    ),
+  );
+
+  test(
+    "query: WHERE condition from Query builder",
+    testSuccess(
+      async (c) => c.query<Entry>(new Query().whereCondition("val", ">", 456)),
+      mockDB.filter((item) => item.val > 456),
+    ),
+  );
+
+  test(
+    "query: WHERE CONTAINS condition from Query builder",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(new Query().whereCondition("id", "CONTAINS", "1")),
+      mockDB.filter((item) => item.id.includes("1")),
+    ),
+  );
+
+  test(
+    "query: WHERE multiple conditions from Query builder",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(
+          new Query()
+            .whereCondition("pkey", "=", "item")
+            .whereCondition("val", ">", 456),
+        ),
+      mockDB.filter((item) => item.pkey === "item" && item.val > 456),
+    ),
+  );
+
+  test(
+    "query: TOP without WHERE",
+    testSuccess(
+      async (c) => c.query<Entry>(new Query().top(2)),
+      mockDB.slice(0, 2),
+    ),
+  );
+
+  test(
+    "query: TOP with WHERE from Query builder",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(new Query().top(1).whereCondition("val", ">", 100)),
+      mockDB.filter((item) => item.val > 100).slice(0, 1),
     ),
   );
 

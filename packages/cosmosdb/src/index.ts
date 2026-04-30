@@ -3,8 +3,8 @@ export {
   connectDB,
   type DBOptions,
   type MockDBData,
-  type MockDBQueries,
+  type MockDBQueryDefs,
 } from "./dbInit.ts";
 export { subscribeCosmosDBLogging } from "./diagnostics.ts";
-export type { MockQueryDef } from "./mockAzureContainer.ts";
+export type { MockQueryDef } from "./mockQueryProcessor.ts";
 export { Query } from "./Query.ts";
