@@ -7,8 +7,15 @@ import type {
 } from "@azure/cosmos";
 import { processQuery, type MockQueryDef } from "./mockQueryProcessor.ts";
 
+// Partition key value that triggers a simulated error, used in tests to exercise error paths.
 const FORCE_ERROR = "FORCE_ERROR";
 
+/**
+ * In-memory implementation of an Azure Cosmos DB container.
+ * For use in unit tests or in dev environments that don't have access to a Cosmos DB instance.
+ * Supports item CRUD, partition-scoped reads, and SQL query processing via
+ * custom filter and projection matchers.
+ */
 export class MockAzureContainer {
   // Data structure: { pkey: { id: item } }
   readonly #data: Record<string, Record<string, Item>> = {};
@@ -16,6 +23,12 @@ export class MockAzureContainer {
   readonly #filters: MockQueryDef[];
   readonly #projects: MockQueryDef[];
 
+  /**
+   * @param pkey The partition key field name used to organize items.
+   * @param data Initial items to seed the container.
+   * @param filters Custom WHERE clause matchers for query processing.
+   * @param projects Custom SELECT clause matchers for query processing.
+   */
   constructor(
     pkey: string,
     data: Item[] = [],
@@ -28,10 +41,12 @@ export class MockAzureContainer {
     data.forEach((item) => this._addItem(item));
   }
 
+  /** Returns a mock item reference for the given id and partition key. */
   item(id: string, pkey: string): MockItem {
     return new MockItem(this, id, pkey);
   }
 
+  /** Returns a mock items collection for querying and upserting. */
   get items(): MockItems {
     return new MockItems(this);
   }

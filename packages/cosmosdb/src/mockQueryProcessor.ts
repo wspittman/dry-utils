@@ -4,12 +4,24 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 
+/**
+ * Arguments passed to a {@link MockQueryDef} handler during query processing.
+ * @property items The current set of items being processed.
+ * @property params The query parameters as a name-value map.
+ * @property match If the matcher was a regex, the RegExpMatchArray from matching the query clause.
+ */
 interface MockQueryArgs {
   items: Item[];
   params: Record<string, JSONValue>;
   match?: RegExpMatchArray;
 }
 
+/**
+ * Defines a custom matcher and handler for a SELECT projection or WHERE filter clause.
+ * Used to extend the built-in query processing in `MockAzureContainer`.
+ * @property matcher A string or regex pattern to match against the query clause. If a regex, capture groups will be passed to the handler.
+ * @property fn A function that takes the items, query parameters, and regex match (if applicable) and returns the processed result.
+ */
 export interface MockQueryDef {
   matcher: string | RegExp;
   fn: (args: MockQueryArgs) => unknown[];
@@ -88,8 +100,13 @@ const querySplitter =
 
 /**
  * Processes a SQL query spec against an in-memory item set.
- * Handles the query patterns produced by `Container` and `Query.build()`,
- * falling back to custom `MockQueryDef` matchers for anything else.
+ * Handles the query patterns produced by `Container` and `Query.build()`.
+ * Provided filters and projects are checked before built-in processing, allowing for custom query extensions.
+ * @param items The items to query against.
+ * @param query The SQL query spec with parameterized values.
+ * @param filters Custom WHERE clause matchers to extend filtering capabilities.
+ * @param projects Custom SELECT clause matchers to extend projection capabilities.
+ * @returns The result of processing the query, which may be an array of items, a scalar value, or any structure returned by custom matchers.
  */
 export function processQuery(
   items: Item[],
@@ -107,12 +124,12 @@ export function processQuery(
   const params = Object.fromEntries(parameters.map((p) => [p.name, p.value]));
   const topN = top ? parseInt(top, 10) : undefined;
 
-  items = processDefs({ items, params }, where, [
+  items = invokeMatchingDef({ items, params }, where, [
     ...filters,
     ...builtInFilters,
   ]) as Item[];
 
-  const result = processDefs({ items, params }, select, [
+  const result = invokeMatchingDef({ items, params }, select, [
     ...projects,
     ...builtInProjects,
   ]);
@@ -120,7 +137,11 @@ export function processQuery(
   return topN ? result.slice(0, topN) : result;
 }
 
-function processDefs(
+/**
+ * Finds the first matching {@link MockQueryDef} for the given query string and invokes its handler.
+ * Returns the original items unchanged if no matcher is found or the query is empty.
+ */
+function invokeMatchingDef(
   args: MockQueryArgs,
   query: string = "",
   defs: MockQueryDef[] = [],
