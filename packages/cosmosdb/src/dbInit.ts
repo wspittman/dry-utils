@@ -9,12 +9,13 @@ import fs from "node:fs";
 import https from "node:https";
 import { Container } from "./container.ts";
 import { diag } from "./diagnostics.ts";
-import { MockAzureContainer, type MockQueryDef } from "./mockAzureContainer.ts";
+import { MockAzureContainer } from "./mockAzureContainer.ts";
+import type { MockQueryDef } from "./mockQueryProcessor.ts";
 
 type ContainerMap = Record<string, Container<ItemDefinition>>;
 
 export type MockDBData = Record<string, ItemDefinition[]>;
-export type MockDBQueries = Record<string, MockQueryDef[]>;
+export type MockDBQueryDefs = Record<string, MockQueryDef[]>;
 
 export interface ContainerOptions {
   name: string;
@@ -30,7 +31,8 @@ export interface DBOptions {
   localCertPath?: string;
   containers: ContainerOptions[];
   mockDBData?: MockDBData;
-  mockDBQueries?: MockDBQueries;
+  mockDBFilters?: MockDBQueryDefs;
+  mockDBProjects?: MockDBQueryDefs;
 }
 
 const MAX_CREATE_ATTEMPTS = 3;
@@ -42,7 +44,7 @@ const MAX_CREATE_ATTEMPTS = 3;
  * @returns Map of container names to container instances
  */
 export async function connectDB(options: DBOptions): Promise<ContainerMap> {
-  if (options.mockDBData || options.mockDBQueries) {
+  if (options.mockDBData || options.mockDBFilters || options.mockDBProjects) {
     return connectMockDB(options);
   }
 
@@ -146,7 +148,8 @@ function getIndexingPolicy(exclusions: "all" | string[]) {
 function connectMockDB({
   containers,
   mockDBData,
-  mockDBQueries,
+  mockDBFilters,
+  mockDBProjects,
 }: DBOptions): ContainerMap {
   const containerMap: ContainerMap = {};
 
@@ -154,7 +157,8 @@ function connectMockDB({
     const azureContainer = new MockAzureContainer(
       c.partitionKey,
       mockDBData?.[c.name],
-      mockDBQueries?.[c.name],
+      mockDBFilters?.[c.name],
+      mockDBProjects?.[c.name],
     ) as unknown as AzureContainer;
 
     containerMap[c.name] = new Container(c.name, azureContainer);
