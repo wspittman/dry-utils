@@ -4,6 +4,20 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 
+// Split into SELECT, FROM, WHERE components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and Query.build()).
+const querySplitter = new RegExp(
+  /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i,
+);
+const COND_IS_DEFINED = new RegExp(
+  /^IS_DEFINED\(c\.(?<field>[A-Za-z0-9_.]+)\)$/i,
+);
+const COND_CONTAINS = new RegExp(
+  /^CONTAINS\(c\.(?<field>[A-Za-z0-9_.]+),\s*(?<param>@[A-Za-z0-9_]+),\s*true\)$/i,
+);
+const COND_COMPARE = new RegExp(
+  /^c\.(?<field>[A-Za-z0-9_.]+)\s*(?<op><=|>=|<|>|=)\s*(?<param>@[A-Za-z0-9_]+)$/i,
+);
+
 /**
  * Arguments passed to a {@link MockQueryDef} handler during query processing.
  * @property items The current set of items being processed.
@@ -56,19 +70,10 @@ const builtInProjects: MockQueryDef[] = [
     // Where property can be A-Za-z0-9_
     matcher: /^(?<clause>(?:c\.[A-Za-z0-9_]+)(?:\s*,\s*c\.[A-Za-z0-9_]+)*)$/i,
     fn: ({ items, match }) => {
-      const clause = match?.groups?.["clause"]?.trim();
-      if (!clause) {
-        throw new Error("Project clause did not match expected pattern");
-      }
+      const clause = match!.groups!["clause"]!.trim();
 
-      const properties = clause.split(",").map((part) => {
-        // trim and remove "c." prefix
-        const propMatch = part.trim().slice(2);
-        if (!propMatch) {
-          throw new Error("Project property did not match expected pattern");
-        }
-        return propMatch;
-      });
+      // Split, trim, and remove "c." prefix
+      const properties = clause.split(",").map((part) => part.trim().slice(2));
 
       return items.map((item) =>
         // Omit properties not on item or in projection list
@@ -86,7 +91,7 @@ const builtInFilters: MockQueryDef[] = [
   {
     matcher: /^(?<where>.+)$/,
     fn: ({ items, params, match }) => {
-      const whereClause = match?.groups?.["where"]?.trim();
+      const whereClause = match!.groups!["where"]!.trim();
       if (!whereClause) {
         throw new Error("Where clause did not match expected pattern");
       }
@@ -94,9 +99,6 @@ const builtInFilters: MockQueryDef[] = [
     },
   },
 ];
-
-const querySplitter =
-  /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i;
 
 /**
  * Processes a SQL query spec against an in-memory item set.
@@ -183,27 +185,24 @@ function evaluateCondition(
   params: Record<string, JSONValue>,
   item: Item,
 ): boolean {
-  const isDefinedRe = /^IS_DEFINED\(c\.(?<field>[A-Za-z0-9_.]+)\)$/i;
-  const isDefinedMatch = condition.match(isDefinedRe);
+  const isDefinedMatch = condition.match(COND_IS_DEFINED);
   if (isDefinedMatch) {
-    return getFieldValue(item, isDefinedMatch.groups!["field"]!) !== undefined;
+    const { field } = isDefinedMatch.groups!;
+    return getFieldValue(item, field!) !== undefined;
   }
 
-  const containsRe =
-    /^CONTAINS\(c\.(?<field>[A-Za-z0-9_.]+),\s*(?<param>@[A-Za-z0-9_]+),\s*true\)$/i;
-  const containsMatch = condition.match(containsRe);
+  const containsMatch = condition.match(COND_CONTAINS);
   if (containsMatch) {
-    const itemValue = getFieldValue(item, containsMatch.groups!["field"]!);
-    const paramValue = params[containsMatch.groups!["param"]!];
+    const { field, param } = containsMatch.groups!;
+    const itemValue = getFieldValue(item, field!);
+    const paramValue = params[param!];
     if (typeof itemValue !== "string" || typeof paramValue !== "string") {
       return false;
     }
     return itemValue.toLowerCase().includes(paramValue.toLowerCase());
   }
 
-  const compareRe =
-    /^c\.(?<field>[A-Za-z0-9_.]+)\s*(?<op><=|>=|<|>|=)\s*(?<param>@[A-Za-z0-9_]+)$/;
-  const compareMatch = condition.match(compareRe);
+  const compareMatch = condition.match(COND_COMPARE);
   if (compareMatch) {
     const { field, op, param } = compareMatch.groups!;
     const itemValue = getFieldValue(item, field!);
