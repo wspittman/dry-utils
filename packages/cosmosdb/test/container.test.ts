@@ -244,6 +244,28 @@ describe("DB: Container", () => {
     ),
   );
 
+  test("getCountBy: includes empty string and non-string scalar groups", async () => {
+    type TagEntry = { id: string; pkey: string; tag: string | number };
+    const tagData: TagEntry[] = [
+      { id: "1", pkey: "a", tag: "x" },
+      { id: "2", pkey: "a", tag: "" },
+      { id: "3", pkey: "b", tag: "" },
+      { id: "4", pkey: "b", tag: 42 },
+    ];
+    const containerMap = await connectDB({
+      ...connectOptions,
+      mockDBData: { mockContainer: tagData },
+    });
+    const c = containerMap["mockContainer"] as Container<TagEntry>;
+    const result = await c.getCountBy("tag");
+    assert.deepEqual(result, [
+      { name: "42", count: 1 },
+      { name: "x", count: 1 },
+      { name: "", count: 2 },
+    ]);
+    logCounts({ ag: 1 });
+  });
+
   test(
     "query: error",
     testError(async (c) =>

@@ -53,9 +53,11 @@ const builtInProjects: MockQueryDef[] = [
       const counts: Record<string, number> = {};
       for (const item of items) {
         const value = getFieldValue(item, prop);
-        if (typeof value === "string" && value) {
-          counts[value] ??= 0;
-          counts[value]++;
+        if (value != null && typeof value !== "object") {
+          // eslint-disable-next-line @typescript-eslint/no-base-to-string
+          const key = String(value);
+          counts[key] ??= 0;
+          counts[key]++;
         }
       }
       return Object.entries(counts).map(([name, count]) => ({
