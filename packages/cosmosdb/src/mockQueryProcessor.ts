@@ -32,9 +32,10 @@ const builtInProjects: MockQueryDef[] = [
   { matcher: "VALUE COUNT(1)", fn: ({ items }) => [items.length] },
   {
     // getCountBy: SELECT c.{prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.{prop}) GROUP BY c.{prop}
-    matcher: /^c\.([A-Za-z0-9_.]+)\s+AS\s+name\s*,\s*COUNT\(1\)\s+AS\s+count$/i,
+    matcher:
+      /^c\.(?<prop>[A-Za-z0-9_.]+)\s+AS\s+name\s*,\s*COUNT\(1\)\s+AS\s+count$/i,
     fn: ({ items, match }) => {
-      const prop = match![1]!;
+      const prop = match!.groups!["prop"]!;
       const counts: Record<string, number> = {};
       for (const item of items) {
         const value = getFieldValue(item, prop);
@@ -51,12 +52,11 @@ const builtInProjects: MockQueryDef[] = [
   },
   {
     // Simple Selected Properties
-    // Matches "SELECT x from c"
-    // Where x is a comma-separated list of c.property (no spaces)
+    // Matches a comma-separated list of c.property (no spaces)
     // Where property can be A-Za-z0-9_
-    matcher: /^((?:c\.[A-Za-z0-9_]+)(?:\s*,\s*c\.[A-Za-z0-9_]+)*)$/i,
+    matcher: /^(?<clause>(?:c\.[A-Za-z0-9_]+)(?:\s*,\s*c\.[A-Za-z0-9_]+)*)$/i,
     fn: ({ items, match }) => {
-      const clause = match?.[1]?.trim();
+      const clause = match?.groups?.["clause"]?.trim();
       if (!clause) {
         throw new Error("Project clause did not match expected pattern");
       }
@@ -84,9 +84,9 @@ const builtInProjects: MockQueryDef[] = [
 
 const builtInFilters: MockQueryDef[] = [
   {
-    matcher: /^(.+)$/,
+    matcher: /^(?<where>.+)$/,
     fn: ({ items, params, match }) => {
-      const whereClause = match?.[1]?.trim();
+      const whereClause = match?.groups?.["where"]?.trim();
       if (!whereClause) {
         throw new Error("Where clause did not match expected pattern");
       }
@@ -183,33 +183,34 @@ function evaluateCondition(
   params: Record<string, JSONValue>,
   item: Item,
 ): boolean {
-  const isDefinedRe = /^IS_DEFINED\(c\.([A-Za-z0-9_.]+)\)$/i;
+  const isDefinedRe = /^IS_DEFINED\(c\.(?<field>[A-Za-z0-9_.]+)\)$/i;
   const isDefinedMatch = condition.match(isDefinedRe);
   if (isDefinedMatch) {
-    return getFieldValue(item, isDefinedMatch[1]!) !== undefined;
+    return getFieldValue(item, isDefinedMatch.groups!["field"]!) !== undefined;
   }
 
   const containsRe =
-    /^CONTAINS\(c\.([A-Za-z0-9_.]+),\s*(@[A-Za-z0-9_]+),\s*true\)$/i;
+    /^CONTAINS\(c\.(?<field>[A-Za-z0-9_.]+),\s*(?<param>@[A-Za-z0-9_]+),\s*true\)$/i;
   const containsMatch = condition.match(containsRe);
   if (containsMatch) {
-    const itemValue = getFieldValue(item, containsMatch[1]!);
-    const paramValue = params[containsMatch[2]!];
+    const itemValue = getFieldValue(item, containsMatch.groups!["field"]!);
+    const paramValue = params[containsMatch.groups!["param"]!];
     if (typeof itemValue !== "string" || typeof paramValue !== "string") {
       return false;
     }
     return itemValue.toLowerCase().includes(paramValue.toLowerCase());
   }
 
-  const compareRe = /^c\.([A-Za-z0-9_.]+)\s*(<=|>=|<|>|=)\s*(@[A-Za-z0-9_]+)$/;
+  const compareRe =
+    /^c\.(?<field>[A-Za-z0-9_.]+)\s*(?<op><=|>=|<|>|=)\s*(?<param>@[A-Za-z0-9_]+)$/;
   const compareMatch = condition.match(compareRe);
   if (compareMatch) {
-    const [, fieldPath, op, paramName] = compareMatch;
-    const itemValue = getFieldValue(item, fieldPath!);
-    const paramValue = params[paramName!];
+    const { field, op, param } = compareMatch.groups!;
+    const itemValue = getFieldValue(item, field!);
+    const paramValue = params[param!];
     if (itemValue == null || paramValue == null) return false;
     if (typeof itemValue !== typeof paramValue) return false;
-    switch (op!) {
+    switch (op) {
       case "=":
         return itemValue === paramValue;
       case "<":
