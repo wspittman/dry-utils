@@ -240,7 +240,7 @@ function evaluateWhere(
 ): boolean {
   // Split AND-joined parenthesized conditions: "(cond1) AND (cond2)"
   // Stripping outer parens handles CONTAINS which has its own inner parens.
-  for (const part of whereClause.split(" AND ")) {
+  for (const part of whereClause.split(/ AND /i)) {
     const trimmed = part.trim();
     const inner =
       trimmed.startsWith("(") && trimmed.endsWith(")")

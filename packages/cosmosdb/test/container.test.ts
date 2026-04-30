@@ -220,6 +220,21 @@ describe("DB: Container", () => {
   );
 
   test(
+    "query: WHERE multiple conditions with lowercase",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>({
+          query: "select * from c where (c.pkey = @pkey) and (c.val > @val)",
+          parameters: [
+            { name: "@pkey", value: "item" },
+            { name: "@val", value: 456 },
+          ],
+        }),
+      mockDB.filter((item) => item.pkey === "item" && item.val > 456),
+    ),
+  );
+
+  test(
     "query: TOP without WHERE",
     testSuccess(
       async (c) => c.query<Entry>(new Query().top(2)),
