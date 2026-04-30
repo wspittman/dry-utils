@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { connectDB } from "../src/dbInit.ts";
-import { Container, Query, subscribeCosmosDBLogging } from "../src/index.ts";
+import {
+  Container,
+  Query,
+  subscribeCosmosDBLogging,
+  type MockQueryDef,
+} from "../src/index.ts";
 
 const FORCE_ERROR = "FORCE_ERROR";
 
@@ -279,6 +284,47 @@ describe("DB: Container", () => {
       { name: "", count: 2 },
     ]);
     logCounts({ ag: 1 });
+  });
+
+  test("query: custom filter takes precedence over built-in", async () => {
+    // Built-in would return all 3 items for val > 100; custom filter ignores the param and only passes val > 400.
+    const customFilter: MockQueryDef = {
+      matcher: /^\(c\.val > @val\)$/i,
+      fn: ({ items }) => items.filter((item) => (item["val"] as number) > 400),
+    };
+    const containerMap = await connectDB({
+      ...connectOptions,
+      mockDBData: { mockContainer: structuredClone(mockDB) },
+      mockDBFilters: { mockContainer: [customFilter] },
+    });
+    const c = containerMap["mockContainer"] as Container<Entry>;
+    const result = await c.query<Entry>({
+      query: "SELECT * FROM c WHERE (c.val > @val)",
+      parameters: [{ name: "@val", value: 100 }],
+    });
+    assert.deepEqual(
+      result,
+      mockDB.filter((item) => item.val > 400),
+    );
+  });
+
+  test("query: custom project takes precedence over built-in", async () => {
+    // Built-in '*' returns all fields; custom project returns only id.
+    const customProject: MockQueryDef = {
+      matcher: "*",
+      fn: ({ items }) => items.map((item) => ({ id: item["id"] })),
+    };
+    const containerMap = await connectDB({
+      ...connectOptions,
+      mockDBData: { mockContainer: structuredClone(mockDB) },
+      mockDBProjects: { mockContainer: [customProject] },
+    });
+    const c = containerMap["mockContainer"] as Container<Entry>;
+    const result = await c.query<Pick<Entry, "id">>("SELECT * FROM c");
+    assert.deepEqual(
+      result,
+      mockDB.map((item) => ({ id: item.id })),
+    );
   });
 
   test(
