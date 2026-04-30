@@ -42,42 +42,49 @@ Raw SQL from `Container`:
 
 ### Phase 1: Implement native WHERE evaluation [x]
 
-**Scope:** `mockAzureContainer.ts` — `_query` method.
+**Scope:** Extracted into `mockQueryProcessor.ts` (not inline in `mockAzureContainer.ts` as originally planned).
 
-Implement a `evaluateWhere` helper that:
+`processQuery(items, querySpec, filters, projects)` in `mockQueryProcessor.ts`:
 
-1. Parses WHERE clause string from `SELECT ... FROM c WHERE (...)` format
-2. Extracts individual conditions from AND-joined parenthesized groups
-3. Evaluates each condition against a `SqlQuerySpec`'s `parameters` array
-4. Supports operators: `=`, `<`, `<=`, `>`, `>=`
-5. Supports `CONTAINS(c.field, @param, true)`
+- Parses `SELECT [TOP n] <select> FROM c [WHERE <clause>]` via regex (`querySplitter`)
+- Routes WHERE clause through `[...customFilters, ...builtInFilters]` using `processDefs`
+- Routes SELECT clause through `[...customProjects, ...builtInProjects]` using `processDefs`
+- Built-in filter: `evaluateWhere` handles AND-joined `(cond)` groups and bare conditions
+- `evaluateCondition` supports `=`, `<`, `<=`, `>`, `>=` and `CONTAINS(c.field, @param, true)`
+- `MockQueryDef` interface: `{ matcher: string | RegExp; fn: (args: MockQueryArgs) => unknown[] }`
+- `MockQueryArgs`: `{ items: Item[]; params: Record<string, JSONValue>; match?: RegExpMatchArray }`
+- `dbInit.ts` exposes `mockDBFilters` and `mockDBProjects` (both `Record<string, MockQueryDef[]>`)
+- `mockAzureContainer.ts` delegates `_query` entirely to `processQuery`
 
-Update `_query` to:
+### Phase 2: Handle `getCountBy` natively [x]
 
-- Detect and handle `SELECT * FROM c WHERE (...)` → filter items + return all properties
-- Detect and handle `SELECT VALUE COUNT(1) FROM c WHERE (...)` → filter + return count
-- Detect and handle `SELECT TOP n * FROM c [WHERE ...]` → filter + slice
-
-### Phase 2: Handle `getCountBy` natively [ ]
-
-**Scope:** `mockAzureContainer.ts` — `_query` method.
+**Scope:** `mockQueryProcessor.ts` — add a new built-in project or pre-pass handler.
 
 Add a regex for: `SELECT c.{prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.{prop}) GROUP BY c.{prop}`
 
-Group items by the field value and return `{ name, count }` pairs.
+Group items by the field value and return `{ name, count }` pairs. Add a `getCountBy` test to `container.test.ts`.
 
-### Phase 3: Update tests [ ]
+### Phase 3: Final test cleanup [x]
 
 **Scope:** `container.test.ts`
 
-- Remove custom `matcher` entries from `getContainer()` that are now handled natively
-- Add test cases for:
-  - `query` with a `Query` instance that has a WHERE condition
-  - `getCountBy`
-  - `query` with `TOP` (via `Query.top()`)
+Completed in the overhaul:
+
+- [x] `query: with SqlQuerySpec` (raw SQL with WHERE, no Query builder)
+- [x] `query: WHERE condition from Query builder`
+- [x] `query: WHERE CONTAINS condition from Query builder`
+- [x] `query: WHERE multiple conditions from Query builder`
+- [x] `query: TOP without WHERE`
+- [x] `query: TOP with WHERE from Query builder`
+- [x] Projection tests (multiple properties, id-only)
+
+Still pending:
+
+- [x] Remove the `mockDBFilters` entry in `getContainer()` — `c.val > @minValue` is now handled natively by `evaluateCondition` and is no longer needed
 
 ## Key Decisions
 
 - **No SQL parser library** — all patterns are predictable and regex-parseable
-- **Keep `MockQueryDef` as escape hatch** — custom matchers remain for non-standard queries
+- **Keep `MockQueryDef` as escape hatch** — custom matchers remain for non-standard queries; they run before built-ins via `[...customFilters, ...builtInFilters]` ordering
 - **Only implement what `Container` + `Query` actually produce** — no over-engineering
+- **Logic extracted to `mockQueryProcessor.ts`** — keeps `mockAzureContainer.ts` thin and makes the processor independently testable

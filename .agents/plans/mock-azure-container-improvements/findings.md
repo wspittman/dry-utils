@@ -1,14 +1,18 @@
 # Findings: MockAzureContainer Improvements
 
-## Current Mock Limitations
+## Current Mock Limitations (post-overhaul)
 
-1. `SELECT * FROM c WHERE (...)` — falls through to custom matchers. Since the mock matches `SELECT * FROM c` first (exact), any query with a WHERE clause doesn't hit that branch. It goes to custom matchers instead.
+1. `getCountBy` query — still falls through and returns raw items (wrong shape). No `getCountBy` test exists yet. This is the remaining Phase 2 work.
 
-2. `SELECT VALUE COUNT(1) FROM c WHERE (...)` — same problem as above.
+2. The `mockDBFilters` entry in `getContainer()` (`c.val > @minValue`) is now redundant — `evaluateCondition` handles this natively. Should be removed in Phase 3 cleanup.
 
-3. `SELECT TOP n * FROM c [WHERE ...]` — no support at all.
+## Resolved Limitations
 
-4. `getCountBy` query — falls through and returns raw items (wrong shape). The test file does NOT currently have a `getCountBy` test.
+- `SELECT * FROM c WHERE (...)` — ✅ handled natively by `evaluateWhere` + built-in filter
+- `SELECT VALUE COUNT(1) FROM c WHERE (...)` — ✅ handled natively
+- `SELECT TOP n * FROM c [WHERE ...]` — ✅ handled via `topN` slice in `processQuery`
+- `CONTAINS(c.field, @param, true)` — ✅ handled by `evaluateCondition`
+- AND-joined multi-condition WHERE — ✅ handled by `evaluateWhere`
 
 ## Query Builder Output Format
 
@@ -53,11 +57,14 @@ The `getCountBy` raw query: `SELECT c.{prop} AS name, COUNT(1) AS count FROM c W
 
 A regex can extract `{prop}`. The implementation groups items by `item[prop]` and counts per group.
 
-## Refactoring `_query`
+## Architecture (as implemented)
 
-Current `_query` has ad-hoc if/else branches for each query type. After changes, suggest organizing into prioritized handlers:
+`processQuery` in `mockQueryProcessor.ts`:
 
-1. Check for `getCountBy` GROUP BY pattern
-2. Try to parse as Query-builder SQL (extract selector + WHERE + TOP)
-3. Fall through to custom matchers
-4. Return all items as fallback
+1. Match query against `querySplitter` regex to extract `select`, `where`, `top`
+2. Run `where` clause through `processDefs([...customFilters, ...builtInFilters])` to filter items
+3. Run `select` clause through `processDefs([...customProjects, ...builtInProjects])` to shape output
+4. Apply `TOP n` slice if present
+5. `getCountBy` pattern does not yet fit this model — needs a pre-pass or dedicated handler
+
+`processDefs` tries matchers in order: exact string match first, then `RegExp.match`. Built-in filter catches everything via `/^(.+)$/`.

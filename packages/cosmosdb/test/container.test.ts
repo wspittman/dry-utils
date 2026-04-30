@@ -33,17 +33,6 @@ async function getContainer() {
     mockDBData: {
       mockContainer: structuredClone(mockDB),
     },
-    mockDBFilters: {
-      mockContainer: [
-        {
-          matcher: "c.val > @minValue",
-          fn: ({ items, params }) => {
-            const minValue = params["@minValue"] ?? 400;
-            return items.filter((item) => item["val"] > minValue);
-          },
-        },
-      ],
-    },
   });
   return containerMap["mockContainer"] as Container<Entry>;
 }
@@ -244,6 +233,14 @@ describe("DB: Container", () => {
       async (c) =>
         c.query<Entry>(new Query().top(1).whereCondition("val", ">", 100)),
       mockDB.filter((item) => item.val > 100).slice(0, 1),
+    ),
+  );
+
+  test(
+    "getCountBy: groups items by field",
+    testSuccess(
+      async (c) => c.getCountBy("pkey"),
+      [{ name: "item", count: mockDB.length }],
     ),
   );
 

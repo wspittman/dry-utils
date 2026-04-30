@@ -19,6 +19,25 @@ const builtInProjects: MockQueryDef[] = [
   { matcher: "*", fn: ({ items }) => items },
   { matcher: "VALUE COUNT(1)", fn: ({ items }) => [items.length] },
   {
+    // getCountBy: SELECT c.{prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.{prop}) GROUP BY c.{prop}
+    matcher: /^c\.([A-Za-z0-9_.]+)\s+AS\s+name\s*,\s*COUNT\(1\)\s+AS\s+count$/i,
+    fn: ({ items, match }) => {
+      const prop = match![1]!;
+      const counts: Record<string, number> = {};
+      for (const item of items) {
+        const value = getFieldValue(item, prop) as string;
+        if (value) {
+          counts[value] ??= 0;
+          counts[value]++;
+        }
+      }
+      return Object.entries(counts).map(([name, count]) => ({
+        name,
+        count,
+      }));
+    },
+  },
+  {
     // Simple Selected Properties
     // Matches "SELECT x from c"
     // Where x is a comma-separated list of c.property (no spaces)
@@ -65,7 +84,7 @@ const builtInFilters: MockQueryDef[] = [
 ];
 
 const querySplitter =
-  /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+))?\s*$/i;
+  /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i;
 
 /**
  * Processes a SQL query spec against an in-memory item set.
@@ -143,6 +162,12 @@ function evaluateCondition(
   params: Record<string, JSONValue>,
   item: Item,
 ): boolean {
+  const isDefinedRe = /^IS_DEFINED\(c\.([A-Za-z0-9_.]+)\)$/i;
+  const isDefinedMatch = condition.match(isDefinedRe);
+  if (isDefinedMatch) {
+    return getFieldValue(item, isDefinedMatch[1]!) !== undefined;
+  }
+
   const containsRe =
     /^CONTAINS\(c\.([A-Za-z0-9_.]+),\s*(@[A-Za-z0-9_]+),\s*true\)$/i;
   const containsMatch = condition.match(containsRe);
