@@ -1,4 +1,5 @@
 import type { TransformableInfo } from "logform";
+import { inspect } from "node:util";
 import { createLogger, format, type Logger, transports } from "winston";
 
 /**
@@ -6,8 +7,7 @@ import { createLogger, format, type Logger, transports } from "winston";
  */
 interface LoggerInfo extends TransformableInfo {
   timestamp?: string;
-  simpleSplat?: unknown;
-  fullSplat?: unknown;
+  splat?: unknown;
 }
 
 /**
@@ -34,60 +34,28 @@ const DEFAULT_LOGGER_CONFIG: LoggerConfig = {
   fileLevel: "debug",
 };
 
-/**
- * Simplifies complex values for better console logging
- *
- * @param val - The value to simplify
- * @param depth - Current recursion depth
- * @returns A simplified representation of the value
- */
-function getSimpleVal(val: unknown, depth = 0): unknown {
-  // Handle null explicitly to avoid errors
-  if (val == null) return undefined;
-
-  if (Array.isArray(val)) {
-    return val.length > 10 || depth >= 2
-      ? `[Length = ${val.length}]`
-      : val.map((x) => getSimpleVal(x, depth + 1));
-  }
-
-  if (val instanceof Date) {
-    return val.toISOString();
-  }
-
-  if (typeof val === "object") {
-    if (depth >= 2) return "[Object]";
-    try {
-      return Object.fromEntries(
-        Object.entries(val).map(([key, value]) => {
-          return [key, getSimpleVal(value, depth + 1)];
-        }),
-      );
-    } catch {
-      // Handle potential errors when converting objects
-      return "[Unserializable Object]";
-    }
-  }
-
-  return val;
-}
-
 const addSplat = format((info: LoggerInfo) => {
   const splat = (info as Record<symbol, unknown>)[Symbol.for("splat")];
   const val = Array.isArray(splat) ? (splat as unknown[])[0] : splat;
-  info.simpleSplat = getSimpleVal(val);
-  info.fullSplat = val;
+  info.splat = val;
   return info;
 })();
 
-const formatPrint = (splatType: string) =>
+const formatPrint = (isConsole: boolean) =>
   format.printf((info: LoggerInfo) => {
-    const { timestamp = "", level, message } = info;
-    const splat = info[splatType as keyof LoggerInfo];
-    const isCollapse = Array.isArray(splat) && typeof splat[0] !== "object";
-    const expandVal = isCollapse ? undefined : 2;
-    const splatString =
-      splat == null ? "" : `: ${JSON.stringify(splat, null, expandVal) ?? ""}`;
+    const { timestamp = "", level, message, splat } = info;
+
+    let splatString = "";
+    if (splat != null) {
+      if (isConsole) {
+        splatString =
+          ": " + inspect(splat, { colors: true, maxArrayLength: 10 });
+      } else {
+        const isCollapse = Array.isArray(splat) && typeof splat[0] !== "object";
+        const expandVal = isCollapse ? undefined : 2;
+        splatString = `: ${JSON.stringify(splat, null, expandVal) ?? ""}`;
+      }
+    }
     return `${timestamp} [${level.toUpperCase()}]: ${String(message)}${splatString}`;
   });
 
@@ -116,12 +84,12 @@ export function createCustomLogger(
     transports: [
       new transports.Console({
         level: config.consoleLevel,
-        format: formatPrint("simpleSplat"),
+        format: formatPrint(true),
       }),
       new transports.File({
         filename: config.filename,
         level: config.fileLevel,
-        format: formatPrint("fullSplat"),
+        format: formatPrint(false),
       }),
     ],
   });
