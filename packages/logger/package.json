@@ -39,7 +39,8 @@
     "link": "npm link",
     "unlink": "npm unlink --global",
     "prepublishOnly": "npm run build && npm run test",
-    "publish-package": "npm publish --access public"
+    "publish-package": "npm publish --access public",
+    "compare": "node --import tsx/esm scripts/compare.ts"
   },
   "license": "MIT",
   "dependencies": {
