@@ -25,8 +25,8 @@ const builtInProjects: MockQueryDef[] = [
       const prop = match![1]!;
       const counts: Record<string, number> = {};
       for (const item of items) {
-        const value = getFieldValue(item, prop) as string;
-        if (value) {
+        const value = getFieldValue(item, prop);
+        if (typeof value === "string" && value) {
           counts[value] ??= 0;
           counts[value]++;
         }
@@ -186,23 +186,23 @@ function evaluateCondition(
     const [, fieldPath, op, paramName] = compareMatch;
     const itemValue = getFieldValue(item, fieldPath!);
     const paramValue = params[paramName!];
-    if (itemValue === undefined || paramValue === undefined) return false;
+    if (itemValue == null || paramValue == null) return false;
+    if (typeof itemValue !== typeof paramValue) return false;
     switch (op!) {
       case "=":
         return itemValue === paramValue;
       case "<":
-        return (itemValue as number) < (paramValue as number);
+        return itemValue < paramValue;
       case "<=":
-        return (itemValue as number) <= (paramValue as number);
+        return itemValue <= paramValue;
       case ">":
-        return (itemValue as number) > (paramValue as number);
+        return itemValue > paramValue;
       case ">=":
-        return (itemValue as number) >= (paramValue as number);
+        return itemValue >= paramValue;
     }
   }
 
-  // Unknown condition — don't filter
-  return true;
+  throw new Error(`Unsupported WHERE condition in mock: ${condition}`);
 }
 
 /**
