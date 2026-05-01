@@ -137,14 +137,21 @@ function simpleCompletionResponse({ output }: Parsed): Completion {
   let content: unknown;
   let toolCalls: Completion["toolCalls"] | undefined;
 
-  if (outputOne && "content" in outputOne) {
+  const outputs = output.filter(
+    (x) =>
+      x.type === "message" ||
+      x.type === "function_call" ||
+      x.type === "reasoning",
+  );
+
+  if (outputOne?.type === "message") {
     const contentZero = outputOne.content?.[0];
     if (contentZero && "parsed" in contentZero) {
       content = contentZero.parsed;
     }
   }
 
-  if (outputOne && "parsed_arguments" in outputOne) {
+  if (outputOne?.type === "function_call") {
     toolCalls = [{ name: outputOne.name, args: outputOne.parsed_arguments }];
   }
 
@@ -152,7 +159,7 @@ function simpleCompletionResponse({ output }: Parsed): Completion {
     thread: [
       { role: "developer", content: "system prompt" },
       { role: "user", content: "user input" },
-      ...output,
+      ...outputs,
     ],
     content,
     toolCalls,
