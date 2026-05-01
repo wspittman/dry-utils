@@ -34,6 +34,18 @@ const DEFAULT_LOGGER_CONFIG: LoggerConfig = {
   fileLevel: "debug",
 };
 
+const errorReplacer = (_key: string, value: unknown): unknown => {
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+      ...Object.fromEntries(Object.entries(value)),
+    };
+  }
+  return value;
+};
+
 const addSplat = format((info: LoggerInfo) => {
   const splat = (info as Record<symbol, unknown>)[Symbol.for("splat")];
   const val = Array.isArray(splat) ? (splat as unknown[])[0] : splat;
@@ -53,7 +65,7 @@ const formatPrint = (isConsole: boolean) =>
       } else {
         const isCollapse = Array.isArray(splat) && typeof splat[0] !== "object";
         const expandVal = isCollapse ? undefined : 2;
-        splatString = `: ${JSON.stringify(splat, null, expandVal) ?? ""}`;
+        splatString = `: ${JSON.stringify(splat, errorReplacer, expandVal) ?? ""}`;
       }
     }
     return `${timestamp} [${level.toUpperCase()}]: ${String(message)}${splatString}`;
