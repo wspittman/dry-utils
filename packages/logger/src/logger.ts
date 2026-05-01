@@ -58,16 +58,21 @@ const formatPrint = (isConsole: boolean) =>
     const { timestamp = "", level, message, splat } = info;
 
     let splatString = "";
-    if (splat != null) {
-      if (isConsole) {
-        splatString =
-          ": " + inspect(splat, { colors: true, maxArrayLength: 10 });
-      } else {
+
+    if (splat != null && !isConsole) {
+      try {
         const isCollapse = Array.isArray(splat) && typeof splat[0] !== "object";
         const expandVal = isCollapse ? undefined : 2;
         splatString = `: ${JSON.stringify(splat, errorReplacer, expandVal) ?? ""}`;
+      } catch {
+        // Fallback below if circular references or other serialization issues
       }
     }
+
+    if (splat != null && !splatString) {
+      splatString = ": " + inspect(splat, { colors: true, maxArrayLength: 10 });
+    }
+
     return `${timestamp} [${level.toUpperCase()}]: ${String(message)}${splatString}`;
   });
 
