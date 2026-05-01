@@ -1,7 +1,7 @@
 import type { JSONValue, SqlQuerySpec } from "@azure/cosmos";
 
 type Op = "<" | "<=" | "=" | ">" | ">=" | "CONTAINS";
-type SELECTOR = "*" | "ID" | "COUNT";
+type Selector = "*" | "ID" | "COUNT";
 
 export type Condition = [field: string, op: Op, value: JSONValue];
 export type Where = [clause: string, parameters?: Record<string, JSONValue>];
@@ -56,12 +56,12 @@ export type Where = [clause: string, parameters?: Record<string, JSONValue>];
  *    - Example: JOIN l IN c.list
  */
 export class Query {
-  #selector: SELECTOR;
+  #selector: Selector;
   #top?: number;
   #whereClauses: string[] = [];
   #params: Record<string, JSONValue> = {};
 
-  constructor(selector?: SELECTOR, condition?: Condition) {
+  constructor(selector?: Selector, condition?: Condition) {
     this.#selector = selector ?? "*";
     if (condition) {
       this.whereCondition(...condition);
@@ -70,17 +70,17 @@ export class Query {
 
   /**
    * Sets the SELECT clause selector, replacing the default `*`.
-   * @param selector - The selector type to use;
+   * @param selector The selector type to use
    * @returns The Query instance for method chaining
    */
-  select(selector: SELECTOR): this {
+  select(selector: Selector): this {
     this.#selector = selector;
     return this;
   }
 
   /**
    * Sets the maximum number of results to return, adding a TOP clause to the query.
-   * @param max - The maximum number of results to return
+   * @param max The maximum number of results to return
    * @returns The Query instance for method chaining
    */
   top(max: number): this {
@@ -93,8 +93,8 @@ export class Query {
 
   /**
    * Adds a WHERE clause to the query.
-   * @param clause - The WHERE clause to add
-   * @param parameters - Optional parameters for the clause
+   * @param clause The WHERE clause to add
+   * @param parameters Optional parameters for the clause
    * @returns The Query instance for method chaining
    */
   where([clause, parameters = {}]: Where): this {
@@ -106,9 +106,9 @@ export class Query {
   /**
    * Adds a WHERE condition using field, operator, and value.
    * Automatically handles parameter naming and value formatting.
-   * @param field - Document field path (e.g., "status" or "facets.experience")
-   * @param op - Comparison operator (<, <=, =, >, >=, CONTAINS)
-   * @param value - Value to compare against
+   * @param field Document field path (e.g., "status" or "facets.experience")
+   * @param op Comparison operator (<, <=, =, >, >=, CONTAINS)
+   * @param value Value to compare against
    * @returns The Query instance for method chaining
    */
   whereCondition(...[field, op, value]: Condition): this {
@@ -151,9 +151,9 @@ export class Query {
   /**
    * Creates a WHERE clause from field, operator, and value.
    * Automatically handles parameter naming and value formatting.
-   * @param field - Document field path
-   * @param op - Comparison operator
-   * @param value - Value to compare against
+   * @param field Document field path
+   * @param op Comparison operator
+   * @param value Value to compare against
    * @returns WHERE clause and its parameters
    */
   static condition(...[field, op, value]: Condition): Where {

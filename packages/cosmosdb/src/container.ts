@@ -11,6 +11,13 @@ import type {
 import { diag } from "./diagnostics.ts";
 import { Query, type Condition } from "./Query.ts";
 
+interface CountBy {
+  name: unknown;
+  count: number;
+}
+
+const validProp = new RegExp(/^[A-Za-z0-9_]+$/);
+
 /**
  * Generic container class for database operations
  * @template Item The type of items stored in the container
@@ -88,13 +95,15 @@ export class Container<Item extends ItemDefinition> {
 
   /**
    * Gets the count of items bucketed by the distinct values of a property
-   * @param prop The property name to group by
+   * @param prop The property name to group by, 'A-Za-z0-9_' only
    * @returns Array of `{ name, count }` pairs, one per distinct value
    */
-  async getCountBy(
-    prop: keyof Item & string,
-  ): Promise<{ name: string; count: number }[]> {
-    return this.query<{ name: string; count: number }>(
+  async getCountBy(prop: keyof Item & string): Promise<CountBy[]> {
+    if (!validProp.test(prop)) {
+      throw new Error(`Invalid property "${prop}". Only 'A-Za-z0-9_' allowed.`);
+    }
+
+    return this.query<CountBy>(
       `SELECT c.${prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.${prop}) GROUP BY c.${prop}`,
     );
   }

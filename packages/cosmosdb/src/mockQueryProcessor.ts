@@ -8,13 +8,13 @@ import type {
 const querySplitter = new RegExp(
   /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i,
 );
-const COND_IS_DEFINED = new RegExp(
+const cond_is_defined = new RegExp(
   /^IS_DEFINED\(c\.(?<field>[A-Za-z0-9_.]+)\)$/i,
 );
-const COND_CONTAINS = new RegExp(
+const cond_contains = new RegExp(
   /^CONTAINS\(c\.(?<field>[A-Za-z0-9_.]+),\s*(?<param>@[A-Za-z0-9_]+),\s*true\)$/i,
 );
-const COND_COMPARE = new RegExp(
+const cond_compare = new RegExp(
   /^c\.(?<field>[A-Za-z0-9_.]+)\s*(?<op><=|>=|<|>|=)\s*(?<param>@[A-Za-z0-9_]+)$/i,
 );
 
@@ -50,17 +50,12 @@ const builtInProjects: MockQueryDef[] = [
       /^c\.(?<prop>[A-Za-z0-9_.]+)\s+AS\s+name\s*,\s*COUNT\(1\)\s+AS\s+count$/i,
     fn: ({ items, match }) => {
       const prop = match!.groups!["prop"]!;
-      const counts: Record<string, number> = {};
+      const counts = new Map<unknown, number>();
       for (const item of items) {
         const value = getFieldValue(item, prop);
-        if (value != null && typeof value !== "object") {
-          // eslint-disable-next-line @typescript-eslint/no-base-to-string
-          const key = String(value);
-          counts[key] ??= 0;
-          counts[key]++;
-        }
+        counts.set(value, (counts.get(value) ?? 0) + 1);
       }
-      return Object.entries(counts).map(([name, count]) => ({
+      return Array.from(counts.entries()).map(([name, count]) => ({
         name,
         count,
       }));
@@ -187,13 +182,13 @@ function evaluateCondition(
   params: Record<string, JSONValue>,
   item: Item,
 ): boolean {
-  const isDefinedMatch = condition.match(COND_IS_DEFINED);
+  const isDefinedMatch = condition.match(cond_is_defined);
   if (isDefinedMatch) {
     const { field } = isDefinedMatch.groups!;
     return getFieldValue(item, field!) !== undefined;
   }
 
-  const containsMatch = condition.match(COND_CONTAINS);
+  const containsMatch = condition.match(cond_contains);
   if (containsMatch) {
     const { field, param } = containsMatch.groups!;
     const itemValue = getFieldValue(item, field!);
@@ -204,7 +199,7 @@ function evaluateCondition(
     return itemValue.toLowerCase().includes(paramValue.toLowerCase());
   }
 
-  const compareMatch = condition.match(COND_COMPARE);
+  const compareMatch = condition.match(cond_compare);
   if (compareMatch) {
     const { field, op, param } = compareMatch.groups!;
     const itemValue = getFieldValue(item, field!);

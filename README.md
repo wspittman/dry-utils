@@ -141,7 +141,7 @@ This monorepo provides several npm scripts to help with development:
 
 - `npm run clean` - Clean the repository by removing all untracked files and directories
 - `npm run lint` - Run eslint for every package
-- `npm run format` - Check formatting for every package
+- `npm run format` - Run formatting for every package
 - `npm run test` - Run tests for all packages
 - `npm run e2e` - Run end-to-end tests for all packages
 - `npm run pre-checkin` - Run lint, format, and tests
