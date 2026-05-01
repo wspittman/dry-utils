@@ -5,33 +5,48 @@ import type {
   ItemResponse,
   SqlQuerySpec,
 } from "@azure/cosmos";
+import { processQuery, type MockQueryDef } from "./mockQueryProcessor.ts";
 
+// Partition key value that triggers a simulated error, used in tests to exercise error paths.
 const FORCE_ERROR = "FORCE_ERROR";
 
-export interface MockQueryDef {
-  matcher: string | RegExp;
-  func: (
-    items: Item[],
-    getParam: <T>(name: string) => T | undefined,
-  ) => unknown[];
-}
-
+/**
+ * In-memory implementation of an Azure Cosmos DB container.
+ * For use in unit tests or in dev environments that don't have access to a Cosmos DB instance.
+ * Supports item CRUD, partition-scoped reads, and SQL query processing via
+ * custom filter and projection matchers.
+ */
 export class MockAzureContainer {
   // Data structure: { pkey: { id: item } }
   readonly #data: Record<string, Record<string, Item>> = {};
   readonly #pkey: string;
-  readonly #queries: MockQueryDef[] = [];
+  readonly #filters: MockQueryDef[];
+  readonly #projects: MockQueryDef[];
 
-  constructor(pkey: string, data: Item[] = [], queries: MockQueryDef[] = []) {
+  /**
+   * @param pkey The partition key field name used to organize items.
+   * @param data Initial items to seed the container.
+   * @param filters Custom WHERE clause matchers for query processing.
+   * @param projects Custom SELECT clause matchers for query processing.
+   */
+  constructor(
+    pkey: string,
+    data: Item[] = [],
+    filters: MockQueryDef[] = [],
+    projects: MockQueryDef[] = [],
+  ) {
     this.#pkey = pkey;
-    this.#queries = queries;
+    this.#filters = filters;
+    this.#projects = projects;
     data.forEach((item) => this._addItem(item));
   }
 
+  /** Returns a mock item reference for the given id and partition key. */
   item(id: string, pkey: string): MockItem {
     return new MockItem(this, id, pkey);
   }
 
+  /** Returns a mock items collection for querying and upserting. */
   get items(): MockItems {
     return new MockItems(this);
   }
@@ -71,38 +86,7 @@ export class MockAzureContainer {
 
   _query(query: SqlQuerySpec, pkey?: string): unknown[] {
     const items = pkey ? this._getPartition(pkey) : this._getAllItems();
-    const queryStr = query.query;
-
-    if (queryStr === "SELECT * FROM c") {
-      return items;
-    }
-
-    if (queryStr === "SELECT VALUE COUNT(1) FROM c") {
-      return [items.length];
-    }
-
-    const projectedProperties = getSimpleSelectedProperties(queryStr);
-
-    if (projectedProperties) {
-      return items.map((item) =>
-        Object.fromEntries(
-          projectedProperties
-            .filter((property) => Object.hasOwn(item, property))
-            .map((property) => [property, item[property]]),
-        ),
-      );
-    }
-
-    for (const { matcher, func } of this.#queries) {
-      if (
-        (typeof matcher === "string" && matcher === queryStr) ||
-        (matcher instanceof RegExp && matcher.test(queryStr))
-      ) {
-        return func(items, (name) => getParam(query, name));
-      }
-    }
-
-    return items;
+    return processQuery(items, query, this.#filters, this.#projects);
   }
 
   _deleteItem(id: string, pkey: string): Item | undefined {
@@ -220,34 +204,3 @@ const mockDiagnostics = () => {
     },
   };
 };
-
-function getParam<T>(query: SqlQuerySpec, name: string): T | undefined {
-  const { parameters = [] } = query;
-  const param = parameters.find((p) => p.name === name);
-  return param ? (param.value as T) : undefined;
-}
-
-function getSimpleSelectedProperties(query: string): string[] | undefined {
-  // Woo Regex!
-  // Matches "SELECT x from c"
-  // Where x is a comma-separated list of c.property (no spaces)
-  // Where property can be A-Za-z0-9_
-  const re =
-    /^SELECT\s+((?:c\.[A-Za-z0-9_]+)(?:\s*,\s*c\.[A-Za-z0-9_]+)*)\s+FROM\s+c$/i;
-
-  const match = query.match(re);
-  if (!match) return undefined;
-
-  const clause = match[1]?.trim();
-  if (!clause) return undefined;
-
-  const properties: string[] = [];
-  for (const part of clause.split(",")) {
-    // trim and remove "c." prefix
-    const propMatch = part.trim().slice(2);
-    if (!propMatch) return undefined;
-    properties.push(propMatch);
-  }
-
-  return properties;
-}

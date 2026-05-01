@@ -85,7 +85,7 @@ const query = new Query()
   .whereCondition("createdDate", ">", "2023-01-01");
 
 // Execute the query
-const results = await container.query(query.build(100));
+const results = await container.query(query.top(100).build());
 ```
 
 ### Mock Database (Testing)
@@ -106,12 +106,12 @@ const db = await connectDB({
       { id: "2", userId: "u-2", status: "inactive" },
     ],
   },
-  mockDBQueries: {
+  mockDBFilters: {
     users: [
       {
-        matcher: /WHERE c\.status = @status/,
-        func: (items, getParam) => {
-          const status = getParam<string>("@status");
+        matcher: /c\.status = @status/,
+        fn: ({ items, params }) => {
+          const status = params["@status"];
           return items.filter((item) => item.status === status);
         },
       },
@@ -120,7 +120,7 @@ const db = await connectDB({
 });
 ```
 
-The `mockDBQueries` matchers let you intercept query text and return custom results from fixture data.
+The `mockDBFilters` matchers let you intercept WHERE clauses and return custom filtered results from fixture data. Use `mockDBProjects` the same way to intercept SELECT projections.
 
 ### CRUD Operations
 
@@ -142,10 +142,10 @@ await container.upsertItem({
 await container.deleteItem("user123", "partition1");
 
 // Query items
-const activeUsers = await container.query(
-  "SELECT * FROM c WHERE c.status = @status",
-  { parameters: [{ name: "@status", value: "active" }] },
-);
+const activeUsers = await container.query({
+  query: "SELECT * FROM c WHERE c.status = @status",
+  parameters: [{ name: "@status", value: "active" }],
+});
 ```
 
 ### Subscribing to Logging Events

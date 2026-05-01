@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { inspect } from "node:util";
 import { transports } from "winston";
 import { configureGlobal, createCustomLogger, logger } from "../src/index.ts";
 
@@ -60,31 +61,18 @@ describe("Winston/Logger: createCustomLogger", () => {
   });
 });
 
-const formatTestCases: Record<
-  string,
-  { val: unknown; simple?: unknown; collapse?: "Simple" | "Full" | "Both" }
-> = {
+const formatTestCases: Record<string, { val: unknown; collapse?: boolean }> = {
   undefined: { val: undefined },
   number: { val: 42 },
   true: { val: true },
   false: { val: false },
   string: { val: "string" },
-  date: { val: date, simple: date.toISOString() },
-  "simple array": { val: array, collapse: "Both" },
-  "long array": {
-    val: longArray,
-    simple: "[Length = 20]",
-    collapse: "Full",
-  },
-  "deep array": {
-    val: deepArray,
-    simple: Array(5).fill(Array(5).fill("[Length = 5]")),
-  },
+  date: { val: date },
+  "simple array": { val: array, collapse: true },
+  "long array": { val: longArray, collapse: true },
+  "deep array": { val: deepArray },
   "simple object": { val: object },
-  "deep object": {
-    val: deepObject,
-    simple: { level1: { level2: "[Object]" } },
-  },
+  "deep object": { val: deepObject },
 };
 
 const getInitialInfo = (name: string, val: unknown) => ({
@@ -93,18 +81,17 @@ const getInitialInfo = (name: string, val: unknown) => ({
   [Symbol.for("splat")]: val == null ? val : [val],
 });
 
-const getFullInfo = (name: string, val: unknown, simple: unknown) => ({
+const getFullInfo = (name: string, val: unknown) => ({
   ...getInitialInfo(name, val),
   timestamp: "00:00.000",
-  simpleSplat: simple,
-  fullSplat: val,
+  splat: val,
 });
 
 describe("Winston/Logger: format", () => {
-  Object.entries(formatTestCases).forEach(([name, { val, simple = val }]) => {
+  Object.entries(formatTestCases).forEach(([name, { val }]) => {
     test(`format: ${name}`, () => {
       const input = getInitialInfo(name, val);
-      const expected = getFullInfo(name, val, simple);
+      const expected = getFullInfo(name, val);
       const { format } = createCustomLogger(testConfig, true);
       const result = format.transform(input);
 
@@ -130,13 +117,8 @@ describe("Winston/Logger: format", () => {
   });
 });
 
-function getTransportTransform(
-  index: number,
-  name: string,
-  val: unknown,
-  simple: unknown,
-) {
-  const input = getFullInfo(name, val, simple);
+function getTransportTransform(index: number, name: string, val: unknown) {
+  const input = getFullInfo(name, val);
   const logger = createCustomLogger(testConfig, true);
   const out = logger.transports[index];
   const result = out?.format?.transform(input);
@@ -150,40 +132,37 @@ function getTransportTransform(
 }
 
 describe("Winston/Logger: console format", () => {
-  Object.entries(formatTestCases).forEach(
-    ([name, { val, simple = val, collapse }]) => {
-      test(`console format: ${name}`, () => {
-        const result = getTransportTransform(0, name, val, simple);
+  Object.entries(formatTestCases).forEach(([name, { val }]) => {
+    test(`console format: ${name}`, () => {
+      const result = getTransportTransform(0, name, val);
+      // Strip ANSI color codes for comparison
+      // eslint-disable-next-line no-control-regex
+      const stripped = String(result).replace(/\x1B\[[0-9;]*m/g, "");
 
-        let message = "";
-        if (val != null) {
-          const spaceArg =
-            collapse === "Simple" || collapse === "Both" ? -1 : 2;
-          message = `: ${JSON.stringify(simple, null, spaceArg)}`;
-        }
+      let message = "";
+      if (val != null) {
+        message = ": " + inspect(val, { colors: false, maxArrayLength: 10 });
+      }
 
-        assert.equal(result, `00:00.000 [INFO]: ${name}${message}`);
-      });
-    },
-  );
+      assert.equal(stripped, `00:00.000 [INFO]: ${name}${message}`);
+    });
+  });
 });
 
 describe("Winston/Logger: file format", () => {
-  Object.entries(formatTestCases).forEach(
-    ([name, { val, simple = val, collapse }]) => {
-      test(`file format: ${name}`, () => {
-        const result = getTransportTransform(1, name, val, simple);
+  Object.entries(formatTestCases).forEach(([name, { val, collapse }]) => {
+    test(`file format: ${name}`, () => {
+      const result = getTransportTransform(1, name, val);
 
-        let message = "";
-        if (val != null) {
-          const spaceArg = collapse === "Full" || collapse === "Both" ? -1 : 2;
-          message = `: ${JSON.stringify(val, null, spaceArg)}`;
-        }
+      let message = "";
+      if (val != null) {
+        const spaceArg = collapse ? -1 : 2;
+        message = `: ${JSON.stringify(val, null, spaceArg)}`;
+      }
 
-        assert.equal(result, `00:00.000 [INFO]: ${name}${message}`);
-      });
-    },
-  );
+      assert.equal(result, `00:00.000 [INFO]: ${name}${message}`);
+    });
+  });
 });
 
 describe("Winston/Logger: globals", () => {

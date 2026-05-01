@@ -1,5 +1,6 @@
 import type { CreateEmbeddingResponse } from "openai/resources";
 import type {
+  EasyInputMessage,
   Tool as OpenAITool,
   ParsedResponse,
   ResponseInputItem,
@@ -56,13 +57,10 @@ export function createMessages(
 ): ResponseInputItem[] {
   return [
     ...thread,
-    ...context.map(
-      ({ description, content }) =>
-        ({
-          role: "user",
-          content: `Useful context: ${description}\n${JSON.stringify(content)}`,
-        }) as ResponseInputItem,
-    ),
+    ...(context.map(({ description, content }) => ({
+      role: "user",
+      content: `Useful context: ${description}\n${JSON.stringify(content)}`,
+    })) as EasyInputMessage[]),
     { role: "user", content: input },
   ];
 }

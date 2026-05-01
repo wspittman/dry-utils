@@ -1,6 +1,7 @@
 import type { JSONValue, SqlQuerySpec } from "@azure/cosmos";
 
 type Op = "<" | "<=" | "=" | ">" | ">=" | "CONTAINS";
+type Selector = "*" | "ID" | "COUNT";
 
 export type Condition = [field: string, op: Op, value: JSONValue];
 export type Where = [clause: string, parameters?: Record<string, JSONValue>];
@@ -55,27 +56,59 @@ export type Where = [clause: string, parameters?: Record<string, JSONValue>];
  *    - Example: JOIN l IN c.list
  */
 export class Query {
-  private whereClauses: string[] = [];
-  private params: Record<string, JSONValue> = {};
+  #selector: Selector;
+  #top?: number;
+  #whereClauses: string[] = [];
+  #params: Record<string, JSONValue> = {};
+
+  constructor(selector?: Selector, condition?: Condition) {
+    this.#selector = selector ?? "*";
+    if (condition) {
+      this.whereCondition(...condition);
+    }
+  }
+
+  /**
+   * Sets the SELECT clause selector, replacing the default `*`.
+   * @param selector The selector type to use
+   * @returns The Query instance for method chaining
+   */
+  select(selector: Selector): this {
+    this.#selector = selector;
+    return this;
+  }
+
+  /**
+   * Sets the maximum number of results to return, adding a TOP clause to the query.
+   * @param max The maximum number of results to return
+   * @returns The Query instance for method chaining
+   */
+  top(max: number): this {
+    if (max < 1) {
+      throw new Error("Query: Max results must be greater than 0");
+    }
+    this.#top = max;
+    return this;
+  }
 
   /**
    * Adds a WHERE clause to the query.
-   * @param clause - The WHERE clause to add
-   * @param parameters - Optional parameters for the clause
+   * @param clause The WHERE clause to add
+   * @param parameters Optional parameters for the clause
    * @returns The Query instance for method chaining
    */
   where([clause, parameters = {}]: Where): this {
-    this.whereClauses.push(clause);
-    Object.assign(this.params, parameters);
+    this.#whereClauses.push(clause);
+    Object.assign(this.#params, parameters);
     return this;
   }
 
   /**
    * Adds a WHERE condition using field, operator, and value.
    * Automatically handles parameter naming and value formatting.
-   * @param field - Document field path (e.g., "status" or "facets.experience")
-   * @param op - Comparison operator (<, <=, =, >, >=, CONTAINS)
-   * @param value - Value to compare against
+   * @param field Document field path (e.g., "status" or "facets.experience")
+   * @param op Comparison operator (<, <=, =, >, >=, CONTAINS)
+   * @param value Value to compare against
    * @returns The Query instance for method chaining
    */
   whereCondition(...[field, op, value]: Condition): this {
@@ -84,34 +117,43 @@ export class Query {
 
   /**
    * Builds and returns the final SQL query specification.
-   * @param max - Optional maximum number of results to return
    * @returns Object containing the SQL query string and parameter definitions
    */
-  build(max?: number): SqlQuerySpec {
-    if (max != null && max < 1) {
-      throw new Error("Query: Max results must be greater than 0");
-    }
-
-    const where = this.whereClauses.length
-      ? `WHERE ${this.whereClauses.map((x) => `(${x})`).join(" AND ")}`
-      : "";
-    const top = max != null ? ` TOP ${max}` : "";
+  build(): SqlQuerySpec {
+    const top = this.#top != null ? ` TOP ${this.#top}` : "";
 
     return {
-      query: `SELECT${top} * FROM c ${where}`,
-      parameters: Object.entries(this.params).map(([name, value]) => ({
+      query: `SELECT${top} ${this.#getSelectorString()} FROM c${this.#getWhereString()}`,
+      parameters: Object.entries(this.#params).map(([name, value]) => ({
         name,
         value,
       })),
     };
   }
 
+  #getSelectorString(): string {
+    switch (this.#selector) {
+      case "*":
+        return "*";
+      case "ID":
+        return "c.id";
+      case "COUNT":
+        return "VALUE COUNT(1)";
+    }
+  }
+
+  #getWhereString(): string {
+    return this.#whereClauses.length
+      ? ` WHERE ${this.#whereClauses.map((x) => `(${x})`).join(" AND ")}`
+      : "";
+  }
+
   /**
    * Creates a WHERE clause from field, operator, and value.
    * Automatically handles parameter naming and value formatting.
-   * @param field - Document field path
-   * @param op - Comparison operator
-   * @param value - Value to compare against
+   * @param field Document field path
+   * @param op Comparison operator
+   * @param value Value to compare against
    * @returns WHERE clause and its parameters
    */
   static condition(...[field, op, value]: Condition): Where {

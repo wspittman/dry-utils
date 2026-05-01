@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { connectDB } from "../src/dbInit.ts";
-import { Container, subscribeCosmosDBLogging } from "../src/index.ts";
+import {
+  Container,
+  Query,
+  subscribeCosmosDBLogging,
+  type MockQueryDef,
+} from "../src/index.ts";
 
 const FORCE_ERROR = "FORCE_ERROR";
 
@@ -32,17 +37,6 @@ async function getContainer() {
     ...connectOptions,
     mockDBData: {
       mockContainer: structuredClone(mockDB),
-    },
-    mockDBQueries: {
-      mockContainer: [
-        {
-          matcher: "SELECT * FROM c WHERE c.val > @minValue",
-          func: (items, getParam) => {
-            const minValue = getParam<number>("@minValue") ?? 400;
-            return items.filter((item) => item["val"] > minValue);
-          },
-        },
-      ],
     },
   });
   return containerMap["mockContainer"] as Container<Entry>;
@@ -132,8 +126,28 @@ describe("DB: Container", () => {
   );
 
   test(
-    "getCount: success",
+    "getCount: no where clause",
     testSuccess(async (c) => c.getCount(), mockDB.length),
+  );
+
+  test(
+    "query: VALUE COUNT(1) is case-insensitive",
+    testSuccess(
+      async (c) =>
+        c.query<number>({
+          query: "select value count(1) from c",
+          parameters: [],
+        }),
+      [mockDB.length],
+    ),
+  );
+
+  test(
+    "getCount: with condition",
+    testSuccess(
+      async (c) => c.getCount(["val", ">", 400]),
+      mockDB.filter((item) => item.val > 400).length,
+    ),
   );
 
   test(
@@ -191,6 +205,143 @@ describe("DB: Container", () => {
       mockDB.map((item) => ({ id: item.id })),
     ),
   );
+
+  test(
+    "query: WHERE condition from Query builder",
+    testSuccess(
+      async (c) => c.query<Entry>(new Query().whereCondition("val", ">", 456)),
+      mockDB.filter((item) => item.val > 456),
+    ),
+  );
+
+  test(
+    "query: WHERE CONTAINS condition from Query builder",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(new Query().whereCondition("id", "CONTAINS", "1")),
+      mockDB.filter((item) => item.id.includes("1")),
+    ),
+  );
+
+  test(
+    "query: WHERE multiple conditions from Query builder",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(
+          new Query()
+            .whereCondition("pkey", "=", "item")
+            .whereCondition("val", ">", 456),
+        ),
+      mockDB.filter((item) => item.pkey === "item" && item.val > 456),
+    ),
+  );
+
+  test(
+    "query: WHERE multiple conditions with lowercase",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>({
+          query: "select * from c where (c.pkey = @pkey) and (c.val > @val)",
+          parameters: [
+            { name: "@pkey", value: "item" },
+            { name: "@val", value: 456 },
+          ],
+        }),
+      mockDB.filter((item) => item.pkey === "item" && item.val > 456),
+    ),
+  );
+
+  test(
+    "query: TOP without WHERE",
+    testSuccess(
+      async (c) => c.query<Entry>(new Query().top(2)),
+      mockDB.slice(0, 2),
+    ),
+  );
+
+  test(
+    "query: TOP with WHERE from Query builder",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(new Query().top(1).whereCondition("val", ">", 100)),
+      mockDB.filter((item) => item.val > 100).slice(0, 1),
+    ),
+  );
+
+  test(
+    "getCountBy: groups items by field",
+    testSuccess(
+      async (c) => c.getCountBy("pkey"),
+      [{ name: "item", count: mockDB.length }],
+    ),
+  );
+
+  test("getCountBy: includes empty string and non-string scalar groups", async () => {
+    type TagEntry = { id: string; pkey: string; tag: unknown };
+    const tagData: TagEntry[] = [
+      { id: "1", pkey: "a", tag: "x" },
+      { id: "2", pkey: "a", tag: "" },
+      { id: "3", pkey: "b", tag: "" },
+      { id: "4", pkey: "b", tag: 42 },
+      { id: "5", pkey: "c", tag: true },
+      { id: "6", pkey: "c", tag: { test: "value" } },
+    ];
+    const containerMap = await connectDB({
+      ...connectOptions,
+      mockDBData: { mockContainer: tagData },
+    });
+    const c = containerMap["mockContainer"] as Container<TagEntry>;
+    const result = await c.getCountBy("tag");
+    assert.deepEqual(result, [
+      { name: "x", count: 1 },
+      { name: "", count: 2 },
+      { name: 42, count: 1 },
+      { name: true, count: 1 },
+      { name: { test: "value" }, count: 1 },
+    ]);
+    logCounts({ ag: 1 });
+  });
+
+  test("query: custom filter takes precedence over built-in", async () => {
+    // Built-in would return all 3 items for val > 100; custom filter ignores the param and only passes val > 400.
+    const customFilter: MockQueryDef = {
+      matcher: /^\(c\.val > @val\)$/i,
+      fn: ({ items }) => items.filter((item) => (item["val"] as number) > 400),
+    };
+    const containerMap = await connectDB({
+      ...connectOptions,
+      mockDBData: { mockContainer: structuredClone(mockDB) },
+      mockDBFilters: { mockContainer: [customFilter] },
+    });
+    const c = containerMap["mockContainer"] as Container<Entry>;
+    const result = await c.query<Entry>({
+      query: "SELECT * FROM c WHERE (c.val > @val)",
+      parameters: [{ name: "@val", value: 100 }],
+    });
+    assert.deepEqual(
+      result,
+      mockDB.filter((item) => item.val > 400),
+    );
+  });
+
+  test("query: custom project takes precedence over built-in", async () => {
+    // Built-in '*' returns all fields; custom project returns only id.
+    const customProject: MockQueryDef = {
+      matcher: "*",
+      fn: ({ items }) => items.map((item) => ({ id: item["id"] })),
+    };
+    const containerMap = await connectDB({
+      ...connectOptions,
+      mockDBData: { mockContainer: structuredClone(mockDB) },
+      mockDBProjects: { mockContainer: [customProject] },
+    });
+    const c = containerMap["mockContainer"] as Container<Entry>;
+    const result = await c.query<Pick<Entry, "id">>("SELECT * FROM c");
+    assert.deepEqual(
+      result,
+      mockDB.map((item) => ({ id: item.id })),
+    );
+  });
 
   test(
     "query: error",

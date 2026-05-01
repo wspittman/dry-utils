@@ -9,6 +9,14 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 import { diag } from "./diagnostics.ts";
+import { Query, type Condition } from "./Query.ts";
+
+interface CountBy {
+  name: unknown;
+  count: number;
+}
+
+const validProp = new RegExp(/^[A-Za-z0-9_]+$/);
 
 /**
  * Generic container class for database operations
@@ -69,19 +77,35 @@ export class Container<Item extends ItemDefinition> {
    * @returns Array of item IDs in the partition
    */
   async getIdsByPartitionKey(partitionKey: string): Promise<string[]> {
-    const result = await this.query<{ id: string }>("SELECT c.id FROM c", {
+    const result = await this.query<{ id: string }>(new Query("ID"), {
       partitionKey,
     });
     return result.map((entry) => entry.id);
   }
 
   /**
-   * Gets the total count of items in the container
-   * @returns The total number of items
+   * Gets the count of items in the container
+   * @param condition Optional condition to filter the items
+   * @returns The number of items matching the condition
    */
-  async getCount(): Promise<number | undefined> {
-    const response = await this.query<number>("SELECT VALUE COUNT(1) FROM c");
+  async getCount(condition?: Condition): Promise<number | undefined> {
+    const response = await this.query<number>(new Query("COUNT", condition));
     return response[0];
+  }
+
+  /**
+   * Gets the count of items bucketed by the distinct values of a property
+   * @param prop The property name to group by, 'A-Za-z0-9_' only
+   * @returns Array of `{ name, count }` pairs, one per distinct value
+   */
+  async getCountBy(prop: keyof Item & string): Promise<CountBy[]> {
+    if (!validProp.test(prop)) {
+      throw new Error(`Invalid property "${prop}". Only 'A-Za-z0-9_' allowed.`);
+    }
+
+    return this.query<CountBy>(
+      `SELECT c.${prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.${prop}) GROUP BY c.${prop}`,
+    );
   }
 
   /**
@@ -91,9 +115,13 @@ export class Container<Item extends ItemDefinition> {
    * @returns Query results
    */
   async query<T>(
-    query: string | SqlQuerySpec,
+    query: string | SqlQuerySpec | Query,
     options?: FeedOptions,
   ): Promise<T[]> {
+    if (query instanceof Query) {
+      query = query.build();
+    }
+
     try {
       const response = await this.container.items
         .query<T>(query, options)

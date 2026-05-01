@@ -49,6 +49,9 @@
     // Record treats accessed values as potentially undefined
     "noUncheckedIndexedAccess": true,
 
+    // Type declarations
+    "types": ["node"],
+
     // Interoperability
     "esModuleInterop": true,
     "resolveJsonModule": true,
