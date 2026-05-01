@@ -1,6 +1,6 @@
 {
   "name": "dry-utils-logger",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Personal, hyper-specific Winston wrapper logger",
   "type": "module",
   "sideEffects": false,
