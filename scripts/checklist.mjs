@@ -28,8 +28,8 @@ if (!!isFull) {
 npmCommand("run", "lint");
 npmCommand("run", "format");
 npmCommand("run", "test");
+npmCommand("run", "build");
 
 if (!!isFull) {
-  npmCommand("run", "build");
   npmCommand("run", "e2e");
 }
