@@ -302,6 +302,39 @@ describe("DB: Container", () => {
     logCounts({ ag: 1 });
   });
 
+  test("getCountBy: groups items by nested property path", async () => {
+    type LocationEntry = {
+      id: string;
+      pkey: string;
+      location: { code: string };
+    };
+    const locationData: LocationEntry[] = [
+      { id: "1", pkey: "a", location: { code: "US" } },
+      { id: "2", pkey: "a", location: { code: "US" } },
+      { id: "3", pkey: "b", location: { code: "CA" } },
+    ];
+    const containerMap = await connectDB({
+      ...connectOptions,
+      mockDBData: { mockContainer: locationData },
+    });
+    const c = containerMap["mockContainer"] as Container<LocationEntry>;
+    const result = await c.getCountBy("location.code");
+    assert.deepEqual(result, [
+      { name: "US", count: 2 },
+      { name: "CA", count: 1 },
+    ]);
+    logCounts({ ag: 1 });
+  });
+
+  test("getCountBy: rejects invalid property paths", async () => {
+    const c = await getContainer();
+    for (const invalid of [".a", "a.", "a..b", "a b", "a/b"]) {
+      await assert.rejects(c.getCountBy(invalid), {
+        message: `Invalid property "${invalid}". Only 'A-Za-z0-9_' allowed.`,
+      });
+    }
+  });
+
   test("query: custom filter takes precedence over built-in", async () => {
     // Built-in would return all 3 items for val > 100; custom filter ignores the param and only passes val > 400.
     const customFilter: MockQueryDef = {

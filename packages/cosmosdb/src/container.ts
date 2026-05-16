@@ -16,7 +16,7 @@ interface CountBy {
   count: number;
 }
 
-const validProp = new RegExp(/^[A-Za-z0-9_]+$/);
+const validProp = new RegExp(/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$/);
 
 /**
  * Generic container class for database operations
@@ -95,10 +95,10 @@ export class Container<Item extends ItemDefinition> {
 
   /**
    * Gets the count of items bucketed by the distinct values of a property
-   * @param prop The property name to group by, 'A-Za-z0-9_' only
+   * @param prop The property path to group by (e.g. `"status"` or `"location.regionCode"`). Only `A-Za-z0-9_` identifiers separated by `.` are allowed.
    * @returns Array of `{ name, count }` pairs, one per distinct value
    */
-  async getCountBy(prop: keyof Item & string): Promise<CountBy[]> {
+  async getCountBy(prop: string): Promise<CountBy[]> {
     if (!validProp.test(prop)) {
       throw new Error(`Invalid property "${prop}". Only 'A-Za-z0-9_' allowed.`);
     }
