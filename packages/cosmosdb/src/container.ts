@@ -86,11 +86,11 @@ export class Container<Item extends ItemDefinition> {
   /**
    * Gets the count of items in the container
    * @param condition Optional condition to filter the items
-   * @returns The number of items matching the condition
+   * @returns The count of items matching the condition, or 0 if none
    */
-  async getCount(condition?: Condition): Promise<number | undefined> {
+  async getCount(condition?: Condition): Promise<number> {
     const response = await this.query<number>(new Query("COUNT", condition));
-    return response[0];
+    return response[0] ?? 0;
   }
 
   /**
