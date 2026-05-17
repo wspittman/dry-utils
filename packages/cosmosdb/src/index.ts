@@ -6,5 +6,6 @@ export {
   type MockDBQueryDefs,
 } from "./dbInit.ts";
 export { subscribeCosmosDBLogging } from "./diagnostics.ts";
+export { loadMockDBData, type MockDBDataOptions } from "./mockDbData.ts";
 export type { MockQueryDef } from "./mockQueryProcessor.ts";
 export { Query } from "./Query.ts";
