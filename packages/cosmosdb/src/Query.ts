@@ -1,6 +1,6 @@
 import type { JSONValue, SqlQuerySpec } from "@azure/cosmos";
 
-type Op = "<" | "<=" | "=" | ">" | ">=" | "CONTAINS";
+type Op = "<" | "<=" | "=" | ">" | ">=" | "CONTAINS" | "IN";
 type Selector = "*" | "ID" | "COUNT";
 
 export type Condition = [field: string, op: Op, value: JSONValue];
@@ -59,6 +59,7 @@ export class Query {
   #selector: Selector;
   #top?: number;
   #whereClauses: string[] = [];
+  #orderClauses: string[] = [];
   #params: Record<string, JSONValue> = {};
 
   constructor(selector?: Selector, condition?: Condition) {
@@ -92,6 +93,17 @@ export class Query {
   }
 
   /**
+   * Adds an ORDER BY clause to the query.
+   * @param field Document field path (e.g., `"_ts"` or `"facets.score"`)
+   * @param direction Sort direction, defaults to `"ASC"`
+   * @returns The Query instance for method chaining
+   */
+  orderBy(field: string, direction: "ASC" | "DESC" = "ASC"): this {
+    this.#orderClauses.push(`c.${field} ${direction}`);
+    return this;
+  }
+
+  /**
    * Adds a WHERE clause to the query.
    * @param clause The WHERE clause to add
    * @param parameters Optional parameters for the clause
@@ -121,9 +133,12 @@ export class Query {
    */
   build(): SqlQuerySpec {
     const top = this.#top != null ? ` TOP ${this.#top}` : "";
+    const order = this.#orderClauses.length
+      ? ` ORDER BY ${this.#orderClauses.join(", ")}`
+      : "";
 
     return {
-      query: `SELECT${top} ${this.#getSelectorString()} FROM c${this.#getWhereString()}`,
+      query: `SELECT${top} ${this.#getSelectorString()} FROM c${this.#getWhereString()}${order}`,
       parameters: Object.entries(this.#params).map(([name, value]) => ({
         name,
         value,
@@ -158,6 +173,15 @@ export class Query {
    */
   static condition(...[field, op, value]: Condition): Where {
     const [prop, param] = toPair(field);
+
+    if (op === "IN") {
+      if (!Array.isArray(value) || !value.length) {
+        throw new Error("IN operator requires a non-empty array of values");
+      }
+      const pairs = value.map((v, i) => [`${param}_${i}`, v] as const);
+      const paramList = pairs.map(([p]) => p).join(", ");
+      return [`${prop} IN (${paramList})`, Object.fromEntries(pairs)];
+    }
 
     if (op === "CONTAINS") {
       return [`CONTAINS(${prop}, ${param}, true)`, { [param]: value }];

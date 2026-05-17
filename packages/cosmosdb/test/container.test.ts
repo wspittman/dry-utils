@@ -131,6 +131,16 @@ describe("DB: Container", () => {
   );
 
   test(
+    "getCount: with partition key",
+    testSuccess(async (c) => c.getCount(undefined, "item"), mockDB.length),
+  );
+
+  test(
+    "getCount: with partition key (no match)",
+    testSuccess(async (c) => c.getCount(undefined, "nonexistent"), 0),
+  );
+
+  test(
     "query: VALUE COUNT(1) is case-insensitive",
     testSuccess(
       async (c) =>
@@ -211,6 +221,31 @@ describe("DB: Container", () => {
     testSuccess(
       async (c) => c.query<Entry>(new Query().whereCondition("val", ">", 456)),
       mockDB.filter((item) => item.val > 456),
+    ),
+  );
+
+  test(
+    "query: IN operator filters correctly",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(new Query().whereCondition("id", "IN", ["1", "3"])),
+      mockDB.filter((item) => item.id === "1" || item.id === "3"),
+    ),
+  );
+
+  test(
+    "query: orderBy ASC",
+    testSuccess(
+      async (c) => c.query<Entry>(new Query().orderBy("val")),
+      [...mockDB].sort((a, b) => a.val - b.val),
+    ),
+  );
+
+  test(
+    "query: orderBy DESC",
+    testSuccess(
+      async (c) => c.query<Entry>(new Query().orderBy("val", "DESC")),
+      [...mockDB].sort((a, b) => b.val - a.val),
     ),
   );
 
@@ -386,11 +421,22 @@ describe("DB: Container", () => {
   test(
     "upsertItem: success",
     testSuccess(
-      async (c) =>
-        c.upsertItem({ id: "1", pkey: "item", val: 999, _ts: 1234567899 }),
-      undefined,
+      async (c) => {
+        const item = { id: "1", pkey: "item", val: 999, _ts: 1234567899 };
+        return c.upsertItem(item);
+      },
+      { id: "1", pkey: "item", val: 999, _ts: 1234567899 },
     ),
   );
+
+  test("upsertItem: returns the upserted item", async () => {
+    const c = await getContainer();
+    const item = { id: "new", pkey: "item", val: 42, _ts: 0 };
+    const result = await c.upsertItem(item);
+    assert.deepEqual(result, item);
+    const fetched = await c.getItem("new", "item");
+    assert.deepEqual(fetched, item);
+  });
 
   test(
     "upsertItem: error",

@@ -105,6 +105,59 @@ describe("DB: Query", () => {
     assert.deepEqual(result.parameters, [{ name: "@status", value: "active" }]);
   });
 
+  test("orderBy: ASC by default", () => {
+    const result = new Query().orderBy("_ts").build();
+    assert.equal(result.query, "SELECT * FROM c ORDER BY c._ts ASC");
+    assert.deepEqual(result.parameters, []);
+  });
+
+  test("orderBy: DESC", () => {
+    const result = new Query().orderBy("_ts", "DESC").build();
+    assert.equal(result.query, "SELECT * FROM c ORDER BY c._ts DESC");
+    assert.deepEqual(result.parameters, []);
+  });
+
+  test("orderBy: multiple fields", () => {
+    const result = new Query().orderBy("status").orderBy("_ts", "DESC").build();
+    assert.equal(
+      result.query,
+      "SELECT * FROM c ORDER BY c.status ASC, c._ts DESC",
+    );
+    assert.deepEqual(result.parameters, []);
+  });
+
+  test("orderBy: with WHERE clause", () => {
+    const result = new Query()
+      .whereCondition("status", "=", "active")
+      .orderBy("_ts", "DESC")
+      .build();
+    assert.equal(
+      result.query,
+      "SELECT * FROM c WHERE (c.status = @status) ORDER BY c._ts DESC",
+    );
+    assert.deepEqual(result.parameters, [{ name: "@status", value: "active" }]);
+  });
+
+  test("whereCondition: IN operator", () => {
+    const result = new Query()
+      .whereCondition("status", "IN", ["active", "pending"])
+      .build();
+    assert.equal(
+      result.query,
+      "SELECT * FROM c WHERE (c.status IN (@status_0, @status_1))",
+    );
+    assert.deepEqual(result.parameters, [
+      { name: "@status_0", value: "active" },
+      { name: "@status_1", value: "pending" },
+    ]);
+  });
+
+  test("condition: IN generates correct clause and params", () => {
+    const [clause, params] = Query.condition("id", "IN", ["a", "b", "c"]);
+    assert.equal(clause, "c.id IN (@id_0, @id_1, @id_2)");
+    assert.deepEqual(params, { "@id_0": "a", "@id_1": "b", "@id_2": "c" });
+  });
+
   test("build: stacked clauses", () => {
     const result = new Query()
       .whereCondition("str", "=", "text")

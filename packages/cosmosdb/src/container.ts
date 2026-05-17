@@ -86,10 +86,17 @@ export class Container<Item extends ItemDefinition> {
   /**
    * Gets the count of items in the container
    * @param condition Optional condition to filter the items
+   * @param partitionKey Optional partition key to scope the count to a single partition
    * @returns The count of items matching the condition, or 0 if none
    */
-  async getCount(condition?: Condition): Promise<number> {
-    const response = await this.query<number>(new Query("COUNT", condition));
+  async getCount(
+    condition?: Condition,
+    partitionKey?: string,
+  ): Promise<number> {
+    const response = await this.query<number>(
+      new Query("COUNT", condition),
+      partitionKey ? { partitionKey } : undefined,
+    );
     return response[0] ?? 0;
   }
 
@@ -137,11 +144,13 @@ export class Container<Item extends ItemDefinition> {
   /**
    * Creates or updates an item in the container
    * @param item The item to upsert
+   * @returns The item as stored, including system properties (`_ts`, `_etag`, etc.)
    */
-  async upsertItem(item: Item): Promise<void> {
+  async upsertItem(item: Item): Promise<Item & Resource> {
     try {
       const response = await this.container.items.upsert(item);
       logDBAction("UPSERT", this.name, response);
+      return response.resource as Item & Resource;
     } catch (error) {
       diag.error("UpsertItem", error);
       throw error;

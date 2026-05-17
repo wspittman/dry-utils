@@ -23,6 +23,7 @@ export interface Model {
 }
 
 const id = "test-item-1";
+const id2 = "test-item-2";
 const dbActionLog = { agg: 1 };
 
 describe("CosmosDB E2E Flow", () => {
@@ -82,10 +83,15 @@ describe("CosmosDB E2E Flow", () => {
   test("upsertItem", async () => {
     assert.ok(container, "Container should be defined");
 
-    const testItem: Model = { id };
-    await container.upsertItem(testItem);
+    const result1 = await container.upsertItem({ id });
+    assert.equal(result1.id, id, "Returned item should have correct ID");
+    assert.ok(result1._ts, "Returned item should have _ts system property");
 
-    logCounts(dbActionLog, "upsertItem");
+    const result2 = await container.upsertItem({ id: id2 });
+    assert.equal(result2.id, id2, "Returned item should have correct ID");
+    assert.ok(result2._ts, "Returned item should have _ts system property");
+
+    logCounts({ agg: 2 }, "upsertItem");
   });
 
   test("getItem", async () => {
@@ -134,9 +140,11 @@ describe("CosmosDB E2E Flow", () => {
     assert.ok(container, "Container should be defined");
 
     const count = await container.getCount();
-
-    assert.equal(count, 1, "Should have 1 item in the container");
+    assert.equal(count, 2, "Should have 2 items in the container");
     logCounts(dbActionLog, "getCount");
+
+    const partitionCount = await container.getCount(undefined, id);
+    assert.equal(partitionCount, 1, "Should have 1 item in the partition");
   });
 
   test("query", async () => {
@@ -151,11 +159,42 @@ describe("CosmosDB E2E Flow", () => {
     logCounts(dbActionLog, "query");
   });
 
+  test("query: IN operator", async () => {
+    assert.ok(container, "Container should be defined");
+
+    const results = await container.query<Model>(
+      new Query().whereCondition("id", "IN", [id, id2]),
+    );
+
+    assert.equal(results.length, 2, "IN query should find both items");
+    const ids = results.map((r) => r.id).sort();
+    assert.deepEqual(ids, [id, id2], "IN query should return correct IDs");
+    logCounts(dbActionLog, "query: IN");
+  });
+
+  test("query: orderBy", async () => {
+    assert.ok(container, "Container should be defined");
+
+    const asc = await container.query<Model>(new Query().orderBy("id"));
+    assert.equal(asc.length, 2, "orderBy ASC should return all items");
+    assert.equal(asc[0]?.id, id, "First item ASC should be test-item-1");
+    assert.equal(asc[1]?.id, id2, "Second item ASC should be test-item-2");
+    logCounts(dbActionLog, "query: orderBy ASC");
+
+    const desc = await container.query<Model>(
+      new Query().orderBy("id", "DESC"),
+    );
+    assert.equal(desc.length, 2, "orderBy DESC should return all items");
+    assert.equal(desc[0]?.id, id2, "First item DESC should be test-item-2");
+    assert.equal(desc[1]?.id, id, "Second item DESC should be test-item-1");
+  });
+
   test("deleteItem", async () => {
     assert.ok(container, "Container should be defined");
 
     await container.deleteItem(id, id);
+    await container.deleteItem(id2, id2);
 
-    logCounts(dbActionLog, "deleteItem");
+    logCounts({ agg: 2 }, "deleteItem");
   });
 });
