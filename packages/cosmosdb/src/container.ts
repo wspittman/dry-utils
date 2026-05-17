@@ -18,6 +18,34 @@ interface CountBy {
 
 const validProp = new RegExp(/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$/);
 
+/** Maximum byte length for a Cosmos DB item ID. */
+const MAX_ID_BYTES = 1023;
+
+/**
+ * Validates that a Cosmos DB item ID is safe to use.
+ * Throws if the ID is empty, contains forbidden characters (`/`, `\`, `#`),
+ * or exceeds 1,023 bytes.
+ *
+ * Forbidden characters: `/` and `\` are rejected by the service; `#` is
+ * treated as a URL fragment delimiter by HTTP infrastructure and must not
+ * appear in IDs used in REST paths.
+ */
+function validateItemId(id: string): void {
+  if (!id) {
+    throw new Error("Item ID must not be empty.");
+  }
+  if (/[/\\#]/.test(id)) {
+    throw new Error(
+      `Item ID contains an invalid character ('/', '\\', or '#'). These are not allowed in Cosmos DB item IDs.`,
+    );
+  }
+  if (Buffer.byteLength(id, "utf8") > MAX_ID_BYTES) {
+    throw new Error(
+      `Item ID exceeds the maximum allowed length of ${MAX_ID_BYTES} bytes.`,
+    );
+  }
+}
+
 /**
  * Generic container class for database operations
  * @template Item The type of items stored in the container
@@ -41,6 +69,7 @@ export class Container<Item extends ItemDefinition> {
     id: string,
     partitionKey: string,
   ): Promise<(Item & Resource) | undefined> {
+    validateItemId(id);
     try {
       const response = await this.container.item(id, partitionKey).read<Item>();
       logDBAction("READ", this.name, response, partitionKey);
@@ -147,6 +176,9 @@ export class Container<Item extends ItemDefinition> {
    * @returns The item as stored, including system properties (`_ts`, `_etag`, etc.)
    */
   async upsertItem(item: Item): Promise<Item & Resource> {
+    if (item.id !== undefined) {
+      validateItemId(item.id);
+    }
     try {
       const response = await this.container.items.upsert(item);
       logDBAction("UPSERT", this.name, response);
@@ -163,6 +195,7 @@ export class Container<Item extends ItemDefinition> {
    * @param partitionKey The partition key for the item
    */
   async deleteItem(id: string, partitionKey: string): Promise<void> {
+    validateItemId(id);
     try {
       const response = await this.container.item(id, partitionKey).delete();
       logDBAction("DELETE", this.name, response, partitionKey);

@@ -454,4 +454,44 @@ describe("DB: Container", () => {
     "deleteItem: error",
     testError(async (c) => c.deleteItem("1", FORCE_ERROR)),
   );
+
+  test("getItem: rejects empty ID", async () => {
+    const c = await getContainer();
+    await assert.rejects(c.getItem("", "item"), {
+      message: "Item ID must not be empty.",
+    });
+  });
+
+  test("getItem: rejects IDs with forbidden characters", async () => {
+    const c = await getContainer();
+    for (const id of ["a/b", "a\\b", "a#b"]) {
+      await assert.rejects(c.getItem(id, "item"), {
+        message: `Item ID contains an invalid character ('/', '\\', or '#'). These are not allowed in Cosmos DB item IDs.`,
+      });
+    }
+  });
+
+  test("getItem: rejects IDs exceeding 1023 bytes", async () => {
+    const c = await getContainer();
+    await assert.rejects(c.getItem("a".repeat(1024), "item"), {
+      message: "Item ID exceeds the maximum allowed length of 1023 bytes.",
+    });
+  });
+
+  test("upsertItem: rejects item with invalid ID", async () => {
+    const c = await getContainer();
+    await assert.rejects(
+      c.upsertItem({ id: "a/b", pkey: "item", val: 1, _ts: 0 }),
+      {
+        message: `Item ID contains an invalid character ('/', '\\', or '#'). These are not allowed in Cosmos DB item IDs.`,
+      },
+    );
+  });
+
+  test("deleteItem: rejects invalid ID", async () => {
+    const c = await getContainer();
+    await assert.rejects(c.deleteItem("a/b", "item"), {
+      message: `Item ID contains an invalid character ('/', '\\', or '#'). These are not allowed in Cosmos DB item IDs.`,
+    });
+  });
 });
