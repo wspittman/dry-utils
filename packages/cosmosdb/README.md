@@ -78,11 +78,12 @@ Build SQL queries with best practices for performance:
 ```typescript
 import { Query } from "dry-utils-cosmosdb";
 
-// Create a query to find active premium users
+// Create a query to find active/pending premium users, sorted by most recent first
 const query = new Query()
-  .whereCondition("status", "=", "active")
+  .whereCondition("status", "IN", ["active", "pending"])
   .whereCondition("userType", "=", "premium")
-  .whereCondition("createdDate", ">", "2023-01-01");
+  .whereCondition("createdDate", ">", "2023-01-01")
+  .orderBy("_ts", "DESC");
 
 // Execute the query
 const results = await container.query(query.top(100).build());
@@ -122,6 +123,27 @@ const db = await connectDB({
 
 The `mockDBFilters` matchers let you intercept WHERE clauses and return custom filtered results from fixture data. Use `mockDBProjects` the same way to intercept SELECT projections.
 
+### Loading Mock Data from JSON
+
+Use `loadMockDBData` to load mock data from an inline JSON string or a file path, rather than hard-coding it inline:
+
+```typescript
+import { connectDB, loadMockDBData } from "dry-utils-cosmosdb";
+
+const db = await connectDB({
+  endpoint: "unused-for-mock",
+  key: "unused-for-mock",
+  name: "unused-for-mock",
+  containers: [{ name: "users", partitionKey: "userId" }],
+  mockDBData: loadMockDBData({
+    mockDataPath: "/path/to/fixtures.json", // JSON file keyed by container name
+    mockDataJson: '{"users":[{"id":"override","userId":"u-0"}]}', // inline overrides
+  }),
+});
+```
+
+When both sources are supplied, inline JSON takes precedence for any duplicate container keys.
+
 ### CRUD Operations
 
 Perform common database operations:
@@ -130,13 +152,14 @@ Perform common database operations:
 // Get an item by ID
 const user = await container.getItem("user123", "partition1");
 
-// Create or update an item
-await container.upsertItem({
+// Create or update an item - returns the item as stored, including system properties
+const stored = await container.upsertItem({
   id: "user123",
   userId: "partition1",
   name: "John Doe",
   email: "john@example.com",
 });
+console.log(stored._ts); // timestamp assigned by CosmosDB
 
 // Delete an item
 await container.deleteItem("user123", "partition1");
@@ -146,7 +169,17 @@ const activeUsers = await container.query({
   query: "SELECT * FROM c WHERE c.status = @status",
   parameters: [{ name: "@status", value: "active" }],
 });
+
+// Count items, optionally scoped to a partition
+const total = await container.getCount();
+const partitionCount = await container.getCount(undefined, "partition1");
+
+// Count items bucketed by a property value (supports dot-path notation)
+const byStatus = await container.getCountBy("status");
+const byRegion = await container.getCountBy("location.regionCode");
 ```
+
+Item IDs are validated before use. IDs that are empty, contain `/`, `\`, or `#`, or exceed 1,023 bytes will throw immediately rather than failing at the service layer.
 
 ### Subscribing to Logging Events
 
