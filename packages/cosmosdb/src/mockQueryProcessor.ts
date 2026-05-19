@@ -4,9 +4,9 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 
-// Split into SELECT, FROM, WHERE components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and Query.build()).
+// Split into SELECT, FROM, WHERE, ORDER BY components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and Query.build()).
 const querySplitter = new RegExp(
-  /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i,
+  /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+ORDER\s+BY\s+(?<orderby>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i,
 );
 const cond_is_defined = new RegExp(
   /^IS_DEFINED\(c\.(?<field>[A-Za-z0-9_.]+)\)$/i,
@@ -16,6 +16,9 @@ const cond_contains = new RegExp(
 );
 const cond_compare = new RegExp(
   /^c\.(?<field>[A-Za-z0-9_.]+)\s*(?<op><=|>=|<|>|=)\s*(?<param>@[A-Za-z0-9_]+)$/i,
+);
+const cond_in = new RegExp(
+  /^c\.(?<field>[A-Za-z0-9_.]+)\s+IN\s+\((?<params>(?:@[A-Za-z0-9_]+)(?:\s*,\s*@[A-Za-z0-9_]+)*)\)$/i,
 );
 
 /**
@@ -114,7 +117,7 @@ export function processQuery(
   projects: MockQueryDef[] = [],
 ): unknown[] {
   const match = query.match(querySplitter)?.groups;
-  const { select, top, where } = match ?? {};
+  const { select, top, where, orderby } = match ?? {};
 
   if (!match || !select) {
     throw new Error(`Query did not match supported mocking pattern: ${query}`);
@@ -127,6 +130,10 @@ export function processQuery(
     ...filters,
     ...builtInFilters,
   ]) as Item[];
+
+  if (orderby) {
+    items = sortByOrderBy(items, orderby);
+  }
 
   const result = invokeMatchingDef({ items, params }, select, [
     ...projects,
@@ -157,6 +164,38 @@ function invokeMatchingDef(
   }
 
   return args.items;
+}
+
+/**
+ * Sorts items by a CosmosDB ORDER BY clause string.
+ * Parses `c.field [ASC|DESC], c.other [ASC|DESC]` and applies a stable multi-key sort.
+ */
+function sortByOrderBy(items: Item[], orderby: string): Item[] {
+  const parts = orderby.split(",").map((s) => {
+    const match = s
+      .trim()
+      .match(/^c\.(?<field>[A-Za-z0-9_.]+)(?:\s+(?<dir>ASC|DESC))?$/i);
+    return match
+      ? {
+          field: match.groups!["field"]!,
+          desc: match.groups!["dir"]?.toUpperCase() === "DESC",
+        }
+      : null;
+  });
+
+  return [...items].sort((a, b) => {
+    for (const part of parts) {
+      if (!part) continue;
+      const av = getFieldValue(a, part.field);
+      const bv = getFieldValue(b, part.field);
+      if (av === bv) continue;
+      if (av == null) return part.desc ? -1 : 1;
+      if (bv == null) return part.desc ? 1 : -1;
+      const cmp = av < bv ? -1 : 1;
+      return part.desc ? -cmp : cmp;
+    }
+    return 0;
+  });
 }
 
 /**
@@ -218,6 +257,14 @@ function evaluateCondition(
       case ">=":
         return itemValue >= paramValue;
     }
+  }
+
+  const inMatch = condition.match(cond_in);
+  if (inMatch) {
+    const { field, params: paramsStr } = inMatch.groups!;
+    const itemValue = getFieldValue(item, field!);
+    const values = paramsStr!.split(",").map((p) => params[p.trim()]);
+    return values.includes(itemValue as JSONValue);
   }
 
   throw new Error(`Unsupported WHERE condition in mock: ${condition}`);

@@ -10,13 +10,41 @@ import type {
 } from "@azure/cosmos";
 import { diag } from "./diagnostics.ts";
 import { Query, type Condition } from "./Query.ts";
+import { validatePropPath } from "./utils.ts";
 
 interface CountBy {
   name: unknown;
   count: number;
 }
 
-const validProp = new RegExp(/^[A-Za-z0-9_]+$/);
+/** Maximum byte length for a Cosmos DB item ID. */
+const MAX_ID_BYTES = 1023;
+
+/**
+ * Validates that a Cosmos DB item ID is safe to use.
+ * Throws if the ID is empty, contains forbidden characters (`/`, `\`, `#`, `?`, `%`),
+ * or exceeds 1,023 bytes.
+ *
+ * Forbidden characters: `/` and `\` are rejected by the service; `#` is
+ * treated as a URL fragment delimiter by HTTP infrastructure; `?` introduces
+ * query strings; `%` is used for percent-encoding. None of these are allowed
+ * in IDs used in REST paths.
+ */
+function validateItemId(id: string): void {
+  if (!id) {
+    throw new Error("Item ID must not be empty.");
+  }
+  if (/[/\\#?%]/.test(id)) {
+    throw new Error(
+      `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
+    );
+  }
+  if (Buffer.byteLength(id, "utf8") > MAX_ID_BYTES) {
+    throw new Error(
+      `Item ID exceeds the maximum allowed length of ${MAX_ID_BYTES} bytes.`,
+    );
+  }
+}
 
 /**
  * Generic container class for database operations
@@ -41,6 +69,7 @@ export class Container<Item extends ItemDefinition> {
     id: string,
     partitionKey: string,
   ): Promise<(Item & Resource) | undefined> {
+    validateItemId(id);
     try {
       const response = await this.container.item(id, partitionKey).read<Item>();
       logDBAction("READ", this.name, response, partitionKey);
@@ -86,22 +115,27 @@ export class Container<Item extends ItemDefinition> {
   /**
    * Gets the count of items in the container
    * @param condition Optional condition to filter the items
-   * @returns The number of items matching the condition
+   * @param partitionKey Optional partition key to scope the count to a single partition
+   * @returns The count of items matching the condition, or 0 if none
    */
-  async getCount(condition?: Condition): Promise<number | undefined> {
-    const response = await this.query<number>(new Query("COUNT", condition));
-    return response[0];
+  async getCount(
+    condition?: Condition,
+    partitionKey?: string,
+  ): Promise<number> {
+    const response = await this.query<number>(
+      new Query("COUNT", condition),
+      partitionKey ? { partitionKey } : undefined,
+    );
+    return response[0] ?? 0;
   }
 
   /**
    * Gets the count of items bucketed by the distinct values of a property
-   * @param prop The property name to group by, 'A-Za-z0-9_' only
+   * @param prop The property path to group by (e.g. `"status"` or `"location.regionCode"`). Only `A-Za-z0-9_` identifiers separated by `.` are allowed.
    * @returns Array of `{ name, count }` pairs, one per distinct value
    */
-  async getCountBy(prop: keyof Item & string): Promise<CountBy[]> {
-    if (!validProp.test(prop)) {
-      throw new Error(`Invalid property "${prop}". Only 'A-Za-z0-9_' allowed.`);
-    }
+  async getCountBy(prop: string): Promise<CountBy[]> {
+    validatePropPath(prop);
 
     return this.query<CountBy>(
       `SELECT c.${prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.${prop}) GROUP BY c.${prop}`,
@@ -137,11 +171,16 @@ export class Container<Item extends ItemDefinition> {
   /**
    * Creates or updates an item in the container
    * @param item The item to upsert
+   * @returns The item as stored, including system properties (`_ts`, `_etag`, etc.)
    */
-  async upsertItem(item: Item): Promise<void> {
+  async upsertItem(item: Item): Promise<Item & Resource> {
+    if (item.id !== undefined) {
+      validateItemId(item.id);
+    }
     try {
       const response = await this.container.items.upsert(item);
       logDBAction("UPSERT", this.name, response);
+      return response.resource as Item & Resource;
     } catch (error) {
       diag.error("UpsertItem", error);
       throw error;
@@ -154,6 +193,7 @@ export class Container<Item extends ItemDefinition> {
    * @param partitionKey The partition key for the item
    */
   async deleteItem(id: string, partitionKey: string): Promise<void> {
+    validateItemId(id);
     try {
       const response = await this.container.item(id, partitionKey).delete();
       logDBAction("DELETE", this.name, response, partitionKey);

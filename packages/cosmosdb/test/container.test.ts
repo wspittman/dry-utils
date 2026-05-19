@@ -131,6 +131,16 @@ describe("DB: Container", () => {
   );
 
   test(
+    "getCount: with partition key",
+    testSuccess(async (c) => c.getCount(undefined, "item"), mockDB.length),
+  );
+
+  test(
+    "getCount: with partition key (no match)",
+    testSuccess(async (c) => c.getCount(undefined, "nonexistent"), 0),
+  );
+
+  test(
     "query: VALUE COUNT(1) is case-insensitive",
     testSuccess(
       async (c) =>
@@ -211,6 +221,31 @@ describe("DB: Container", () => {
     testSuccess(
       async (c) => c.query<Entry>(new Query().whereCondition("val", ">", 456)),
       mockDB.filter((item) => item.val > 456),
+    ),
+  );
+
+  test(
+    "query: IN operator filters correctly",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(new Query().whereCondition("id", "IN", ["1", "3"])),
+      mockDB.filter((item) => item.id === "1" || item.id === "3"),
+    ),
+  );
+
+  test(
+    "query: orderBy ASC",
+    testSuccess(
+      async (c) => c.query<Entry>(new Query().orderBy("val")),
+      [...mockDB].sort((a, b) => a.val - b.val),
+    ),
+  );
+
+  test(
+    "query: orderBy DESC",
+    testSuccess(
+      async (c) => c.query<Entry>(new Query().orderBy("val", "DESC")),
+      [...mockDB].sort((a, b) => b.val - a.val),
     ),
   );
 
@@ -302,6 +337,39 @@ describe("DB: Container", () => {
     logCounts({ ag: 1 });
   });
 
+  test("getCountBy: groups items by nested property path", async () => {
+    type LocationEntry = {
+      id: string;
+      pkey: string;
+      location: { code: string };
+    };
+    const locationData: LocationEntry[] = [
+      { id: "1", pkey: "a", location: { code: "US" } },
+      { id: "2", pkey: "a", location: { code: "US" } },
+      { id: "3", pkey: "b", location: { code: "CA" } },
+    ];
+    const containerMap = await connectDB({
+      ...connectOptions,
+      mockDBData: { mockContainer: locationData },
+    });
+    const c = containerMap["mockContainer"] as Container<LocationEntry>;
+    const result = await c.getCountBy("location.code");
+    assert.deepEqual(result, [
+      { name: "US", count: 2 },
+      { name: "CA", count: 1 },
+    ]);
+    logCounts({ ag: 1 });
+  });
+
+  test("getCountBy: rejects invalid property paths", async () => {
+    const c = await getContainer();
+    for (const invalid of [".a", "a.", "a..b", "a b", "a/b"]) {
+      await assert.rejects(c.getCountBy(invalid), {
+        message: `Invalid property path "${invalid}". Only A-Za-z0-9_ identifiers separated by '.' are allowed.`,
+      });
+    }
+  });
+
   test("query: custom filter takes precedence over built-in", async () => {
     // Built-in would return all 3 items for val > 100; custom filter ignores the param and only passes val > 400.
     const customFilter: MockQueryDef = {
@@ -353,11 +421,22 @@ describe("DB: Container", () => {
   test(
     "upsertItem: success",
     testSuccess(
-      async (c) =>
-        c.upsertItem({ id: "1", pkey: "item", val: 999, _ts: 1234567899 }),
-      undefined,
+      async (c) => {
+        const item = { id: "1", pkey: "item", val: 999, _ts: 1234567899 };
+        return c.upsertItem(item);
+      },
+      { id: "1", pkey: "item", val: 999, _ts: 1234567899 },
     ),
   );
+
+  test("upsertItem: returns the upserted item", async () => {
+    const c = await getContainer();
+    const item = { id: "new", pkey: "item", val: 42, _ts: 0 };
+    const result = await c.upsertItem(item);
+    assert.deepEqual(result, item);
+    const fetched = await c.getItem("new", "item");
+    assert.deepEqual(fetched, item);
+  });
 
   test(
     "upsertItem: error",
@@ -375,4 +454,44 @@ describe("DB: Container", () => {
     "deleteItem: error",
     testError(async (c) => c.deleteItem("1", FORCE_ERROR)),
   );
+
+  test("getItem: rejects empty ID", async () => {
+    const c = await getContainer();
+    await assert.rejects(c.getItem("", "item"), {
+      message: "Item ID must not be empty.",
+    });
+  });
+
+  test("getItem: rejects IDs with forbidden characters", async () => {
+    const c = await getContainer();
+    for (const id of ["a/b", "a\\b", "a#b", "a?b", "a%b"]) {
+      await assert.rejects(c.getItem(id, "item"), {
+        message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
+      });
+    }
+  });
+
+  test("getItem: rejects IDs exceeding 1023 bytes", async () => {
+    const c = await getContainer();
+    await assert.rejects(c.getItem("a".repeat(1024), "item"), {
+      message: "Item ID exceeds the maximum allowed length of 1023 bytes.",
+    });
+  });
+
+  test("upsertItem: rejects item with invalid ID", async () => {
+    const c = await getContainer();
+    await assert.rejects(
+      c.upsertItem({ id: "a/b", pkey: "item", val: 1, _ts: 0 }),
+      {
+        message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
+      },
+    );
+  });
+
+  test("deleteItem: rejects invalid ID", async () => {
+    const c = await getContainer();
+    await assert.rejects(c.deleteItem("a/b", "item"), {
+      message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
+    });
+  });
 });
