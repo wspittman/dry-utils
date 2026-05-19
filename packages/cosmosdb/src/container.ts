@@ -22,20 +22,21 @@ const MAX_ID_BYTES = 1023;
 
 /**
  * Validates that a Cosmos DB item ID is safe to use.
- * Throws if the ID is empty, contains forbidden characters (`/`, `\`, `#`),
+ * Throws if the ID is empty, contains forbidden characters (`/`, `\`, `#`, `?`, `%`),
  * or exceeds 1,023 bytes.
  *
  * Forbidden characters: `/` and `\` are rejected by the service; `#` is
- * treated as a URL fragment delimiter by HTTP infrastructure and must not
- * appear in IDs used in REST paths.
+ * treated as a URL fragment delimiter by HTTP infrastructure; `?` introduces
+ * query strings; `%` is used for percent-encoding. None of these are allowed
+ * in IDs used in REST paths.
  */
 function validateItemId(id: string): void {
   if (!id) {
     throw new Error("Item ID must not be empty.");
   }
-  if (/[/\\#]/.test(id)) {
+  if (/[/\\#?%]/.test(id)) {
     throw new Error(
-      `Item ID contains an invalid character ('/', '\\', or '#'). These are not allowed in Cosmos DB item IDs.`,
+      `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
     );
   }
   if (Buffer.byteLength(id, "utf8") > MAX_ID_BYTES) {

@@ -464,9 +464,9 @@ describe("DB: Container", () => {
 
   test("getItem: rejects IDs with forbidden characters", async () => {
     const c = await getContainer();
-    for (const id of ["a/b", "a\\b", "a#b"]) {
+    for (const id of ["a/b", "a\\b", "a#b", "a?b", "a%b"]) {
       await assert.rejects(c.getItem(id, "item"), {
-        message: `Item ID contains an invalid character ('/', '\\', or '#'). These are not allowed in Cosmos DB item IDs.`,
+        message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
       });
     }
   });
@@ -483,7 +483,7 @@ describe("DB: Container", () => {
     await assert.rejects(
       c.upsertItem({ id: "a/b", pkey: "item", val: 1, _ts: 0 }),
       {
-        message: `Item ID contains an invalid character ('/', '\\', or '#'). These are not allowed in Cosmos DB item IDs.`,
+        message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
       },
     );
   });
@@ -491,7 +491,7 @@ describe("DB: Container", () => {
   test("deleteItem: rejects invalid ID", async () => {
     const c = await getContainer();
     await assert.rejects(c.deleteItem("a/b", "item"), {
-      message: `Item ID contains an invalid character ('/', '\\', or '#'). These are not allowed in Cosmos DB item IDs.`,
+      message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
     });
   });
 });
