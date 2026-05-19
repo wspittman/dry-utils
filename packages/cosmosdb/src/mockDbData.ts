@@ -17,7 +17,7 @@ export interface MockDBDataOptions {
 export function loadMockDBData({
   mockDataJson,
   mockDataPath,
-}: MockDBDataOptions): MockDBData | undefined {
+}: MockDBDataOptions = {}): MockDBData | undefined {
   const trimJson = mockDataJson?.trim();
   const trimPath = mockDataPath?.trim();
 

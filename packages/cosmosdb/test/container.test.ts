@@ -365,7 +365,7 @@ describe("DB: Container", () => {
     const c = await getContainer();
     for (const invalid of [".a", "a.", "a..b", "a b", "a/b"]) {
       await assert.rejects(c.getCountBy(invalid), {
-        message: `Invalid property "${invalid}". Only 'A-Za-z0-9_' allowed.`,
+        message: `Invalid property path "${invalid}". Only A-Za-z0-9_ identifiers separated by '.' are allowed.`,
       });
     }
   });

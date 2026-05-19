@@ -25,6 +25,18 @@ describe("DB: Query", () => {
     });
   });
 
+  test("condition: rejects invalid field path", () => {
+    assert.throws(() => Query.condition("x; DROP TABLE c--", "=", "v"), {
+      message: /Invalid property path/,
+    });
+  });
+
+  test("whereCondition: rejects invalid field path", () => {
+    assert.throws(() => new Query().whereCondition("a b", "=", "v"), {
+      message: /Invalid property path/,
+    });
+  });
+
   conditionCases.forEach(([field, operator, value, expected]) => {
     test(`WhereCondition: ${field} ${operator} ${value}`, () => {
       const query = new Query();
@@ -109,6 +121,18 @@ describe("DB: Query", () => {
     const result = new Query().orderBy("_ts").build();
     assert.equal(result.query, "SELECT * FROM c ORDER BY c._ts ASC");
     assert.deepEqual(result.parameters, []);
+  });
+
+  test("orderBy: rejects invalid field path", () => {
+    assert.throws(() => new Query().orderBy("status; DROP TABLE c--"), {
+      message: /Invalid property path/,
+    });
+  });
+
+  test("orderBy: rejects field with spaces", () => {
+    assert.throws(() => new Query().orderBy("my field"), {
+      message: /Invalid property path/,
+    });
   });
 
   test("orderBy: DESC", () => {

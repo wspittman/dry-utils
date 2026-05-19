@@ -1,4 +1,5 @@
 import type { JSONValue, SqlQuerySpec } from "@azure/cosmos";
+import { validatePropPath } from "./utils.ts";
 
 type Op = "<" | "<=" | "=" | ">" | ">=" | "CONTAINS" | "IN";
 type Selector = "*" | "ID" | "COUNT";
@@ -99,6 +100,7 @@ export class Query {
    * @returns The Query instance for method chaining
    */
   orderBy(field: string, direction: "ASC" | "DESC" = "ASC"): this {
+    validatePropPath(field);
     this.#orderClauses.push(`c.${field} ${direction}`);
     return this;
   }
@@ -172,6 +174,7 @@ export class Query {
    * @returns WHERE clause and its parameters
    */
   static condition(...[field, op, value]: Condition): Where {
+    validatePropPath(field);
     const [prop, param] = toPair(field);
 
     if (op === "IN") {

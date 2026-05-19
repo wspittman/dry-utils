@@ -10,13 +10,12 @@ import type {
 } from "@azure/cosmos";
 import { diag } from "./diagnostics.ts";
 import { Query, type Condition } from "./Query.ts";
+import { validatePropPath } from "./utils.ts";
 
 interface CountBy {
   name: unknown;
   count: number;
 }
-
-const validProp = new RegExp(/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$/);
 
 /** Maximum byte length for a Cosmos DB item ID. */
 const MAX_ID_BYTES = 1023;
@@ -135,9 +134,7 @@ export class Container<Item extends ItemDefinition> {
    * @returns Array of `{ name, count }` pairs, one per distinct value
    */
   async getCountBy(prop: string): Promise<CountBy[]> {
-    if (!validProp.test(prop)) {
-      throw new Error(`Invalid property "${prop}". Only 'A-Za-z0-9_' allowed.`);
-    }
+    validatePropPath(prop);
 
     return this.query<CountBy>(
       `SELECT c.${prop} AS name, COUNT(1) AS count FROM c WHERE IS_DEFINED(c.${prop}) GROUP BY c.${prop}`,
