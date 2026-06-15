@@ -10,39 +10,11 @@ import type {
 } from "@azure/cosmos";
 import { diag } from "./diagnostics.ts";
 import { Query, type Condition } from "./Query.ts";
-import { validatePropPath } from "./utils.ts";
+import { validateItemId, validatePropPath } from "./utils.ts";
 
 interface CountBy {
   name: unknown;
   count: number;
-}
-
-/** Maximum byte length for a Cosmos DB item ID. */
-const MAX_ID_BYTES = 1023;
-
-/**
- * Validates that a Cosmos DB item ID is safe to use.
- * Throws if the ID is empty, contains forbidden characters (`/`, `\`, `#`, `?`),
- * or exceeds 1,023 bytes.
- *
- * Forbidden characters: `/` and `\` are rejected by the service; `#` is
- * treated as a URL fragment delimiter by HTTP infrastructure; `?` introduces
- * query strings. None of these are allowed in IDs used in REST paths.
- */
-function validateItemId(id: string): void {
-  if (!id) {
-    throw new Error("Item ID must not be empty.");
-  }
-  if (/[/\\#?]/.test(id)) {
-    throw new Error(
-      `Item ID contains an invalid character ('/', '\\', '#', or '?'). These are not allowed in Cosmos DB item IDs.`,
-    );
-  }
-  if (Buffer.byteLength(id, "utf8") > MAX_ID_BYTES) {
-    throw new Error(
-      `Item ID exceeds the maximum allowed length of ${MAX_ID_BYTES} bytes.`,
-    );
-  }
 }
 
 /**
