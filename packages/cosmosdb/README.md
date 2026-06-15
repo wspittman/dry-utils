@@ -179,7 +179,7 @@ const byStatus = await container.getCountBy("status");
 const byRegion = await container.getCountBy("location.regionCode");
 ```
 
-Item IDs are validated before use. IDs that are empty, contain `/`, `\`, `#`, `?`, or `%`, or exceed 1,023 bytes will throw immediately rather than failing at the service layer.
+Item IDs are validated before use. IDs that are empty, contain `/`, `\`, `#`, or `?`, or exceed 1,023 bytes will throw immediately rather than failing at the service layer. Percent signs are allowed.
 
 ### Subscribing to Logging Events
 

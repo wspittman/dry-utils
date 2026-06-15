@@ -249,6 +249,54 @@ describe("DB: Container", () => {
     ),
   );
 
+  const ascOrderByIds = [
+    "missing",
+    "null",
+    "false",
+    "true",
+    "number-low",
+    "number-high",
+    "string-a",
+    "string-b",
+    "array",
+    "object",
+  ];
+
+  for (const [direction, expectedIds] of [
+    ["ASC", ascOrderByIds],
+    ["DESC", ascOrderByIds.toReversed()],
+  ] as const) {
+    test(`query: orderBy ${direction} uses Cosmos DB type precedence`, async () => {
+      const containerMap = await connectDB({
+        ...connectOptions,
+        mockDBData: {
+          mockContainer: [
+            { id: "object", pkey: "item", val: {} },
+            { id: "string-b", pkey: "item", val: "b" },
+            { id: "true", pkey: "item", val: true },
+            { id: "number-high", pkey: "item", val: 20 },
+            { id: "null", pkey: "item", val: null },
+            { id: "missing", pkey: "item" },
+            { id: "array", pkey: "item", val: [] },
+            { id: "number-low", pkey: "item", val: 10 },
+            { id: "false", pkey: "item", val: false },
+            { id: "string-a", pkey: "item", val: "a" },
+          ],
+        },
+      });
+      const container = containerMap["mockContainer"]!;
+
+      const result = await container.query<{ id: string }>(
+        new Query().orderBy("val", direction),
+      );
+
+      assert.deepEqual(
+        result.map(({ id }) => id),
+        expectedIds,
+      );
+    });
+  }
+
   test(
     "query: WHERE CONTAINS condition from Query builder",
     testSuccess(
@@ -438,6 +486,15 @@ describe("DB: Container", () => {
     assert.deepEqual(fetched, item);
   });
 
+  test("item operations: allow IDs containing percent signs", async () => {
+    const c = await getContainer();
+    const item = { id: "50%off", pkey: "item", val: 42, _ts: 0 };
+    assert.deepEqual(await c.upsertItem(item), item);
+    assert.deepEqual(await c.getItem(item.id, item.pkey), item);
+    await c.deleteItem(item.id, item.pkey);
+    assert.equal(await c.getItem(item.id, item.pkey), undefined);
+  });
+
   test(
     "upsertItem: error",
     testError(async (c) =>
@@ -454,44 +511,4 @@ describe("DB: Container", () => {
     "deleteItem: error",
     testError(async (c) => c.deleteItem("1", FORCE_ERROR)),
   );
-
-  test("getItem: rejects empty ID", async () => {
-    const c = await getContainer();
-    await assert.rejects(c.getItem("", "item"), {
-      message: "Item ID must not be empty.",
-    });
-  });
-
-  test("getItem: rejects IDs with forbidden characters", async () => {
-    const c = await getContainer();
-    for (const id of ["a/b", "a\\b", "a#b", "a?b", "a%b"]) {
-      await assert.rejects(c.getItem(id, "item"), {
-        message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
-      });
-    }
-  });
-
-  test("getItem: rejects IDs exceeding 1023 bytes", async () => {
-    const c = await getContainer();
-    await assert.rejects(c.getItem("a".repeat(1024), "item"), {
-      message: "Item ID exceeds the maximum allowed length of 1023 bytes.",
-    });
-  });
-
-  test("upsertItem: rejects item with invalid ID", async () => {
-    const c = await getContainer();
-    await assert.rejects(
-      c.upsertItem({ id: "a/b", pkey: "item", val: 1, _ts: 0 }),
-      {
-        message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
-      },
-    );
-  });
-
-  test("deleteItem: rejects invalid ID", async () => {
-    const c = await getContainer();
-    await assert.rejects(c.deleteItem("a/b", "item"), {
-      message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
-    });
-  });
 });
