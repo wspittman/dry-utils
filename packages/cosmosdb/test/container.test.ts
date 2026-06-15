@@ -438,6 +438,15 @@ describe("DB: Container", () => {
     assert.deepEqual(fetched, item);
   });
 
+  test("item operations: allow IDs containing percent signs", async () => {
+    const c = await getContainer();
+    const item = { id: "50%off", pkey: "item", val: 42, _ts: 0 };
+    assert.deepEqual(await c.upsertItem(item), item);
+    assert.deepEqual(await c.getItem(item.id, item.pkey), item);
+    await c.deleteItem(item.id, item.pkey);
+    assert.equal(await c.getItem(item.id, item.pkey), undefined);
+  });
+
   test(
     "upsertItem: error",
     testError(async (c) =>
@@ -464,9 +473,9 @@ describe("DB: Container", () => {
 
   test("getItem: rejects IDs with forbidden characters", async () => {
     const c = await getContainer();
-    for (const id of ["a/b", "a\\b", "a#b", "a?b", "a%b"]) {
+    for (const id of ["a/b", "a\\b", "a#b", "a?b"]) {
       await assert.rejects(c.getItem(id, "item"), {
-        message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
+        message: `Item ID contains an invalid character ('/', '\\', '#', or '?'). These are not allowed in Cosmos DB item IDs.`,
       });
     }
   });
@@ -483,7 +492,7 @@ describe("DB: Container", () => {
     await assert.rejects(
       c.upsertItem({ id: "a/b", pkey: "item", val: 1, _ts: 0 }),
       {
-        message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
+        message: `Item ID contains an invalid character ('/', '\\', '#', or '?'). These are not allowed in Cosmos DB item IDs.`,
       },
     );
   });
@@ -491,7 +500,7 @@ describe("DB: Container", () => {
   test("deleteItem: rejects invalid ID", async () => {
     const c = await getContainer();
     await assert.rejects(c.deleteItem("a/b", "item"), {
-      message: `Item ID contains an invalid character ('/', '\\', '#', '?', or '%'). These are not allowed in Cosmos DB item IDs.`,
+      message: `Item ID contains an invalid character ('/', '\\', '#', or '?'). These are not allowed in Cosmos DB item IDs.`,
     });
   });
 });
