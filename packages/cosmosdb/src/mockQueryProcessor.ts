@@ -169,6 +169,8 @@ function invokeMatchingDef(
 /**
  * Sorts items by a CosmosDB ORDER BY clause string.
  * Parses `c.field [ASC|DESC], c.other [ASC|DESC]` and applies a stable multi-key sort.
+ * Values use Cosmos DB type precedence: undefined, null, boolean, number, string, array, object.
+ * DESC fully reverses the ASC ordering.
  */
 function sortByOrderBy(items: Item[], orderby: string): Item[] {
   const parts = orderby.split(",").map((s) => {
@@ -189,13 +191,40 @@ function sortByOrderBy(items: Item[], orderby: string): Item[] {
       const av = getFieldValue(a, part.field);
       const bv = getFieldValue(b, part.field);
       if (av === bv) continue;
-      if (av == null) return part.desc ? -1 : 1;
-      if (bv == null) return part.desc ? 1 : -1;
-      const cmp = av < bv ? -1 : 1;
+      const typeCmp = getOrderByTypeRank(av) - getOrderByTypeRank(bv);
+      if (typeCmp !== 0) return part.desc ? -typeCmp : typeCmp;
+      const cmp = compareOrderByValues(av, bv);
       return part.desc ? -cmp : cmp;
     }
     return 0;
   });
+}
+
+/**
+ * Returns the Cosmos DB ORDER BY precedence for a value's JSON type.
+ */
+function getOrderByTypeRank(value: unknown): number {
+  if (value === undefined) return 0;
+  if (value === null) return 1;
+  if (typeof value === "boolean") return 2;
+  if (typeof value === "number") return 3;
+  if (typeof value === "string") return 4;
+  if (Array.isArray(value)) return 5;
+  return 6;
+}
+
+/**
+ * Compares values that share the same Cosmos DB ORDER BY type precedence.
+ */
+function compareOrderByValues(a: unknown, b: unknown): number {
+  if (
+    (typeof a === "boolean" && typeof b === "boolean") ||
+    (typeof a === "number" && typeof b === "number") ||
+    (typeof a === "string" && typeof b === "string")
+  ) {
+    return a < b ? -1 : 1;
+  }
+  return 0;
 }
 
 /**

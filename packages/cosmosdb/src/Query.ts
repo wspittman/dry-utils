@@ -95,6 +95,8 @@ export class Query {
 
   /**
    * Adds an ORDER BY clause to the query.
+   * ASC type precedence is undefined, null, boolean, number, string, array, then object.
+   * DESC fully reverses the ASC ordering.
    * @param field Document field path (e.g., `"_ts"` or `"facets.score"`)
    * @param direction Sort direction, defaults to `"ASC"`
    * @returns The Query instance for method chaining

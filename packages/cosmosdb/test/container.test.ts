@@ -249,6 +249,54 @@ describe("DB: Container", () => {
     ),
   );
 
+  const ascOrderByIds = [
+    "missing",
+    "null",
+    "false",
+    "true",
+    "number-low",
+    "number-high",
+    "string-a",
+    "string-b",
+    "array",
+    "object",
+  ];
+
+  for (const [direction, expectedIds] of [
+    ["ASC", ascOrderByIds],
+    ["DESC", ascOrderByIds.toReversed()],
+  ] as const) {
+    test(`query: orderBy ${direction} uses Cosmos DB type precedence`, async () => {
+      const containerMap = await connectDB({
+        ...connectOptions,
+        mockDBData: {
+          mockContainer: [
+            { id: "object", pkey: "item", val: {} },
+            { id: "string-b", pkey: "item", val: "b" },
+            { id: "true", pkey: "item", val: true },
+            { id: "number-high", pkey: "item", val: 20 },
+            { id: "null", pkey: "item", val: null },
+            { id: "missing", pkey: "item" },
+            { id: "array", pkey: "item", val: [] },
+            { id: "number-low", pkey: "item", val: 10 },
+            { id: "false", pkey: "item", val: false },
+            { id: "string-a", pkey: "item", val: "a" },
+          ],
+        },
+      });
+      const container = containerMap["mockContainer"]!;
+
+      const result = await container.query<{ id: string }>(
+        new Query().orderBy("val", direction),
+      );
+
+      assert.deepEqual(
+        result.map(({ id }) => id),
+        expectedIds,
+      );
+    });
+  }
+
   test(
     "query: WHERE CONTAINS condition from Query builder",
     testSuccess(
