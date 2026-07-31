@@ -118,29 +118,16 @@ export function createCustomLogger(
   return logger;
 }
 
-// Create a lazy-loaded default logger that's only initialized when first accessed
-let _defaultLogger: Logger | undefined;
-let _defaultConfig: LoggerConfig = {};
-
 /**
  * Configures the global logger singleton
  *
- * @param options - Configuration options for the logger
+ * @param options Configuration options for the logger
  */
 export function configureGlobal(options: LoggerConfig): void {
-  _defaultConfig = options;
-  // Reset instance to apply new config
-  _defaultLogger = undefined;
+  logger = createCustomLogger(options);
 }
 
 /**
  * The global logger instance
  */
-export const logger: Logger = new Proxy({} as Logger, {
-  get(_, prop) {
-    if (!_defaultLogger) {
-      _defaultLogger = createCustomLogger(_defaultConfig);
-    }
-    return _defaultLogger[prop as keyof Logger] as unknown;
-  },
-});
+export let logger: Logger = createCustomLogger();
