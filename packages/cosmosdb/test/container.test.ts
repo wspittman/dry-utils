@@ -27,6 +27,16 @@ interface SpatialEntry {
   primaryLocation?: { point?: JSONValue };
 }
 
+interface FullTextEntry {
+  id: string;
+  pkey: string;
+  status: "active" | "inactive";
+  content?: { description?: JSONValue };
+}
+
+type FullTextFunction =
+  "FULLTEXTCONTAINS" | "FULLTEXTCONTAINSALL" | "FULLTEXTCONTAINSANY";
+
 const mockDB: Entry[] = [
   { id: "1", pkey: "item", val: 123, _ts: 1234567890 },
   { id: "2", pkey: "item", val: 456, _ts: 1234567891 },
@@ -78,6 +88,46 @@ const spatialDB: SpatialEntry[] = [
   },
 ];
 
+const fullTextDB: FullTextEntry[] = [
+  {
+    id: "nonmatch-first",
+    pkey: "item",
+    status: "active",
+    content: { description: "An ordinary commuter bike." },
+  },
+  {
+    id: "phrase",
+    pkey: "item",
+    status: "active",
+    content: { description: "A RED bicycle waits by the river." },
+  },
+  {
+    id: "split-terms",
+    pkey: "item",
+    status: "active",
+    content: { description: "A red lightweight city bicycle." },
+  },
+  {
+    id: "skateboard",
+    pkey: "item",
+    status: "inactive",
+    content: { description: "Blue skateboard with a carbon deck." },
+  },
+  { id: "missing", pkey: "item", status: "active" },
+  {
+    id: "null",
+    pkey: "item",
+    status: "active",
+    content: { description: null },
+  },
+  {
+    id: "number",
+    pkey: "item",
+    status: "active",
+    content: { description: 42 },
+  },
+];
+
 const connectOptions = {
   endpoint: "mockEndpoint",
   key: "mockKey",
@@ -101,6 +151,24 @@ async function getSpatialContainer() {
     mockDBData: { mockContainer: structuredClone(spatialDB) },
   });
   return containerMap["mockContainer"] as Container<SpatialEntry>;
+}
+
+async function getFullTextContainer(filters?: MockQueryDef[]) {
+  const containerMap = await connectDB({
+    ...connectOptions,
+    mockDBData: { mockContainer: structuredClone(fullTextDB) },
+    mockDBFilters: filters ? { mockContainer: filters } : undefined,
+  });
+  return containerMap["mockContainer"] as Container<FullTextEntry>;
+}
+
+function getFullTextQuery(
+  fn: FullTextFunction,
+  parameterNames: string[],
+  parameters: Record<string, JSONValue>,
+) {
+  const clause = `${fn}(c.content.description, ${parameterNames.join(", ")})`;
+  return new Query().where([clause, parameters]);
 }
 
 const distanceClause =
@@ -558,6 +626,188 @@ describe("DB: Container", () => {
       );
       logCounts({ error: 1 });
     });
+  });
+
+  const fullTextFilterCases: [
+    string,
+    FullTextFunction,
+    Record<string, JSONValue>,
+    string[],
+  ][] = [
+    [
+      "FULLTEXTCONTAINS matches one contiguous phrase case-insensitively",
+      "FULLTEXTCONTAINS",
+      { "@phrase": "red bicycle" },
+      ["phrase"],
+    ],
+    [
+      "FULLTEXTCONTAINS does not match separated or reversed phrases",
+      "FULLTEXTCONTAINS",
+      { "@phrase": "bicycle red" },
+      [],
+    ],
+    [
+      "FULLTEXTCONTAINSALL requires every term without requiring adjacency",
+      "FULLTEXTCONTAINSALL",
+      { "@color": "red", "@vehicle": "bicycle" },
+      ["phrase", "split-terms"],
+    ],
+    [
+      "FULLTEXTCONTAINSANY requires at least one term",
+      "FULLTEXTCONTAINSANY",
+      { "@vehicle": "bicycle", "@board": "skateboard" },
+      ["phrase", "split-terms", "skateboard"],
+    ],
+  ];
+
+  fullTextFilterCases.forEach(([name, fn, parameters, expectedIds]) => {
+    test(`query: ${name}`, async () => {
+      const c = await getFullTextContainer();
+
+      const result = await c.query<FullTextEntry>(
+        getFullTextQuery(fn, Object.keys(parameters), parameters),
+      );
+
+      assert.deepEqual(
+        result.map(({ id }) => id),
+        expectedIds,
+      );
+      logCounts({ ag: 1 });
+    });
+  });
+
+  test("query: full-text functions are case-insensitive and whitespace-tolerant", async () => {
+    const c = await getFullTextContainer();
+
+    const result = await c.query<FullTextEntry>({
+      query:
+        "select * from c where fulltextcontainsany ( c.content.description , @vehicle , @board )",
+      parameters: [
+        { name: "@vehicle", value: "bicycle" },
+        { name: "@board", value: "skateboard" },
+      ],
+    });
+
+    assert.deepEqual(
+      result.map(({ id }) => id),
+      ["phrase", "split-terms", "skateboard"],
+    );
+    logCounts({ ag: 1 });
+  });
+
+  test("query: full-text functions combine with scalar filters before TOP", async () => {
+    const c = await getFullTextContainer();
+    const query = new Query()
+      .top(1)
+      .whereCondition("status", "=", "active")
+      .where([
+        "FULLTEXTCONTAINSANY(c.content.description, @vehicle, @board)",
+        { "@vehicle": "bicycle", "@board": "skateboard" },
+      ]);
+
+    const result = await c.query<FullTextEntry>(query);
+
+    assert.deepEqual(
+      result.map(({ id }) => id),
+      ["phrase"],
+    );
+    logCounts({ ag: 1 });
+  });
+
+  const invalidFullTextParameterCases: [
+    string,
+    FullTextFunction,
+    string[],
+    Record<string, JSONValue>,
+    string,
+  ][] = [
+    [
+      "missing parameter",
+      "FULLTEXTCONTAINS",
+      ["@term"],
+      {},
+      "Invalid FULLTEXTCONTAINS parameter @term: expected a string",
+    ],
+    [
+      "non-string parameter",
+      "FULLTEXTCONTAINS",
+      ["@term"],
+      { "@term": 42 },
+      "Invalid FULLTEXTCONTAINS parameter @term: expected a string",
+    ],
+    [
+      "missing ALL parameter",
+      "FULLTEXTCONTAINSALL",
+      ["@first", "@second"],
+      { "@first": "red" },
+      "Invalid FULLTEXTCONTAINSALL parameter @second: expected a string",
+    ],
+    [
+      "non-string ANY parameter",
+      "FULLTEXTCONTAINSANY",
+      ["@first", "@second"],
+      { "@first": "red", "@second": { term: "bicycle" } },
+      "Invalid FULLTEXTCONTAINSANY parameter @second: expected a string",
+    ],
+  ];
+
+  invalidFullTextParameterCases.forEach(
+    ([name, fn, parameterNames, parameters, message]) => {
+      test(`query: ${fn} rejects ${name}`, async () => {
+        const c = await getFullTextContainer();
+
+        await assert.rejects(
+          c.query(getFullTextQuery(fn, parameterNames, parameters)),
+          { message },
+        );
+        logCounts({ error: 1 });
+      });
+    },
+  );
+
+  const unsupportedFullTextClauses = [
+    'FULLTEXTCONTAINS(c.content.description, "red")',
+    'FULLTEXTCONTAINS(c.content.description, {"term":"red","distance":1})',
+    "FULLTEXTCONTAINS(@term, c.content.description)",
+    "FULLTEXTCONTAINS(c.content.description, @first, @second)",
+    "FULLTEXTCONTAINSALL(c.content.description)",
+    "FULLTEXTSCORE(c.content.description, @term)",
+  ];
+
+  unsupportedFullTextClauses.forEach((clause) => {
+    test(`query: rejects unsupported full-text clause ${clause}`, async () => {
+      const c = await getFullTextContainer();
+
+      await assert.rejects(
+        c.query(
+          new Query().where([
+            clause,
+            { "@term": "red", "@first": "red", "@second": "bicycle" },
+          ]),
+        ),
+        { message: `Unsupported WHERE condition in mock: ${clause}` },
+      );
+      logCounts({ error: 1 });
+    });
+  });
+
+  test("query: custom filter takes precedence over built-in full-text evaluation", async () => {
+    const clause = "FULLTEXTCONTAINS(c.content.description, @term)";
+    const customFilter: MockQueryDef = {
+      matcher: `(${clause})`,
+      fn: ({ items }) => items.filter((item) => item["id"] === "skateboard"),
+    };
+    const c = await getFullTextContainer([customFilter]);
+
+    const result = await c.query<FullTextEntry>(
+      new Query().where([clause, { "@term": "red bicycle" }]),
+    );
+
+    assert.deepEqual(
+      result.map(({ id }) => id),
+      ["skateboard"],
+    );
+    logCounts({ ag: 1 });
   });
 
   test(

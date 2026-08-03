@@ -14,6 +14,9 @@ const cond_is_defined = new RegExp(
 const cond_contains = new RegExp(
   /^CONTAINS\(c\.(?<field>[A-Za-z0-9_.]+),\s*(?<param>@[A-Za-z0-9_]+),\s*true\)$/i,
 );
+const cond_full_text = new RegExp(
+  /^FULLTEXTCONTAINS(?<mode>ALL|ANY)?\s*\(\s*c\.(?<field>[A-Za-z0-9_.]+)\s*,\s*(?<params>@[A-Za-z0-9_]+(?:\s*,\s*@[A-Za-z0-9_]+)*)\s*\)$/i,
+);
 const cond_compare = new RegExp(
   /^c\.(?<field>[A-Za-z0-9_.]+)\s*(?<op><=|>=|<|>|=)\s*(?<param>@[A-Za-z0-9_]+)$/i,
 );
@@ -27,6 +30,7 @@ const cond_st_distance = new RegExp(
 type PointCoordinates = [longitude: number, latitude: number];
 
 const MEAN_EARTH_RADIUS_METERS = 6_371_008.8;
+const FULL_TEXT_LOCALE = "en-US";
 
 /**
  * Arguments passed to a {@link MockQueryDef} handler during query processing.
@@ -250,7 +254,7 @@ function getFieldValue(item: Item, fieldPath: string): unknown {
 
 /**
  * Evaluates a single condition against an item and query parameters.
- * Supports scalar comparisons, CONTAINS, IN, IS_DEFINED, and Point-to-Point ST_DISTANCE radius filters.
+ * Supports scalar comparisons, string/full-text contains functions, IN, IS_DEFINED, and Point-to-Point ST_DISTANCE radius filters.
  */
 function evaluateCondition(
   condition: string,
@@ -272,6 +276,19 @@ function evaluateCondition(
       return false;
     }
     return itemValue.toLowerCase().includes(paramValue.toLowerCase());
+  }
+
+  const fullTextMatch = condition.match(cond_full_text);
+  if (fullTextMatch) {
+    const { field, mode, params: paramsStr } = fullTextMatch.groups!;
+    return evaluateFullTextCondition(
+      condition,
+      field!,
+      mode,
+      paramsStr!.split(",").map((param) => param.trim()),
+      params,
+      item,
+    );
   }
 
   const compareMatch = condition.match(cond_compare);
@@ -328,6 +345,44 @@ function evaluateCondition(
   }
 
   throw new Error(`Unsupported WHERE condition in mock: ${condition}`);
+}
+
+/**
+ * Approximates Cosmos boolean full-text predicates with case-insensitive
+ * substring matching. Cosmos remains authoritative for language analysis.
+ */
+function evaluateFullTextCondition(
+  condition: string,
+  field: string,
+  mode: string | undefined,
+  parameterNames: string[],
+  params: Record<string, JSONValue>,
+  item: Item,
+): boolean {
+  const normalizedMode = mode?.toUpperCase();
+  if (normalizedMode === undefined && parameterNames.length !== 1) {
+    throw new Error(`Unsupported WHERE condition in mock: ${condition}`);
+  }
+
+  const functionName = `FULLTEXTCONTAINS${normalizedMode ?? ""}`;
+  const terms = parameterNames.map((parameterName) => {
+    const value = params[parameterName];
+    if (typeof value !== "string") {
+      throw new Error(
+        `Invalid ${functionName} parameter ${parameterName}: expected a string`,
+      );
+    }
+    return value.toLocaleLowerCase(FULL_TEXT_LOCALE);
+  });
+
+  const itemValue = getFieldValue(item, field);
+  if (typeof itemValue !== "string") return false;
+
+  const normalizedItemValue = itemValue.toLocaleLowerCase(FULL_TEXT_LOCALE);
+  const matches = terms.map((term) => normalizedItemValue.includes(term));
+  if (normalizedMode === "ALL") return matches.every(Boolean);
+  if (normalizedMode === "ANY") return matches.some(Boolean);
+  return matches[0] ?? false;
 }
 
 /**

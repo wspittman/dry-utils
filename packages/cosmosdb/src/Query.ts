@@ -1,7 +1,17 @@
 import type { JSONValue, SqlQuerySpec } from "@azure/cosmos";
 import { validatePropPath } from "./utils.ts";
 
-type Op = "<" | "<=" | "=" | ">" | ">=" | "CONTAINS" | "IN";
+type Op =
+  | "<"
+  | "<="
+  | "="
+  | ">"
+  | ">="
+  | "CONTAINS"
+  | "FULLTEXTCONTAINS"
+  | "FULLTEXTCONTAINSALL"
+  | "FULLTEXTCONTAINSANY"
+  | "IN";
 type Selector = "*" | "ID" | "COUNT";
 
 export type Condition = [field: string, op: Op, value: JSONValue];
@@ -20,43 +30,54 @@ export type Where = [clause: string, parameters?: Record<string, JSONValue>];
  *
  * Prefer WHERE clauses in this order:
  *
- * 1. Index Seek (=, IN)
- *     - Read only required indexed values and load only matching items.
- *     - RU (index): Constant per equality filter
- *     - RU (load): Query result count
+ * 1. Index Seek (=, IN, FullTextContains)
+ *     - Directly locate one or more indexed values and load matching items.
+ *     - RU (load): Scales with result count
+ *
+ *     Ordinary range-index seeks:
+ *     - RU (index): Constant per equality filter.
  *     - Example: c.x = 10
  *     - Example: c.x IN ("value1", "value2", "value3")
  *     - Example: ARRAY_CONTAINS(c.list, { x: 10 })
  *
- * 2. Precise Index Scan (>, >=, <, <=, STARTSWITH)
- *     - Binary search of indexed values and load only matching items
+ *     Full-text index seeks:
+ *     - Required: FullTextIndex has been configured for the property path.
+ *     - Look up analyzed terms in the specialized inverted index.
+ *     - RU (index): Scales with number of searched terms and posting-list/intersection work.
+ *     - Example: FullTextContains(c.text, "engineer")
+ *     - Example: FullTextContainsAll(c.text, "senior", "engineer")
+ *
+ * 2. Precise Index Scan (>, >=, <, <=, STARTSWITH, bounded ST_DISTANCE)
+ *     - Start at a specific location or region in an ordered/specialized index and scan only the relevant portion.
+ *     - RU (load): Scales with result count
+ *
+ *     Scalar range-index scans:
  *     - RU (index): Comparable to index seek, increases slightly based on the cardinality of indexed properties
- *     - RI (load): Query result count
+ *     - Binary search of indexed values.
  *     - Example: c.x > 10
  *     - Example: STARTSWITH(c.x, "prefix")
  *     - Example: EXISTS (SELECT VALUE l FROM l IN c.list WHERE l.x > 10)
  *
- * 3. Spatial Index Filter (`whereDistance` / `ST_DISTANCE <=`)
- *     - Required: Configured spatialIndex policy.
- *     - RU depends on the search radius, data distribution, and query result count.
- *     - RU (index): Increases with the size/selectivity of the search region, spatial data distribution, and partition count.
- *     - RU (load): Query result count.
+ *     Spatial index scans:
+ *     - Required: SpatialIndex has been configured for the property path.
+ *     - Search spatial-index regions overlapping the requested radius.
+ *     - RU (index): Depends on geometry, spatial distribution, and the size of the searched region.
+ *     - Example: ST_DISTANCE(c.location, @origin) < @radius
  *     - Example: query.whereDistance("location", origin, "<=", radiusInMeters)
- *     - Example: ST_DISTANCE(c.location, @origin) <= @radiusInMeters
  *
- * 4. Expanded Index Scan (case-insensitive STARTSWITH, StringEquals)
+ * 3. Expanded Index Scan (case-insensitive STARTSWITH, StringEquals)
  *    - Optimized search (but less efficient than a binary search) of indexed values and load only matching items
  *    - RU (index): Increases slightly based on the cardinality of indexed properties
  *    - RU (load): Query result count
  *
- * 5. Full Index Scan (CONTAINS, EndsWith, RegexMatch, LIKE)
+ * 4. Full Index Scan (CONTAINS, EndsWith, RegexMatch, LIKE)
  *    - Read distinct set of indexed values and load only matching items
  *    - RU (index): Increases linearly based on the cardinality of indexed properties
  *    - RU (load): Query result count
  *    - Example: CONTAINS(c.x, "word")
  *    - Example: EXISTS (SELECT VALUE l FROM l IN c.list WHERE CONTAINS(l.x, "word"))
  *
- * 6. Full Scan (Negation, UPPER, LOWER)
+ * 5. Full Scan (Negation, UPPER, LOWER)
  *    - Load all items
  *    - RU (index): N/A
  *    - RU (load): Increases based on number of items in container
@@ -131,7 +152,7 @@ export class Query {
    * Adds a WHERE condition using field, operator, and value.
    * Automatically handles parameter naming and value formatting.
    * @param field Document field path (e.g., "status" or "facets.experience")
-   * @param op Comparison operator (<, <=, =, >, >=, CONTAINS)
+   * @param op Comparison or contains operator
    * @param value Value to compare against
    * @returns The Query instance for method chaining
    */
@@ -212,20 +233,28 @@ export class Query {
     validatePropPath(field);
     const [prop, param] = toPair(field);
 
-    if (op === "IN") {
-      if (!Array.isArray(value) || !value.length) {
-        throw new Error("IN operator requires a non-empty array of values");
+    const valueObj: Record<string, JSONValue> = Array.isArray(value)
+      ? Object.fromEntries(value.map((v, i) => [`${param}_${i}`, v] as const))
+      : { [param]: value };
+
+    if (op === "CONTAINS" || op === "FULLTEXTCONTAINS") {
+      const suffix = op === "CONTAINS" ? ", true" : "";
+      return [`${op}(${prop}, ${param}${suffix})`, valueObj];
+    }
+
+    if (["IN", "FULLTEXTCONTAINSALL", "FULLTEXTCONTAINSANY"].includes(op)) {
+      if (!Object.keys(valueObj).length) {
+        throw new Error(`${op} operator requires at least one value`);
       }
-      const pairs = value.map((v, i) => [`${param}_${i}`, v] as const);
-      const paramList = pairs.map(([p]) => p).join(", ");
-      return [`${prop} IN (${paramList})`, Object.fromEntries(pairs)];
+      const paramList = Object.keys(valueObj).join(", ");
+      const clause =
+        op === "IN"
+          ? `${prop} IN (${paramList})`
+          : `${op}(${prop}, ${paramList})`;
+      return [clause, valueObj];
     }
 
-    if (op === "CONTAINS") {
-      return [`CONTAINS(${prop}, ${param}, true)`, { [param]: value }];
-    }
-
-    return [`${prop} ${op} ${param}`, { [param]: value }];
+    return [`${prop} ${op} ${param}`, valueObj];
   }
 }
 

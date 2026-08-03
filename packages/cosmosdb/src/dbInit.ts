@@ -24,6 +24,8 @@ export interface ContainerOptions {
   indexExclusions?: "none" | "all" | string[];
   /** Cosmos indexing-policy paths to configure as Point spatial indexes when creating the container. */
   spatialIndexes?: string[];
+  /** Cosmos full-text policy paths to configure using American English when creating the container. */
+  fullTextIndexes?: string[];
   ttlSeconds?: number;
 }
 
@@ -39,6 +41,7 @@ export interface DBOptions {
 }
 
 const MAX_CREATE_ATTEMPTS = 3;
+const FULL_TEXT_LANGUAGE = "en-US";
 
 /**
  * Establishes connection to Cosmos DB and initializes containers
@@ -100,6 +103,7 @@ async function createContainer(
     partitionKey,
     indexExclusions = "none",
     spatialIndexes = [],
+    fullTextIndexes = [],
     ttlSeconds,
   } = options;
   try {
@@ -108,11 +112,26 @@ async function createContainer(
       partitionKey: { paths: [`/${partitionKey}`] },
     };
 
-    if (indexExclusions !== "none" || spatialIndexes.length) {
+    if (
+      indexExclusions !== "none" ||
+      spatialIndexes.length ||
+      fullTextIndexes.length
+    ) {
       details.indexingPolicy = getIndexingPolicy(
         indexExclusions,
         spatialIndexes,
+        fullTextIndexes,
       );
+    }
+
+    if (fullTextIndexes.length) {
+      details.fullTextPolicy = {
+        defaultLanguage: FULL_TEXT_LANGUAGE,
+        fullTextPaths: fullTextIndexes.map((path) => ({
+          path,
+          language: FULL_TEXT_LANGUAGE,
+        })),
+      };
     }
 
     if (ttlSeconds !== undefined) {
@@ -147,6 +166,7 @@ function validateTtl(name: string, value?: number) {
 function getIndexingPolicy(
   exclusions: "none" | "all" | string[],
   spatialPaths: string[],
+  fullTextPaths: string[],
 ) {
   const all = [{ path: "/*" }];
   const spatialIndexes: SpatialIndex[] = spatialPaths.map((path) => ({
@@ -154,9 +174,11 @@ function getIndexingPolicy(
     types: [SpatialType.Point],
   }));
   const spatialPolicy = spatialIndexes.length ? { spatialIndexes } : {};
+  const fullTextIndexes = fullTextPaths.map((path) => ({ path }));
+  const fullTextIndexPolicy = fullTextIndexes.length ? { fullTextIndexes } : {};
 
   if (exclusions === "all") {
-    return { excludedPaths: all, ...spatialPolicy };
+    return { excludedPaths: all, ...spatialPolicy, ...fullTextIndexPolicy };
   }
 
   const excludedPaths = exclusions === "none" ? [] : exclusions;
@@ -164,6 +186,7 @@ function getIndexingPolicy(
     includedPaths: all,
     excludedPaths: ['/"_etag"/?', ...excludedPaths].map((path) => ({ path })),
     ...spatialPolicy,
+    ...fullTextIndexPolicy,
   };
 }
 

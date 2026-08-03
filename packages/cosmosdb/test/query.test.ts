@@ -26,6 +26,76 @@ describe("DB: Query", () => {
     });
   });
 
+  const fullTextConditionCases: [
+    ...Condition,
+    expectedClause: string,
+    expectedParams: Record<string, JSONValue>,
+  ][] = [
+    [
+      "description",
+      "FULLTEXTCONTAINS",
+      "red bicycle",
+      "FULLTEXTCONTAINS(c.description, @description)",
+      { "@description": "red bicycle" },
+    ],
+    [
+      "content.description",
+      "FULLTEXTCONTAINSALL",
+      ["red", "bicycle"],
+      "FULLTEXTCONTAINSALL(c.content.description, @content_description_0, @content_description_1)",
+      {
+        "@content_description_0": "red",
+        "@content_description_1": "bicycle",
+      },
+    ],
+    [
+      "content.description",
+      "FULLTEXTCONTAINSANY",
+      ["bicycle", "scooter"],
+      "FULLTEXTCONTAINSANY(c.content.description, @content_description_0, @content_description_1)",
+      {
+        "@content_description_0": "bicycle",
+        "@content_description_1": "scooter",
+      },
+    ],
+  ];
+
+  fullTextConditionCases.forEach(
+    ([field, operator, value, expectedClause, expectedParams]) => {
+      test(`Condition: ${operator}`, () => {
+        assert.deepEqual(Query.condition(field, operator, value), [
+          expectedClause,
+          expectedParams,
+        ]);
+      });
+
+      test(`WhereCondition: ${operator}`, () => {
+        const result = new Query()
+          .whereCondition(field, operator, value)
+          .build();
+
+        assert.equal(result.query, `SELECT * FROM c WHERE (${expectedClause})`);
+        assert.deepEqual(
+          result.parameters,
+          Object.entries(expectedParams).map(([name, parameterValue]) => ({
+            name,
+            value: parameterValue,
+          })),
+        );
+      });
+    },
+  );
+
+  (["FULLTEXTCONTAINSALL", "FULLTEXTCONTAINSANY"] as const).forEach(
+    (operator) => {
+      test(`Condition: ${operator} rejects an empty value array`, () => {
+        assert.throws(() => Query.condition("description", operator, []), {
+          message: `${operator} operator requires at least one value`,
+        });
+      });
+    },
+  );
+
   const originPoint = {
     type: "Point",
     coordinates: [-122.335167, 47.608013],

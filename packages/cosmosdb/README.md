@@ -43,6 +43,7 @@ Connect to your database and initialize containers
 
 - Use `indexExclusions` to specify paths to exclude from indexing for performance optimization. Set it to `"none"` to include all paths (default).
 - Use `spatialIndexes` to create Point spatial indexes for GeoJSON properties. Each value is a Cosmos indexing-policy path.
+- Use `fullTextIndexes` to create English (`en-US`) full-text policies and indexes. Each value must be an explicit property path; `*` and `[]` are not supported.
 - Use `ttlSeconds` to configure a container-wide TTL for all items (in seconds). Set it to `-1` to disable expiration while still enabling the TTL system for per-item overrides.
 
 ```typescript
@@ -58,6 +59,7 @@ const db = await connectDB({
       partitionKey: "userId",
       indexExclusions: ["paths", "to", "exclude"],
       spatialIndexes: ["/primaryLocation/point/*"],
+      fullTextIndexes: ["/description"],
     },
     {
       name: "products",
@@ -73,7 +75,9 @@ const usersContainer = db.users;
 const productsContainer = db.products;
 ```
 
-`connectDB` uses `createIfNotExists`, so these options apply when a container is created. They do not update the indexing policy of an existing container. Update existing containers separately by following Microsoft's [indexing-policy update guidance](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-manage-indexing-policy).
+`connectDB` uses `createIfNotExists`, so these options apply only when a container is created. Startup does not migrate an existing container. Update existing containers separately by following Microsoft's [indexing-policy update guidance](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-manage-indexing-policy).
+
+Full-text search requires the Cosmos DB Full Text & Hybrid Search feature. `fullTextIndexes` adds both the container-level full-text policy and the matching full-text index using `en-US`. Existing containers need both policies updated separately. See Microsoft's [full-text indexing guide](https://learn.microsoft.com/en-us/cosmos-db/full-text-indexing) for the account and policy setup.
 
 ### Query Builder
 
@@ -112,6 +116,24 @@ const nearbyJobs = await jobsContainer.query(
 
 GeoJSON Point coordinates use `[longitude, latitude]` order. With CosmosDB's default geography coordinate system, `ST_DISTANCE` returns meters. `whereDistance` accepts `<=` or `>=` and generates parameters for the origin and radius.
 
+### Full-Text Queries
+
+Use `Query.whereCondition` for parameterized full-text filters:
+
+```typescript
+import { Query } from "dry-utils-cosmosdb";
+
+const search = new Query().whereCondition(
+  "description",
+  "FULLTEXTCONTAINSALL",
+  ["red", "bicycle"],
+);
+
+const matchingProducts = await productsContainer.query(search);
+```
+
+`FULLTEXTCONTAINS` accepts one term or phrase. Pass an array to `FULLTEXTCONTAINSALL` or `FULLTEXTCONTAINSANY` to generate one query parameter per term. `ALL` requires every supplied term, while `ANY` requires at least one.
+
 ### Mock Database (Testing)
 
 For tests, you can bypass Azure entirely by supplying `mockDBData` and optional `mockDBQueries`.
@@ -147,6 +169,8 @@ const db = await connectDB({
 The `mockDBFilters` matchers let you intercept WHERE clauses and return custom filtered results from fixture data. Use `mockDBProjects` the same way to intercept SELECT projections.
 
 The built-in mock query processor supports Point-to-Point `whereDistance` filters that use `<=`. It uses a Haversine approximation for tests; it is not a CosmosDB geospatial parity layer. Other spatial types, argument orders, and comparison operators remain unsupported in the mock.
+
+The mock also supports parameterized `FULLTEXTCONTAINS`, `FULLTEXTCONTAINSALL`, and `FULLTEXTCONTAINSANY` filters on nested string fields. Matching uses case-insensitive, contiguous substring checks with `en-US` casing. It does not reproduce Cosmos DB tokenization, stemming, stopword removal, fuzzy search, BM25 scoring, or ranking. Check behavior that depends on those details against Cosmos DB.
 
 ### Loading Mock Data from JSON
 
