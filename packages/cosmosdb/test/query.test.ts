@@ -1,3 +1,4 @@
+import type { JSONValue } from "@azure/cosmos";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { type Condition, Query } from "../src/Query.ts";
@@ -23,6 +24,59 @@ describe("DB: Query", () => {
       assert.equal(clause, expected);
       assert.deepEqual(params, { [`@${expectedParam}`]: value });
     });
+  });
+
+  const originPoint = {
+    type: "Point",
+    coordinates: [-122.335167, 47.608013],
+  } satisfies JSONValue;
+  const distanceOperators = ["<=", ">="] as const;
+
+  distanceOperators.forEach((operator) => {
+    test(`WhereDistance: ${operator}`, () => {
+      const result = new Query()
+        .whereDistance("primaryLocation.point", originPoint, operator, 25_000)
+        .build();
+
+      assert.equal(
+        result.query,
+        `SELECT * FROM c WHERE (ST_DISTANCE(c.primaryLocation.point, @primaryLocation_point_origin) ${operator} @primaryLocation_point_distanceMeters)`,
+      );
+      assert.deepEqual(result.parameters, [
+        { name: "@primaryLocation_point_origin", value: originPoint },
+        { name: "@primaryLocation_point_distanceMeters", value: 25_000 },
+      ]);
+    });
+  });
+
+  test("whereDistance: chains with other filters", () => {
+    const result = new Query()
+      .whereCondition("status", "=", "active")
+      .whereDistance("primaryLocation.point", originPoint, "<=", 25_000)
+      .build();
+
+    assert.equal(
+      result.query,
+      "SELECT * FROM c WHERE (c.status = @status) AND (ST_DISTANCE(c.primaryLocation.point, @primaryLocation_point_origin) <= @primaryLocation_point_distanceMeters)",
+    );
+    assert.deepEqual(result.parameters, [
+      { name: "@status", value: "active" },
+      { name: "@primaryLocation_point_origin", value: originPoint },
+      { name: "@primaryLocation_point_distanceMeters", value: 25_000 },
+    ]);
+  });
+
+  test("whereDistance: rejects invalid field path", () => {
+    assert.throws(
+      () =>
+        new Query().whereDistance(
+          "point); DROP TABLE c--",
+          originPoint,
+          "<=",
+          25_000,
+        ),
+      { message: /Invalid property path/ },
+    );
   });
 
   test("condition: rejects invalid field path", () => {

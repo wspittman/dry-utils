@@ -3,8 +3,9 @@ import type {
   ContainerRequest,
   Database,
   ItemDefinition,
+  SpatialIndex,
 } from "@azure/cosmos";
-import { CosmosClient } from "@azure/cosmos";
+import { CosmosClient, SpatialType } from "@azure/cosmos";
 import fs from "node:fs";
 import https from "node:https";
 import { Container } from "./container.ts";
@@ -21,6 +22,8 @@ export interface ContainerOptions {
   name: string;
   partitionKey: string;
   indexExclusions?: "none" | "all" | string[];
+  /** Cosmos indexing-policy paths to configure as Point spatial indexes when creating the container. */
+  spatialIndexes?: string[];
   ttlSeconds?: number;
 }
 
@@ -92,15 +95,24 @@ async function createContainer(
   options: ContainerOptions,
   attempt = 1,
 ): Promise<Container<ItemDefinition> | undefined> {
-  const { name, partitionKey, indexExclusions = "none", ttlSeconds } = options;
+  const {
+    name,
+    partitionKey,
+    indexExclusions = "none",
+    spatialIndexes = [],
+    ttlSeconds,
+  } = options;
   try {
     const details: ContainerRequest = {
       id: name,
       partitionKey: { paths: [`/${partitionKey}`] },
     };
 
-    if (indexExclusions !== "none") {
-      details.indexingPolicy = getIndexingPolicy(indexExclusions);
+    if (indexExclusions !== "none" || spatialIndexes.length) {
+      details.indexingPolicy = getIndexingPolicy(
+        indexExclusions,
+        spatialIndexes,
+      );
     }
 
     if (ttlSeconds !== undefined) {
@@ -132,16 +144,26 @@ function validateTtl(name: string, value?: number) {
   }
 }
 
-function getIndexingPolicy(exclusions: "all" | string[]) {
+function getIndexingPolicy(
+  exclusions: "none" | "all" | string[],
+  spatialPaths: string[],
+) {
   const all = [{ path: "/*" }];
+  const spatialIndexes: SpatialIndex[] = spatialPaths.map((path) => ({
+    path,
+    types: [SpatialType.Point],
+  }));
+  const spatialPolicy = spatialIndexes.length ? { spatialIndexes } : {};
 
   if (exclusions === "all") {
-    return { excludedPaths: all };
+    return { excludedPaths: all, ...spatialPolicy };
   }
 
+  const excludedPaths = exclusions === "none" ? [] : exclusions;
   return {
     includedPaths: all,
-    excludedPaths: ['/"_etag"/?', ...exclusions].map((path) => ({ path })),
+    excludedPaths: ['/"_etag"/?', ...excludedPaths].map((path) => ({ path })),
+    ...spatialPolicy,
   };
 }
 

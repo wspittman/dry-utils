@@ -20,6 +20,13 @@ const cond_compare = new RegExp(
 const cond_in = new RegExp(
   /^c\.(?<field>[A-Za-z0-9_.]+)\s+IN\s+\((?<params>(?:@[A-Za-z0-9_]+)(?:\s*,\s*@[A-Za-z0-9_]+)*)\)$/i,
 );
+const cond_st_distance = new RegExp(
+  /^ST_DISTANCE\s*\(\s*c\.(?<field>[A-Za-z0-9_.]+)\s*,\s*(?<origin>@[A-Za-z0-9_]+)\s*\)\s*<=\s*(?<radius>@[A-Za-z0-9_]+)$/i,
+);
+
+type PointCoordinates = [longitude: number, latitude: number];
+
+const MEAN_EARTH_RADIUS_METERS = 6_371_008.8;
 
 /**
  * Arguments passed to a {@link MockQueryDef} handler during query processing.
@@ -243,7 +250,7 @@ function getFieldValue(item: Item, fieldPath: string): unknown {
 
 /**
  * Evaluates a single condition against an item and query parameters.
- * Supports: c.field op @param (=, <, <=, >, >=) and CONTAINS(c.field, @param, true)
+ * Supports scalar comparisons, CONTAINS, IN, IS_DEFINED, and Point-to-Point ST_DISTANCE radius filters.
  */
 function evaluateCondition(
   condition: string,
@@ -296,7 +303,98 @@ function evaluateCondition(
     return values.includes(itemValue as JSONValue);
   }
 
+  const distanceMatch = condition.match(cond_st_distance);
+  if (distanceMatch) {
+    const { field, origin, radius } = distanceMatch.groups!;
+    const originCoordinates = getPointCoordinates(params[origin!]);
+    if (!originCoordinates) {
+      throw new Error(
+        `Invalid ST_DISTANCE origin parameter ${origin}: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]`,
+      );
+    }
+
+    const radiusMeters = params[radius!];
+    if (typeof radiusMeters !== "number" || !Number.isFinite(radiusMeters)) {
+      throw new Error(
+        `Invalid ST_DISTANCE radius parameter ${radius}: expected a finite number`,
+      );
+    }
+
+    const itemCoordinates = getPointCoordinates(getFieldValue(item, field!));
+    return (
+      itemCoordinates !== undefined &&
+      getPointDistanceMeters(itemCoordinates, originCoordinates) <= radiusMeters
+    );
+  }
+
   throw new Error(`Unsupported WHERE condition in mock: ${condition}`);
+}
+
+/**
+ * Returns validated longitude/latitude coordinates for a narrow GeoJSON Point.
+ */
+function getPointCoordinates(value: unknown): PointCoordinates | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return;
+  }
+
+  const point = value as Record<string, unknown>;
+  const coordinates = point["coordinates"];
+  if (
+    point["type"] !== "Point" ||
+    !Array.isArray(coordinates) ||
+    coordinates.length !== 2
+  ) {
+    return;
+  }
+
+  const longitude: unknown = coordinates[0];
+  const latitude: unknown = coordinates[1];
+  if (
+    typeof longitude !== "number" ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180 ||
+    typeof latitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90
+  ) {
+    return;
+  }
+
+  return [longitude, latitude];
+}
+
+/**
+ * Approximates Point-to-Point distance in meters with the Haversine formula.
+ * Cosmos remains authoritative for exact geospatial calculations and edge cases.
+ */
+function getPointDistanceMeters(
+  [longitudeA, latitudeA]: PointCoordinates,
+  [longitudeB, latitudeB]: PointCoordinates,
+): number {
+  const latitudeARadians = toRadians(latitudeA);
+  const latitudeBRadians = toRadians(latitudeB);
+  const latitudeDelta = latitudeBRadians - latitudeARadians;
+  const longitudeDelta = toRadians(longitudeB - longitudeA);
+  const sinLatitude = Math.sin(latitudeDelta / 2);
+  const sinLongitude = Math.sin(longitudeDelta / 2);
+  const haversine =
+    sinLatitude * sinLatitude +
+    Math.cos(latitudeARadians) *
+      Math.cos(latitudeBRadians) *
+      sinLongitude *
+      sinLongitude;
+  const boundedHaversine = Math.min(1, Math.max(0, haversine));
+  const angularDistance =
+    2 *
+    Math.atan2(Math.sqrt(boundedHaversine), Math.sqrt(1 - boundedHaversine));
+  return MEAN_EARTH_RADIUS_METERS * angularDistance;
+}
+
+function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
 }
 
 /**

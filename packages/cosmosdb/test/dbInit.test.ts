@@ -6,6 +6,7 @@ import {
   CosmosClient,
   Database,
   Databases,
+  SpatialType,
 } from "@azure/cosmos";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
@@ -28,15 +29,13 @@ mock.method(Databases.prototype, "createIfNotExists", function () {
 });
 
 let retryMap: Record<string, boolean> = {};
+let containerRequests: ContainerRequest[] = [];
 mock.method(
   Containers.prototype,
   "createIfNotExists",
-  function ({
-    id = "oops",
-    partitionKey,
-    indexingPolicy,
-    defaultTtl,
-  }: ContainerRequest) {
+  function (request: ContainerRequest) {
+    containerRequests.push(structuredClone(request));
+    const { id = "oops", partitionKey, indexingPolicy, defaultTtl } = request;
     if (id === "err") throw new Error("Error Time");
 
     if (id.startsWith("retry") && !retryMap[id]) {
@@ -82,6 +81,7 @@ describe("DB: DBInit", () => {
     logFn.mock.resetCalls();
     errorFn.mock.resetCalls();
     retryMap = {};
+    containerRequests = [];
   });
 
   const containerCases: [string, string[], number, number, boolean][] = [
@@ -140,6 +140,105 @@ describe("DB: DBInit", () => {
       callCounts(1, 0);
       // The mock hacks the container ID to include the id, pkey, and index exclusions
       assert.equal(result["id"]?.container.id, expected, "Container ID");
+    });
+  });
+
+  const emptySpatialIndexCases: Partial<ContainerOptions>[] = [
+    {},
+    { spatialIndexes: [] },
+  ];
+
+  emptySpatialIndexCases.forEach((testOpts) => {
+    test(`ConnectDB w/ no spatial policy ${JSON.stringify(testOpts)}`, async () => {
+      await connectDB({
+        ...connectOptions,
+        containers: [{ name: "id", partitionKey: "pkey", ...testOpts }],
+      });
+
+      assert.equal(containerRequests.length, 1);
+      assert.equal(containerRequests[0]?.indexingPolicy, undefined);
+    });
+  });
+
+  const spatialIndexCases: [
+    Partial<ContainerOptions>,
+    NonNullable<ContainerRequest["indexingPolicy"]>,
+  ][] = [
+    [
+      {
+        indexExclusions: "none",
+        spatialIndexes: ["/primaryLocation/point/*"],
+      },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+        ],
+      },
+    ],
+    [
+      { spatialIndexes: ["/primaryLocation/point/*", "/office/point/*"] },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+          { path: "/office/point/*", types: [SpatialType.Point] },
+        ],
+      },
+    ],
+    [
+      {
+        indexExclusions: ["/largePayload/*"],
+        spatialIndexes: ["/primaryLocation/point/*"],
+      },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }, { path: "/largePayload/*" }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+        ],
+      },
+    ],
+    [
+      {
+        indexExclusions: "all",
+        spatialIndexes: ["/primaryLocation/point/*"],
+      },
+      {
+        excludedPaths: [{ path: "/*" }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+        ],
+      },
+    ],
+  ];
+
+  spatialIndexCases.forEach(([testOpts, expected]) => {
+    test(`ConnectDB w/ spatial policy ${JSON.stringify(testOpts)}`, async () => {
+      const originalOptions = structuredClone(testOpts);
+
+      await connectDB({
+        ...connectOptions,
+        containers: [{ name: "id", partitionKey: "pkey", ...testOpts }],
+      });
+
+      assert.equal(containerRequests.length, 1);
+      assert.deepEqual(containerRequests[0]?.indexingPolicy, expected);
+      assert.deepEqual(testOpts, originalOptions);
     });
   });
 

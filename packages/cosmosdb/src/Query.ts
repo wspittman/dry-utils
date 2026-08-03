@@ -36,19 +36,27 @@ export type Where = [clause: string, parameters?: Record<string, JSONValue>];
  *     - Example: STARTSWITH(c.x, "prefix")
  *     - Example: EXISTS (SELECT VALUE l FROM l IN c.list WHERE l.x > 10)
  *
- * 3. Expanded Index Scan (case-insensitive STARTSWITH, StringEquals)
+ * 3. Spatial Index Filter (`whereDistance` / `ST_DISTANCE <=`)
+ *     - Required: Configured spatialIndex policy.
+ *     - RU depends on the search radius, data distribution, and query result count.
+ *     - RU (index): Increases with the size/selectivity of the search region, spatial data distribution, and partition count.
+ *     - RU (load): Query result count.
+ *     - Example: query.whereDistance("location", origin, "<=", radiusInMeters)
+ *     - Example: ST_DISTANCE(c.location, @origin) <= @radiusInMeters
+ *
+ * 4. Expanded Index Scan (case-insensitive STARTSWITH, StringEquals)
  *    - Optimized search (but less efficient than a binary search) of indexed values and load only matching items
  *    - RU (index): Increases slightly based on the cardinality of indexed properties
  *    - RU (load): Query result count
  *
- * 4. Full Index Scan (CONTAINS, EndsWith, RegexMatch, LIKE)
+ * 5. Full Index Scan (CONTAINS, EndsWith, RegexMatch, LIKE)
  *    - Read distinct set of indexed values and load only matching items
  *    - RU (index): Increases linearly based on the cardinality of indexed properties
  *    - RU (load): Query result count
  *    - Example: CONTAINS(c.x, "word")
  *    - Example: EXISTS (SELECT VALUE l FROM l IN c.list WHERE CONTAINS(l.x, "word"))
  *
- * 5. Full Scan (Negation, UPPER, LOWER)
+ * 6. Full Scan (Negation, UPPER, LOWER)
  *    - Load all items
  *    - RU (index): N/A
  *    - RU (load): Increases based on number of items in container
@@ -129,6 +137,31 @@ export class Query {
    */
   whereCondition(...[field, op, value]: Condition): this {
     return this.where(Query.condition(field, op, value));
+  }
+
+  /**
+   * Adds a parameterized `ST_DISTANCE` comparison for a GeoJSON Point.
+   * @param field Document field path containing the stored Point
+   * @param origin Point from which distance is measured
+   * @param op Scalar comparison operator
+   * @param distanceMeters Distance value in meters
+   * @returns The Query instance for method chaining
+   */
+  whereDistance(
+    field: string,
+    origin: JSONValue,
+    op: "<=" | ">=",
+    distanceMeters: number,
+  ): this {
+    validatePropPath(field);
+    const [prop, param] = toPair(field);
+    const originParam = `${param}_origin`;
+    const distanceParam = `${param}_distanceMeters`;
+
+    return this.where([
+      `ST_DISTANCE(${prop}, ${originParam}) ${op} ${distanceParam}`,
+      { [originParam]: origin, [distanceParam]: distanceMeters },
+    ]);
   }
 
   /**

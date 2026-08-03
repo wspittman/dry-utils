@@ -42,6 +42,7 @@ npm install dry-utils-cosmosdb
 Connect to your database and initialize containers
 
 - Use `indexExclusions` to specify paths to exclude from indexing for performance optimization. Set it to `"none"` to include all paths (default).
+- Use `spatialIndexes` to create Point spatial indexes for GeoJSON properties. Each value is a Cosmos indexing-policy path.
 - Use `ttlSeconds` to configure a container-wide TTL for all items (in seconds). Set it to `-1` to disable expiration while still enabling the TTL system for per-item overrides.
 
 ```typescript
@@ -56,6 +57,7 @@ const db = await connectDB({
       name: "users",
       partitionKey: "userId",
       indexExclusions: ["paths", "to", "exclude"],
+      spatialIndexes: ["/primaryLocation/point/*"],
     },
     {
       name: "products",
@@ -70,6 +72,8 @@ const db = await connectDB({
 const usersContainer = db.users;
 const productsContainer = db.products;
 ```
+
+`connectDB` uses `createIfNotExists`, so these options apply when a container is created. They do not update the indexing policy of an existing container. Update existing containers separately by following Microsoft's [indexing-policy update guidance](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-manage-indexing-policy).
 
 ### Query Builder
 
@@ -88,6 +92,25 @@ const query = new Query()
 // Execute the query
 const results = await container.query(query.top(100).build());
 ```
+
+### Spatial Point Queries
+
+Use `Query.whereDistance` to find Points within a radius:
+
+```typescript
+import { Query } from "dry-utils-cosmosdb";
+
+const origin = {
+  type: "Point",
+  coordinates: [-122.335167, 47.608013],
+};
+
+const nearbyJobs = await jobsContainer.query(
+  new Query().whereDistance("primaryLocation.point", origin, "<=", 25_000),
+);
+```
+
+GeoJSON Point coordinates use `[longitude, latitude]` order. With CosmosDB's default geography coordinate system, `ST_DISTANCE` returns meters. `whereDistance` accepts `<=` or `>=` and generates parameters for the origin and radius.
 
 ### Mock Database (Testing)
 
@@ -122,6 +145,8 @@ const db = await connectDB({
 ```
 
 The `mockDBFilters` matchers let you intercept WHERE clauses and return custom filtered results from fixture data. Use `mockDBProjects` the same way to intercept SELECT projections.
+
+The built-in mock query processor supports Point-to-Point `whereDistance` filters that use `<=`. It uses a Haversine approximation for tests; it is not a CosmosDB geospatial parity layer. Other spatial types, argument orders, and comparison operators remain unsupported in the mock.
 
 ### Loading Mock Data from JSON
 

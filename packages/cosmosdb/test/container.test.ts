@@ -1,3 +1,4 @@
+import type { JSONValue } from "@azure/cosmos";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
 import { connectDB } from "../src/dbInit.ts";
@@ -19,10 +20,62 @@ interface Entry {
   _ts: number;
 }
 
+interface SpatialEntry {
+  id: string;
+  pkey: string;
+  status: "active" | "inactive";
+  primaryLocation?: { point?: JSONValue };
+}
+
 const mockDB: Entry[] = [
   { id: "1", pkey: "item", val: 123, _ts: 1234567890 },
   { id: "2", pkey: "item", val: 456, _ts: 1234567891 },
   { id: "3", pkey: "item", val: 789, _ts: 1234567892 },
+];
+
+const originPoint = {
+  type: "Point",
+  coordinates: [10, 60],
+} satisfies JSONValue;
+
+const spatialDB: SpatialEntry[] = [
+  {
+    id: "far",
+    pkey: "item",
+    status: "active",
+    primaryLocation: {
+      point: { type: "Point", coordinates: [12, 60] },
+    },
+  },
+  {
+    id: "near",
+    pkey: "item",
+    status: "active",
+    primaryLocation: {
+      point: { type: "Point", coordinates: [11, 60] },
+    },
+  },
+  {
+    id: "same",
+    pkey: "item",
+    status: "inactive",
+    primaryLocation: { point: structuredClone(originPoint) },
+  },
+  { id: "missing", pkey: "item", status: "active" },
+  {
+    id: "malformed",
+    pkey: "item",
+    status: "active",
+    primaryLocation: {
+      point: { type: "Point", coordinates: [10, "invalid"] },
+    },
+  },
+  {
+    id: "not-point",
+    pkey: "item",
+    status: "active",
+    primaryLocation: { point: { type: "Polygon", coordinates: [] } },
+  },
 ];
 
 const connectOptions = {
@@ -40,6 +93,26 @@ async function getContainer() {
     },
   });
   return containerMap["mockContainer"] as Container<Entry>;
+}
+
+async function getSpatialContainer() {
+  const containerMap = await connectDB({
+    ...connectOptions,
+    mockDBData: { mockContainer: structuredClone(spatialDB) },
+  });
+  return containerMap["mockContainer"] as Container<SpatialEntry>;
+}
+
+const distanceClause =
+  "ST_DISTANCE(c.primaryLocation.point, @origin) <= @radiusMeters";
+
+function getDistanceQuery(origin: JSONValue, distanceMeters: number) {
+  return new Query().whereDistance(
+    "primaryLocation.point",
+    origin,
+    "<=",
+    distanceMeters,
+  );
 }
 
 describe("DB: Container", () => {
@@ -333,6 +406,159 @@ describe("DB: Container", () => {
       mockDB.filter((item) => item.pkey === "item" && item.val > 456),
     ),
   );
+
+  test("query: ST_DISTANCE filters nested Points in meters", async () => {
+    const c = await getSpatialContainer();
+
+    const result = await c.query<SpatialEntry>(
+      getDistanceQuery(originPoint, 75_000),
+    );
+
+    assert.deepEqual(
+      result.map(({ id }) => id),
+      ["near", "same"],
+    );
+    logCounts({ ag: 1 });
+  });
+
+  test("query: ST_DISTANCE includes the radius boundary", async () => {
+    const c = await getSpatialContainer();
+
+    const result = await c.query<SpatialEntry>(
+      getDistanceQuery(originPoint, 0),
+    );
+
+    assert.deepEqual(
+      result.map(({ id }) => id),
+      ["same"],
+    );
+    logCounts({ ag: 1 });
+  });
+
+  test("query: ST_DISTANCE with a negative radius matches nothing", async () => {
+    const c = await getSpatialContainer();
+
+    const result = await c.query<SpatialEntry>(
+      getDistanceQuery(originPoint, -1),
+    );
+
+    assert.deepEqual(result, []);
+    logCounts({ ag: 1 });
+  });
+
+  test("query: ST_DISTANCE is case-insensitive and whitespace-tolerant", async () => {
+    const c = await getSpatialContainer();
+
+    const result = await c.query<SpatialEntry>({
+      query:
+        "select * from c where st_distance ( c.primaryLocation.point , @origin ) <= @radiusMeters",
+      parameters: [
+        { name: "@origin", value: originPoint },
+        { name: "@radiusMeters", value: 75_000 },
+      ],
+    });
+
+    assert.deepEqual(
+      result.map(({ id }) => id),
+      ["near", "same"],
+    );
+    logCounts({ ag: 1 });
+  });
+
+  test("query: ST_DISTANCE combines with scalar filters before TOP", async () => {
+    const c = await getSpatialContainer();
+    const query = new Query()
+      .top(1)
+      .whereCondition("status", "=", "active")
+      .whereDistance("primaryLocation.point", originPoint, "<=", 75_000);
+
+    const result = await c.query<SpatialEntry>(query);
+
+    assert.deepEqual(
+      result.map(({ id }) => id),
+      ["near"],
+    );
+    logCounts({ ag: 1 });
+  });
+
+  const invalidSpatialParameterCases: [
+    string,
+    Record<string, JSONValue>,
+    string,
+  ][] = [
+    [
+      "missing origin",
+      { "@radiusMeters": 75_000 },
+      "Invalid ST_DISTANCE origin parameter @origin: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]",
+    ],
+    [
+      "non-Point origin",
+      {
+        "@origin": { type: "Polygon", coordinates: [] },
+        "@radiusMeters": 75_000,
+      },
+      "Invalid ST_DISTANCE origin parameter @origin: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]",
+    ],
+    [
+      "out-of-range origin",
+      {
+        "@origin": { type: "Point", coordinates: [181, 60] },
+        "@radiusMeters": 75_000,
+      },
+      "Invalid ST_DISTANCE origin parameter @origin: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]",
+    ],
+    [
+      "missing radius",
+      { "@origin": originPoint },
+      "Invalid ST_DISTANCE radius parameter @radiusMeters: expected a finite number",
+    ],
+    [
+      "non-number radius",
+      { "@origin": originPoint, "@radiusMeters": "75000" },
+      "Invalid ST_DISTANCE radius parameter @radiusMeters: expected a finite number",
+    ],
+    [
+      "non-finite radius",
+      { "@origin": originPoint, "@radiusMeters": Infinity },
+      "Invalid ST_DISTANCE radius parameter @radiusMeters: expected a finite number",
+    ],
+  ];
+
+  invalidSpatialParameterCases.forEach(([name, parameters, message]) => {
+    test(`query: ST_DISTANCE rejects ${name}`, async () => {
+      const c = await getSpatialContainer();
+
+      await assert.rejects(
+        c.query(
+          new Query().where([distanceClause, structuredClone(parameters)]),
+        ),
+        { message },
+      );
+      logCounts({ error: 1 });
+    });
+  });
+
+  const unsupportedSpatialClauses = [
+    "ST_DISTANCE(@origin, c.primaryLocation.point) <= @radiusMeters",
+    "ST_DISTANCE(c.primaryLocation.point, @origin) < @radiusMeters",
+  ];
+
+  unsupportedSpatialClauses.forEach((clause) => {
+    test(`query: rejects unsupported spatial clause ${clause}`, async () => {
+      const c = await getSpatialContainer();
+
+      await assert.rejects(
+        c.query(
+          new Query().where([
+            clause,
+            { "@origin": originPoint, "@radiusMeters": 75_000 },
+          ]),
+        ),
+        { message: `Unsupported WHERE condition in mock: ${clause}` },
+      );
+      logCounts({ error: 1 });
+    });
+  });
 
   test(
     "query: TOP without WHERE",
