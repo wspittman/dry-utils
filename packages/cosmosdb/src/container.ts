@@ -12,6 +12,8 @@ import { diag } from "./diagnostics.ts";
 import { Query, type Condition } from "./Query.ts";
 import { validateItemId, validatePropPath } from "./utils.ts";
 
+export type DBItem<T> = T & Resource;
+
 interface CountBy {
   name: unknown;
   count: number;
@@ -39,7 +41,7 @@ export class Container<Item extends ItemDefinition> {
   async getItem(
     id: string,
     partitionKey: string,
-  ): Promise<(Item & Resource) | undefined> {
+  ): Promise<DBItem<Item> | undefined> {
     validateItemId(id);
     try {
       const response = await this.container.item(id, partitionKey).read<Item>();
@@ -56,12 +58,10 @@ export class Container<Item extends ItemDefinition> {
    * @param partitionKey The partition key to query
    * @returns Array of items in the partition
    */
-  async getItemsByPartitionKey(
-    partitionKey: string,
-  ): Promise<(Item & Resource)[]> {
+  async getItemsByPartitionKey(partitionKey: string): Promise<DBItem<Item>[]> {
     try {
       const response = await this.container.items
-        .readAll<Item & Resource>({ partitionKey })
+        .readAll<DBItem<Item>>({ partitionKey })
         .fetchAll();
       logDBAction("READ_ALL", this.name, response, partitionKey);
       return response.resources;
@@ -144,14 +144,14 @@ export class Container<Item extends ItemDefinition> {
    * @param item The item to upsert
    * @returns The item as stored, including system properties (`_ts`, `_etag`, etc.)
    */
-  async upsertItem(item: Item): Promise<Item & Resource> {
+  async upsertItem(item: Item): Promise<DBItem<Item>> {
     if (item.id !== undefined) {
       validateItemId(item.id);
     }
     try {
       const response = await this.container.items.upsert(item);
       logDBAction("UPSERT", this.name, response);
-      return response.resource as Item & Resource;
+      return response.resource as DBItem<Item>;
     } catch (error) {
       diag.error("UpsertItem", error);
       throw error;

@@ -1,4 +1,4 @@
-export { Container } from "./container.ts";
+export { Container, type DBItem } from "./container.ts";
 export {
   connectDB,
   type ContainerOptions,
@@ -10,3 +10,10 @@ export { subscribeCosmosDBLogging } from "./diagnostics.ts";
 export { loadMockDBData, type MockDBDataOptions } from "./mockDbData.ts";
 export type { MockQueryDef } from "./mockQueryProcessor.ts";
 export { Query, type Condition, type Where } from "./Query.ts";
+
+export type {
+  FeedOptions,
+  ItemDefinition,
+  JSONValue,
+  SqlQuerySpec,
+} from "@azure/cosmos";
