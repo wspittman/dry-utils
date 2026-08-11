@@ -9,8 +9,9 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 import { diag } from "./diagnostics.ts";
-import { Query, type Condition } from "./Query.ts";
+import { Query } from "./Query.ts";
 import { validateItemId, validatePropPath } from "./utils.ts";
+import type { Condition } from "./Where.ts";
 
 export type DBItem<T> = T & Resource;
 
@@ -77,9 +78,12 @@ export class Container<Item extends ItemDefinition> {
    * @returns Array of item IDs in the partition
    */
   async getIdsByPartitionKey(partitionKey: string): Promise<string[]> {
-    const result = await this.query<{ id: string }>(new Query("ID"), {
-      partitionKey,
-    });
+    const result = await this.query<{ id: string }>(
+      new Query({ select: "ID" }),
+      {
+        partitionKey,
+      },
+    );
     return result.map((entry) => entry.id);
   }
 
@@ -94,7 +98,7 @@ export class Container<Item extends ItemDefinition> {
     partitionKey?: string,
   ): Promise<number> {
     const response = await this.query<number>(
-      new Query("COUNT", condition),
+      new Query({ select: "COUNT", where: condition ? [condition] : [] }),
       partitionKey ? { partitionKey } : undefined,
     );
     return response[0] ?? 0;
