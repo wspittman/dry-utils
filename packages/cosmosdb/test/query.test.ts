@@ -1,19 +1,19 @@
 import type { JSONValue } from "@azure/cosmos";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { Query } from "../src/Query.ts";
+import { buildQuery } from "../src/Query.ts";
 import { Where } from "../src/Where.ts";
 
 describe("DB: Query", () => {
   test("build: empty options", () => {
-    assert.deepEqual(new Query().build(), {
+    assert.deepEqual(buildQuery(), {
       query: "SELECT * FROM c",
-      parameters: [],
+      parameters: undefined,
     });
   });
 
   test("build: applies all options", () => {
-    const result = new Query({
+    const result = buildQuery({
       select: "ID",
       top: 24,
       where: [
@@ -24,7 +24,7 @@ describe("DB: Query", () => {
         ]),
       ],
       orderBy: [["status"], ["_ts", "DESC"]],
-    }).build();
+    });
 
     assert.equal(
       result.query,
@@ -45,18 +45,18 @@ describe("DB: Query", () => {
 
   selectorCases.forEach(([select, expected]) => {
     test(`build: ${select} selector`, () => {
-      assert.equal(new Query({ select }).build().query, expected);
+      assert.equal(buildQuery({ select }).query, expected);
     });
   });
 
   test("constructor: rejects top below one", () => {
-    assert.throws(() => new Query({ top: 0 }), {
+    assert.throws(() => buildQuery({ top: 0 }), {
       message: "Query: Max results must be greater than 0",
     });
   });
 
   test("constructor: rejects invalid order field", () => {
-    assert.throws(() => new Query({ orderBy: [["status; DROP TABLE c--"]] }), {
+    assert.throws(() => buildQuery({ orderBy: [["status; DROP TABLE c--"]] }), {
       message: /Invalid property path/,
     });
   });
@@ -66,7 +66,7 @@ describe("DB: Query", () => {
       type: "Point",
       coordinates: [-122.335167, 47.608013],
     } satisfies JSONValue;
-    const result = new Query({
+    const result = buildQuery({
       where: [
         ["status", "=", "active"],
         Where.raw([
@@ -75,7 +75,7 @@ describe("DB: Query", () => {
         ]),
         ["status", "=", "pending"],
       ],
-    }).build();
+    });
 
     assert.equal(
       result.query,
@@ -90,13 +90,19 @@ describe("DB: Query", () => {
   });
 
   test("build: is deterministic", () => {
-    const query = new Query({
+    const query = buildQuery({
+      where: [
+        ["status", "=", "active"],
+        ["status", "=", "pending"],
+      ],
+    });
+    const query2 = buildQuery({
       where: [
         ["status", "=", "active"],
         ["status", "=", "pending"],
       ],
     });
 
-    assert.deepEqual(query.build(), query.build());
+    assert.deepEqual(query, query2);
   });
 });

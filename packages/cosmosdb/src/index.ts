@@ -10,16 +10,16 @@ export { subscribeCosmosDBLogging } from "./diagnostics.ts";
 export { loadMockDBData, type MockDBDataOptions } from "./mockDbData.ts";
 export type { MockQueryDef } from "./mockQueryProcessor.ts";
 export {
+  buildQuery,
   type OrderBy,
-  Query,
   type QueryOptions,
   type Selector,
 } from "./Query.ts";
 export {
+  Where,
   type Condition,
   type Operator,
   type RawWhere,
-  Where,
   type WhereInput,
 } from "./Where.ts";
 

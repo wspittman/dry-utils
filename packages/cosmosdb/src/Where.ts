@@ -40,7 +40,74 @@ interface BuildContext {
   parameters: Record<string, JSONValue>;
 }
 
-/** A composable CosmosDB SQL predicate expression. */
+/**
+ * A composable CosmosDB SQL predicate expression.
+ *
+ * When adding WHERE clauses to a query, prefer clauses that
+ * - Make the best use of the index
+ * - Reduce the number of documents scanned
+ *
+ * Preferring and ordering by the most efficient and selective filters
+ * reduces the number of documents scanned, improving query speed and lowering RU costs.
+ * Treat ORs as if they are the worst of their parts.
+ *
+ * Prefer WHERE clauses in this order:
+ *
+ * 1. Index Seek (=, IN, FullTextContains)
+ *     - Directly locate one or more indexed values and load matching items.
+ *     - RU (load): Scales with result count
+ *
+ *     Ordinary range-index seeks:
+ *     - RU (index): Constant per equality filter.
+ *     - Example: c.x = 10
+ *     - Example: c.x IN ("value1", "value2", "value3")
+ *     - Example: ARRAY_CONTAINS(c.list, { x: 10 })
+ *
+ *     Full-text index seeks:
+ *     - Required: FullTextIndex has been configured for the property path.
+ *     - Look up analyzed terms in the specialized inverted index.
+ *     - RU (index): Scales with number of searched terms and posting-list/intersection work.
+ *     - Example: FullTextContains(c.text, "engineer")
+ *     - Example: FullTextContainsAll(c.text, "senior", "engineer")
+ *
+ * 2. Precise Index Scan (>, >=, <, <=, STARTSWITH, bounded ST_DISTANCE)
+ *     - Start at a specific location or region in an ordered/specialized index and scan only the relevant portion.
+ *     - RU (load): Scales with result count
+ *
+ *     Scalar range-index scans:
+ *     - RU (index): Comparable to index seek, increases slightly based on the cardinality of indexed properties
+ *     - Binary search of indexed values.
+ *     - Example: c.x > 10
+ *     - Example: STARTSWITH(c.x, "prefix")
+ *     - Example: EXISTS (SELECT VALUE l FROM l IN c.list WHERE l.x > 10)
+ *
+ *     Spatial index scans:
+ *     - Required: SpatialIndex has been configured for the property path.
+ *     - Search spatial-index regions overlapping the requested radius.
+ *     - RU (index): Depends on geometry, spatial distribution, and the size of the searched region.
+ *     - Example: ST_DISTANCE(c.location, @origin) < @radius
+ *     - Example: Where.distance("location", origin, "<=", radiusInMeters)
+ *
+ * 3. Expanded Index Scan (case-insensitive STARTSWITH, StringEquals)
+ *    - Optimized search (but less efficient than a binary search) of indexed values and load only matching items
+ *    - RU (index): Increases slightly based on the cardinality of indexed properties
+ *    - RU (load): Query result count
+ *
+ * 4. Full Index Scan (CONTAINS, EndsWith, RegexMatch, LIKE)
+ *    - Read distinct set of indexed values and load only matching items
+ *    - RU (index): Increases linearly based on the cardinality of indexed properties
+ *    - RU (load): Query result count
+ *    - Example: CONTAINS(c.x, "word")
+ *    - Example: EXISTS (SELECT VALUE l FROM l IN c.list WHERE CONTAINS(l.x, "word"))
+ *
+ * 5. Full Scan (Negation, UPPER, LOWER)
+ *    - Load all items
+ *    - RU (index): N/A
+ *    - RU (load): Increases based on number of items in container
+ *    - Example: c.x != 10
+ *    - Example: NOT ARRAY_CONTAINS(c.list, { x: 10 })
+ *    - Example: JOIN l IN c.list
+ */
 export class Where {
   readonly #node: WhereNode;
 
@@ -70,8 +137,40 @@ export class Where {
       if (!name.startsWith("@")) {
         throw new Error(`Where: Parameter "${name}" must start with @`);
       }
+      if (/^@p\d+$/.test(name)) {
+        throw new Error(
+          `Where: Parameter "${name}" must start with conflict with generated @p123 parameters`,
+        );
+      }
     }
     return new Where({ kind: "raw", raw: [clause, { ...parameters }] });
+  }
+
+  /**
+   * Adds a parameterized `ST_DISTANCE` comparison for a GeoJSON Point.
+   * @param field Document field path containing the stored Point
+   * @param origin Point from which distance is measured
+   * @param op Scalar comparison operator
+   * @param meters Distance value in meters
+   * @returns A predicate for the distance clause
+   */
+  static distance(
+    field: string,
+    origin: JSONValue,
+    op: "<=" | ">=",
+    meters: number,
+  ): Where {
+    validatePropPath(field);
+
+    const prop = `c.${field}`;
+    const param = `@${field.replace(/\./g, "_")}`;
+    const paramOrigin = `${param}_origin`;
+    const paramMeters = `${param}_meters`;
+
+    return Where.raw([
+      `ST_DISTANCE(${prop}, ${paramOrigin}) ${op} ${paramMeters}`,
+      { [paramOrigin]: origin, [paramMeters]: meters },
+    ]);
   }
 
   /**
@@ -149,10 +248,12 @@ function renderCondition(
 
   if (isMultiValueOperator(operator)) {
     const values = isJSONValueArray(value) ? value : [value];
-    const parameters = values.map((entry) => addParameter(context, entry));
+    const paramString = values
+      .map((entry) => addParameter(context, entry))
+      .join(", ");
     return operator === "IN"
-      ? `${property} IN (${parameters.join(", ")})`
-      : `${operator}(${property}, ${parameters.join(", ")})`;
+      ? `${property} IN (${paramString})`
+      : `${operator}(${property}, ${paramString})`;
   }
 
   const parameter = addParameter(context, value);
@@ -160,6 +261,7 @@ function renderCondition(
     const caseInsensitive = operator === "CONTAINS" ? ", true" : "";
     return `${operator}(${property}, ${parameter}${caseInsensitive})`;
   }
+
   return `${property} ${operator} ${parameter}`;
 }
 
@@ -168,13 +270,16 @@ function renderRaw([clause, parameters = {}]: RawWhere, context: BuildContext) {
     const pattern = parameterPattern(name);
     if (!pattern.test(clause)) continue;
     const generatedName = addParameter(context, value);
-    clause = clause.replace(parameterPattern(name), generatedName);
+    clause = clause.replace(pattern, generatedName);
   }
   return clause;
 }
 
 function parameterPattern(name: string): RegExp {
+  // Escape regex-special characters in `name`
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Match `name` unless followed by letter/digit/underscore
   return new RegExp(`${escaped}(?![A-Za-z0-9_])`, "g");
 }
 

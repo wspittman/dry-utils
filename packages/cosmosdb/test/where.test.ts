@@ -111,6 +111,39 @@ describe("DB: Where", () => {
     );
   });
 
+  const originPoint = {
+    type: "Point",
+    coordinates: [-122.335167, 47.608013],
+  } satisfies JSONValue;
+  const distanceOperators = ["<=", ">="] as const;
+
+  distanceOperators.forEach((operator) => {
+    test(`distance: ${operator}`, () => {
+      const [clause, parameters] = Where.distance(
+        "primaryLocation.point",
+        originPoint,
+        operator,
+        25_000,
+      ).build();
+
+      assert.equal(
+        clause,
+        `ST_DISTANCE(c.primaryLocation.point, @p0) ${operator} @p1`,
+      );
+      assert.deepEqual(parameters, {
+        "@p0": originPoint,
+        "@p1": 25_000,
+      });
+    });
+  });
+
+  test("distance: rejects invalid field path", () => {
+    assert.throws(
+      () => Where.distance("point); DROP TABLE c--", originPoint, "<=", 25_000),
+      { message: /Invalid property path/ },
+    );
+  });
+
   test("any: accepts conditions, raw clauses, and Where instances", () => {
     const inputs = [
       ["status", "=", "active"],

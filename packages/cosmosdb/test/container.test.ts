@@ -4,10 +4,10 @@ import { beforeEach, describe, mock, test } from "node:test";
 import { connectDB } from "../src/dbInit.ts";
 import {
   Container,
-  Query,
+  Where,
+  buildQuery,
   subscribeCosmosDBLogging,
   type MockQueryDef,
-  Where,
 } from "../src/index.ts";
 
 const FORCE_ERROR = "FORCE_ERROR";
@@ -169,16 +169,16 @@ function getFullTextQuery(
   parameters: Record<string, JSONValue>,
 ) {
   const clause = `${fn}(c.content.description, ${parameterNames.join(", ")})`;
-  return new Query({ where: [[clause, parameters]] });
+  return buildQuery({ where: [[clause, parameters]] });
 }
 
 const distanceClause =
   "ST_DISTANCE(c.primaryLocation.point, @origin) <= @radiusMeters";
 
 function getDistanceQuery(origin: JSONValue, distanceMeters: number) {
-  return new Query({
+  return buildQuery({
     where: [
-      [distanceClause, { "@origin": origin, "@radiusMeters": distanceMeters }],
+      Where.distance("primaryLocation.point", origin, "<=", distanceMeters),
     ],
   });
 }
@@ -360,7 +360,7 @@ describe("DB: Container", () => {
   test(
     "query: WHERE condition from Query builder",
     testSuccess(
-      async (c) => c.query<Entry>(new Query({ where: [["val", ">", 456]] })),
+      async (c) => c.query<Entry>(buildQuery({ where: [["val", ">", 456]] })),
       mockDB.filter((item) => item.val > 456),
     ),
   );
@@ -369,7 +369,7 @@ describe("DB: Container", () => {
     "query: IN operator filters correctly",
     testSuccess(
       async (c) =>
-        c.query<Entry>(new Query({ where: [["id", "IN", ["1", "3"]]] })),
+        c.query<Entry>(buildQuery({ where: [["id", "IN", ["1", "3"]]] })),
       mockDB.filter((item) => item.id === "1" || item.id === "3"),
     ),
   );
@@ -377,7 +377,7 @@ describe("DB: Container", () => {
   test(
     "query: orderBy ASC",
     testSuccess(
-      async (c) => c.query<Entry>(new Query({ orderBy: [["val"]] })),
+      async (c) => c.query<Entry>(buildQuery({ orderBy: [["val"]] })),
       [...mockDB].sort((a, b) => a.val - b.val),
     ),
   );
@@ -385,7 +385,7 @@ describe("DB: Container", () => {
   test(
     "query: orderBy DESC",
     testSuccess(
-      async (c) => c.query<Entry>(new Query({ orderBy: [["val", "DESC"]] })),
+      async (c) => c.query<Entry>(buildQuery({ orderBy: [["val", "DESC"]] })),
       [...mockDB].sort((a, b) => b.val - a.val),
     ),
   );
@@ -428,7 +428,7 @@ describe("DB: Container", () => {
       const container = containerMap["mockContainer"]!;
 
       const result = await container.query<{ id: string }>(
-        new Query({ orderBy: [["val", direction]] }),
+        buildQuery({ orderBy: [["val", direction]] }),
       );
 
       assert.deepEqual(
@@ -442,7 +442,7 @@ describe("DB: Container", () => {
     "query: WHERE CONTAINS condition from Query builder",
     testSuccess(
       async (c) =>
-        c.query<Entry>(new Query({ where: [["id", "CONTAINS", "1"]] })),
+        c.query<Entry>(buildQuery({ where: [["id", "CONTAINS", "1"]] })),
       mockDB.filter((item) => item.id.includes("1")),
     ),
   );
@@ -452,7 +452,7 @@ describe("DB: Container", () => {
     testSuccess(
       async (c) =>
         c.query<Entry>(
-          new Query({
+          buildQuery({
             where: [
               ["pkey", "=", "item"],
               ["val", ">", 456],
@@ -468,7 +468,7 @@ describe("DB: Container", () => {
     testSuccess(
       async (c) =>
         c.query<Entry>(
-          new Query({
+          buildQuery({
             where: [
               ["pkey", "=", "item"],
               Where.any([
@@ -559,11 +559,11 @@ describe("DB: Container", () => {
 
   test("query: ST_DISTANCE combines with scalar filters before TOP", async () => {
     const c = await getSpatialContainer();
-    const query = new Query({
+    const query = buildQuery({
       top: 1,
       where: [
         ["status", "=", "active"],
-        [distanceClause, { "@origin": originPoint, "@radiusMeters": 75_000 }],
+        Where.distance("primaryLocation.point", originPoint, "<=", 75_000),
       ],
     });
 
@@ -625,7 +625,7 @@ describe("DB: Container", () => {
 
       await assert.rejects(
         c.query(
-          new Query({
+          buildQuery({
             where: [[distanceClause, structuredClone(parameters)]],
           }),
         ),
@@ -650,7 +650,7 @@ describe("DB: Container", () => {
       ]).build();
       await assert.rejects(
         c.query(
-          new Query({
+          buildQuery({
             where: [
               [clause, { "@origin": originPoint, "@radiusMeters": 75_000 }],
             ],
@@ -731,7 +731,7 @@ describe("DB: Container", () => {
 
   test("query: full-text functions combine with scalar filters before TOP", async () => {
     const c = await getFullTextContainer();
-    const query = new Query({
+    const query = buildQuery({
       top: 1,
       where: [
         ["status", "=", "active"],
@@ -823,7 +823,7 @@ describe("DB: Container", () => {
       const [builtClause] = Where.raw([clause, parameters]).build();
       await assert.rejects(
         c.query(
-          new Query({
+          buildQuery({
             where: [[clause, parameters]],
           }),
         ),
@@ -842,7 +842,7 @@ describe("DB: Container", () => {
     const c = await getFullTextContainer([customFilter]);
 
     const result = await c.query<FullTextEntry>(
-      new Query({ where: [[clause, { "@term": "red bicycle" }]] }),
+      buildQuery({ where: [[clause, { "@term": "red bicycle" }]] }),
     );
 
     assert.deepEqual(
@@ -855,7 +855,7 @@ describe("DB: Container", () => {
   test(
     "query: TOP without WHERE",
     testSuccess(
-      async (c) => c.query<Entry>(new Query({ top: 2 })),
+      async (c) => c.query<Entry>(buildQuery({ top: 2 })),
       mockDB.slice(0, 2),
     ),
   );
@@ -864,7 +864,7 @@ describe("DB: Container", () => {
     "query: TOP with WHERE from Query builder",
     testSuccess(
       async (c) =>
-        c.query<Entry>(new Query({ top: 1, where: [["val", ">", 100]] })),
+        c.query<Entry>(buildQuery({ top: 1, where: [["val", ">", 100]] })),
       mockDB.filter((item) => item.val > 100).slice(0, 1),
     ),
   );

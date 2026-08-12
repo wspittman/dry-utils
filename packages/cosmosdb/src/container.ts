@@ -9,7 +9,7 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 import { diag } from "./diagnostics.ts";
-import { Query } from "./Query.ts";
+import { buildQuery } from "./Query.ts";
 import { validateItemId, validatePropPath } from "./utils.ts";
 import type { Condition } from "./Where.ts";
 
@@ -79,7 +79,7 @@ export class Container<Item extends ItemDefinition> {
    */
   async getIdsByPartitionKey(partitionKey: string): Promise<string[]> {
     const result = await this.query<{ id: string }>(
-      new Query({ select: "ID" }),
+      buildQuery({ select: "ID" }),
       {
         partitionKey,
       },
@@ -98,7 +98,7 @@ export class Container<Item extends ItemDefinition> {
     partitionKey?: string,
   ): Promise<number> {
     const response = await this.query<number>(
-      new Query({ select: "COUNT", where: condition ? [condition] : [] }),
+      buildQuery({ select: "COUNT", where: condition ? [condition] : [] }),
       partitionKey ? { partitionKey } : undefined,
     );
     return response[0] ?? 0;
@@ -124,13 +124,9 @@ export class Container<Item extends ItemDefinition> {
    * @returns Query results
    */
   async query<T>(
-    query: string | SqlQuerySpec | Query,
+    query: string | SqlQuerySpec,
     options?: FeedOptions,
   ): Promise<T[]> {
-    if (query instanceof Query) {
-      query = query.build();
-    }
-
     try {
       const response = await this.container.items
         .query<T>(query, options)

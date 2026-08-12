@@ -4,7 +4,7 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 
-// Split into SELECT, FROM, WHERE, ORDER BY components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and Query.build()).
+// Split into SELECT, FROM, WHERE, ORDER BY components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and buildQuery()).
 const querySplitter = new RegExp(
   /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+ORDER\s+BY\s+(?<orderby>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i,
 );
@@ -113,7 +113,7 @@ const builtInFilters: MockQueryDef[] = [
 
 /**
  * Processes a SQL query spec against an in-memory item set.
- * Handles the query patterns produced by `Container` and `Query.build()`.
+ * Handles the query patterns produced by `Container` and `buildQuery()`.
  * Provided filters and projects are checked before built-in processing, allowing for custom query extensions.
  * @param items The items to query against.
  * @param query The SQL query spec with parameterized values.
@@ -454,7 +454,7 @@ function toRadians(degrees: number): number {
 
 /**
  * Evaluates a WHERE clause string against an item and query parameters.
- * Supports the parenthesized AND/OR expression format produced by Query.build().
+ * Supports the parenthesized AND/OR expression format produced by buildQuery().
  */
 function evaluateWhere(
   whereClause: string,
