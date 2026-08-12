@@ -33,9 +33,8 @@ export function buildQuery({
   const selectStr = getSelectorString(select);
   const topStr = top != null ? ` TOP ${top}` : "";
 
-  const whereClauses = where.map(toWhere);
-  const [whereClause, parameters] = whereClauses.length
-    ? Where.all(whereClauses).build()
+  const [whereClause, parameters] = where.length
+    ? Where.all(where).build()
     : ["", undefined];
   const whereStr = whereClause ? ` WHERE ${whereClause}` : "";
   const paramStr = toSQLParameters(parameters);
@@ -60,11 +59,6 @@ function getSelectorString(select: Selector): string {
     case "COUNT":
       return "VALUE COUNT(1)";
   }
-}
-
-function toWhere(input: WhereInput): Where {
-  if (input instanceof Where) return input;
-  return input.length === 3 ? Where.is(...input) : Where.raw(...input);
 }
 
 function toOrderStr([field, direction = "ASC"]: OrderBy) {
