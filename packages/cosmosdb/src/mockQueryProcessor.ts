@@ -4,7 +4,7 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 
-// Split into SELECT, FROM, WHERE, ORDER BY components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and Query.build()).
+// Split into SELECT, FROM, WHERE, ORDER BY components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and buildQuery()).
 const querySplitter = new RegExp(
   /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+ORDER\s+BY\s+(?<orderby>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i,
 );
@@ -113,7 +113,7 @@ const builtInFilters: MockQueryDef[] = [
 
 /**
  * Processes a SQL query spec against an in-memory item set.
- * Handles the query patterns produced by `Container` and `Query.build()`.
+ * Handles the query patterns produced by `Container` and `buildQuery()`.
  * Provided filters and projects are checked before built-in processing, allowing for custom query extensions.
  * @param items The items to query against.
  * @param query The SQL query spec with parameterized values.
@@ -454,23 +454,72 @@ function toRadians(degrees: number): number {
 
 /**
  * Evaluates a WHERE clause string against an item and query parameters.
- * Expects the parenthesized AND-joined format produced by Query.build():
- * e.g. "(c.val > @val) AND (c.status = @status)"
+ * Supports the parenthesized AND/OR expression format produced by buildQuery().
  */
 function evaluateWhere(
   whereClause: string,
   params: Record<string, JSONValue>,
   item: Item,
 ): boolean {
-  // Split AND-joined parenthesized conditions: "(cond1) AND (cond2)"
-  // Stripping outer parens handles CONTAINS which has its own inner parens.
-  for (const part of whereClause.split(/ AND /i)) {
-    const trimmed = part.trim();
-    const inner =
-      trimmed.startsWith("(") && trimmed.endsWith(")")
-        ? trimmed.slice(1, -1).trim()
-        : trimmed;
-    if (!evaluateCondition(inner, params, item)) return false;
+  const expression = stripOuterParentheses(whereClause.trim());
+  const alternatives = splitBooleanExpression(expression, "OR");
+  if (alternatives.length > 1) {
+    return alternatives.some((part) => evaluateWhere(part, params, item));
   }
-  return true;
+
+  const requirements = splitBooleanExpression(expression, "AND");
+  if (requirements.length > 1) {
+    return requirements.every((part) => evaluateWhere(part, params, item));
+  }
+
+  return evaluateCondition(expression, params, item);
+}
+
+/** Removes only parentheses that enclose the complete Boolean expression. */
+function stripOuterParentheses(expression: string): string {
+  while (expression.startsWith("(") && expression.endsWith(")")) {
+    let depth = 0;
+    let enclosesExpression = true;
+    for (let index = 0; index < expression.length; index++) {
+      const character = expression[index];
+      if (character === "(") depth++;
+      if (character === ")") depth--;
+      if (depth === 0 && index < expression.length - 1) {
+        enclosesExpression = false;
+        break;
+      }
+    }
+    if (!enclosesExpression) break;
+    expression = expression.slice(1, -1).trim();
+  }
+  return expression;
+}
+
+/** Splits a Boolean expression on an operator found outside nested groups. */
+function splitBooleanExpression(
+  expression: string,
+  operator: "AND" | "OR",
+): string[] {
+  const parts: string[] = [];
+  const separator = ` ${operator} `;
+  let depth = 0;
+  let start = 0;
+
+  for (let index = 0; index <= expression.length - separator.length; index++) {
+    const character = expression[index];
+    if (character === "(") depth++;
+    if (character === ")") depth--;
+    if (
+      depth === 0 &&
+      expression.slice(index, index + separator.length).toUpperCase() ===
+        separator
+    ) {
+      parts.push(expression.slice(start, index).trim());
+      index += separator.length - 1;
+      start = index + 1;
+    }
+  }
+
+  parts.push(expression.slice(start).trim());
+  return parts;
 }

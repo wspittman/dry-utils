@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { after, afterEach, describe, mock, test } from "node:test";
 import {
+  buildQuery,
   connectDB,
   Container,
-  Query,
   subscribeCosmosDBLogging,
 } from "../src/index.ts";
 
@@ -150,7 +150,7 @@ describe("CosmosDB E2E Flow", () => {
   test("query", async () => {
     assert.ok(container, "Container should be defined");
 
-    const query = new Query().whereCondition("id", "=", id).build();
+    const query = buildQuery({ where: [["id", "=", id]] });
     const results = await container.query<Model>(query);
 
     assert.ok(Array.isArray(results), "Result should be an array");
@@ -163,7 +163,7 @@ describe("CosmosDB E2E Flow", () => {
     assert.ok(container, "Container should be defined");
 
     const results = await container.query<Model>(
-      new Query().whereCondition("id", "IN", [id, id2]),
+      buildQuery({ where: [["id", "IN", [id, id2]]] }),
     );
 
     assert.equal(results.length, 2, "IN query should find both items");
@@ -175,14 +175,14 @@ describe("CosmosDB E2E Flow", () => {
   test("query: orderBy", async () => {
     assert.ok(container, "Container should be defined");
 
-    const asc = await container.query<Model>(new Query().orderBy("id"));
+    const asc = await container.query<Model>(buildQuery({ orderBy: [["id"]] }));
     assert.equal(asc.length, 2, "orderBy ASC should return all items");
     assert.equal(asc[0]?.id, id, "First item ASC should be test-item-1");
     assert.equal(asc[1]?.id, id2, "Second item ASC should be test-item-2");
     logCounts(dbActionLog, "query: orderBy ASC");
 
     const desc = await container.query<Model>(
-      new Query().orderBy("id", "DESC"),
+      buildQuery({ orderBy: [["id", "DESC"]] }),
     );
     assert.equal(desc.length, 2, "orderBy DESC should return all items");
     assert.equal(desc[0]?.id, id2, "First item DESC should be test-item-2");

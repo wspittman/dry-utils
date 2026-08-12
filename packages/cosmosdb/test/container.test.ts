@@ -4,7 +4,8 @@ import { beforeEach, describe, mock, test } from "node:test";
 import { connectDB } from "../src/dbInit.ts";
 import {
   Container,
-  Query,
+  Where,
+  buildQuery,
   subscribeCosmosDBLogging,
   type MockQueryDef,
 } from "../src/index.ts";
@@ -168,19 +169,18 @@ function getFullTextQuery(
   parameters: Record<string, JSONValue>,
 ) {
   const clause = `${fn}(c.content.description, ${parameterNames.join(", ")})`;
-  return new Query().where([clause, parameters]);
+  return buildQuery({ where: [[clause, parameters]] });
 }
 
 const distanceClause =
   "ST_DISTANCE(c.primaryLocation.point, @origin) <= @radiusMeters";
 
 function getDistanceQuery(origin: JSONValue, distanceMeters: number) {
-  return new Query().whereDistance(
-    "primaryLocation.point",
-    origin,
-    "<=",
-    distanceMeters,
-  );
+  return buildQuery({
+    where: [
+      Where.distance("primaryLocation.point", origin, "<=", distanceMeters),
+    ],
+  });
 }
 
 describe("DB: Container", () => {
@@ -360,7 +360,7 @@ describe("DB: Container", () => {
   test(
     "query: WHERE condition from Query builder",
     testSuccess(
-      async (c) => c.query<Entry>(new Query().whereCondition("val", ">", 456)),
+      async (c) => c.query<Entry>(buildQuery({ where: [["val", ">", 456]] })),
       mockDB.filter((item) => item.val > 456),
     ),
   );
@@ -369,7 +369,7 @@ describe("DB: Container", () => {
     "query: IN operator filters correctly",
     testSuccess(
       async (c) =>
-        c.query<Entry>(new Query().whereCondition("id", "IN", ["1", "3"])),
+        c.query<Entry>(buildQuery({ where: [["id", "IN", ["1", "3"]]] })),
       mockDB.filter((item) => item.id === "1" || item.id === "3"),
     ),
   );
@@ -377,7 +377,7 @@ describe("DB: Container", () => {
   test(
     "query: orderBy ASC",
     testSuccess(
-      async (c) => c.query<Entry>(new Query().orderBy("val")),
+      async (c) => c.query<Entry>(buildQuery({ orderBy: [["val"]] })),
       [...mockDB].sort((a, b) => a.val - b.val),
     ),
   );
@@ -385,7 +385,7 @@ describe("DB: Container", () => {
   test(
     "query: orderBy DESC",
     testSuccess(
-      async (c) => c.query<Entry>(new Query().orderBy("val", "DESC")),
+      async (c) => c.query<Entry>(buildQuery({ orderBy: [["val", "DESC"]] })),
       [...mockDB].sort((a, b) => b.val - a.val),
     ),
   );
@@ -428,7 +428,7 @@ describe("DB: Container", () => {
       const container = containerMap["mockContainer"]!;
 
       const result = await container.query<{ id: string }>(
-        new Query().orderBy("val", direction),
+        buildQuery({ orderBy: [["val", direction]] }),
       );
 
       assert.deepEqual(
@@ -442,7 +442,7 @@ describe("DB: Container", () => {
     "query: WHERE CONTAINS condition from Query builder",
     testSuccess(
       async (c) =>
-        c.query<Entry>(new Query().whereCondition("id", "CONTAINS", "1")),
+        c.query<Entry>(buildQuery({ where: [["id", "CONTAINS", "1"]] })),
       mockDB.filter((item) => item.id.includes("1")),
     ),
   );
@@ -452,11 +452,35 @@ describe("DB: Container", () => {
     testSuccess(
       async (c) =>
         c.query<Entry>(
-          new Query()
-            .whereCondition("pkey", "=", "item")
-            .whereCondition("val", ">", 456),
+          buildQuery({
+            where: [
+              ["pkey", "=", "item"],
+              ["val", ">", 456],
+            ],
+          }),
         ),
       mockDB.filter((item) => item.pkey === "item" && item.val > 456),
+    ),
+  );
+
+  test(
+    "query: nested WHERE groups from Query options",
+    testSuccess(
+      async (c) =>
+        c.query<Entry>(
+          buildQuery({
+            where: [
+              ["pkey", "=", "item"],
+              Where.any([
+                ["val", "=", 123],
+                ["val", ">", 789],
+              ]),
+            ],
+          }),
+        ),
+      mockDB.filter(
+        (item) => item.pkey === "item" && (item.val === 123 || item.val > 789),
+      ),
     ),
   );
 
@@ -535,10 +559,13 @@ describe("DB: Container", () => {
 
   test("query: ST_DISTANCE combines with scalar filters before TOP", async () => {
     const c = await getSpatialContainer();
-    const query = new Query()
-      .top(1)
-      .whereCondition("status", "=", "active")
-      .whereDistance("primaryLocation.point", originPoint, "<=", 75_000);
+    const query = buildQuery({
+      top: 1,
+      where: [
+        ["status", "=", "active"],
+        Where.distance("primaryLocation.point", originPoint, "<=", 75_000),
+      ],
+    });
 
     const result = await c.query<SpatialEntry>(query);
 
@@ -565,7 +592,7 @@ describe("DB: Container", () => {
         "@origin": { type: "Polygon", coordinates: [] },
         "@radiusMeters": 75_000,
       },
-      "Invalid ST_DISTANCE origin parameter @origin: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]",
+      "Invalid ST_DISTANCE origin parameter @p0: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]",
     ],
     [
       "out-of-range origin",
@@ -573,7 +600,7 @@ describe("DB: Container", () => {
         "@origin": { type: "Point", coordinates: [181, 60] },
         "@radiusMeters": 75_000,
       },
-      "Invalid ST_DISTANCE origin parameter @origin: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]",
+      "Invalid ST_DISTANCE origin parameter @p0: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]",
     ],
     [
       "missing radius",
@@ -583,12 +610,12 @@ describe("DB: Container", () => {
     [
       "non-number radius",
       { "@origin": originPoint, "@radiusMeters": "75000" },
-      "Invalid ST_DISTANCE radius parameter @radiusMeters: expected a finite number",
+      "Invalid ST_DISTANCE radius parameter @p1: expected a finite number",
     ],
     [
       "non-finite radius",
       { "@origin": originPoint, "@radiusMeters": Infinity },
-      "Invalid ST_DISTANCE radius parameter @radiusMeters: expected a finite number",
+      "Invalid ST_DISTANCE radius parameter @p1: expected a finite number",
     ],
   ];
 
@@ -598,7 +625,9 @@ describe("DB: Container", () => {
 
       await assert.rejects(
         c.query(
-          new Query().where([distanceClause, structuredClone(parameters)]),
+          buildQuery({
+            where: [[distanceClause, structuredClone(parameters)]],
+          }),
         ),
         { message },
       );
@@ -615,14 +644,19 @@ describe("DB: Container", () => {
     test(`query: rejects unsupported spatial clause ${clause}`, async () => {
       const c = await getSpatialContainer();
 
+      const [builtClause] = Where.raw([
+        clause,
+        { "@origin": originPoint, "@radiusMeters": 75_000 },
+      ]).build();
       await assert.rejects(
         c.query(
-          new Query().where([
-            clause,
-            { "@origin": originPoint, "@radiusMeters": 75_000 },
-          ]),
+          buildQuery({
+            where: [
+              [clause, { "@origin": originPoint, "@radiusMeters": 75_000 }],
+            ],
+          }),
         ),
-        { message: `Unsupported WHERE condition in mock: ${clause}` },
+        { message: `Unsupported WHERE condition in mock: ${builtClause}` },
       );
       logCounts({ error: 1 });
     });
@@ -697,13 +731,16 @@ describe("DB: Container", () => {
 
   test("query: full-text functions combine with scalar filters before TOP", async () => {
     const c = await getFullTextContainer();
-    const query = new Query()
-      .top(1)
-      .whereCondition("status", "=", "active")
-      .where([
-        "FULLTEXTCONTAINSANY(c.content.description, @vehicle, @board)",
-        { "@vehicle": "bicycle", "@board": "skateboard" },
-      ]);
+    const query = buildQuery({
+      top: 1,
+      where: [
+        ["status", "=", "active"],
+        [
+          "FULLTEXTCONTAINSANY(c.content.description, @vehicle, @board)",
+          { "@vehicle": "bicycle", "@board": "skateboard" },
+        ],
+      ],
+    });
 
     const result = await c.query<FullTextEntry>(query);
 
@@ -733,7 +770,7 @@ describe("DB: Container", () => {
       "FULLTEXTCONTAINS",
       ["@term"],
       { "@term": 42 },
-      "Invalid FULLTEXTCONTAINS parameter @term: expected a string",
+      "Invalid FULLTEXTCONTAINS parameter @p0: expected a string",
     ],
     [
       "missing ALL parameter",
@@ -747,7 +784,7 @@ describe("DB: Container", () => {
       "FULLTEXTCONTAINSANY",
       ["@first", "@second"],
       { "@first": "red", "@second": { term: "bicycle" } },
-      "Invalid FULLTEXTCONTAINSANY parameter @second: expected a string",
+      "Invalid FULLTEXTCONTAINSANY parameter @p1: expected a string",
     ],
   ];
 
@@ -778,14 +815,19 @@ describe("DB: Container", () => {
     test(`query: rejects unsupported full-text clause ${clause}`, async () => {
       const c = await getFullTextContainer();
 
+      const parameters = {
+        "@term": "red",
+        "@first": "red",
+        "@second": "bicycle",
+      };
+      const [builtClause] = Where.raw([clause, parameters]).build();
       await assert.rejects(
         c.query(
-          new Query().where([
-            clause,
-            { "@term": "red", "@first": "red", "@second": "bicycle" },
-          ]),
+          buildQuery({
+            where: [[clause, parameters]],
+          }),
         ),
-        { message: `Unsupported WHERE condition in mock: ${clause}` },
+        { message: `Unsupported WHERE condition in mock: ${builtClause}` },
       );
       logCounts({ error: 1 });
     });
@@ -794,13 +836,13 @@ describe("DB: Container", () => {
   test("query: custom filter takes precedence over built-in full-text evaluation", async () => {
     const clause = "FULLTEXTCONTAINS(c.content.description, @term)";
     const customFilter: MockQueryDef = {
-      matcher: `(${clause})`,
+      matcher: "FULLTEXTCONTAINS(c.content.description, @p0)",
       fn: ({ items }) => items.filter((item) => item["id"] === "skateboard"),
     };
     const c = await getFullTextContainer([customFilter]);
 
     const result = await c.query<FullTextEntry>(
-      new Query().where([clause, { "@term": "red bicycle" }]),
+      buildQuery({ where: [[clause, { "@term": "red bicycle" }]] }),
     );
 
     assert.deepEqual(
@@ -813,7 +855,7 @@ describe("DB: Container", () => {
   test(
     "query: TOP without WHERE",
     testSuccess(
-      async (c) => c.query<Entry>(new Query().top(2)),
+      async (c) => c.query<Entry>(buildQuery({ top: 2 })),
       mockDB.slice(0, 2),
     ),
   );
@@ -822,7 +864,7 @@ describe("DB: Container", () => {
     "query: TOP with WHERE from Query builder",
     testSuccess(
       async (c) =>
-        c.query<Entry>(new Query().top(1).whereCondition("val", ">", 100)),
+        c.query<Entry>(buildQuery({ top: 1, where: [["val", ">", 100]] })),
       mockDB.filter((item) => item.val > 100).slice(0, 1),
     ),
   );

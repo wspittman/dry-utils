@@ -81,28 +81,35 @@ Full-text search requires the Cosmos DB Full Text & Hybrid Search feature. `full
 
 ### Query Builder
 
-Build SQL queries with best practices for performance:
+Build SQL queries:
 
 ```typescript
-import { Query } from "dry-utils-cosmosdb";
+import { buildQuery, Where } from "dry-utils-cosmosdb";
 
-// Create a query to find active/pending premium users, sorted by most recent first
-const query = new Query()
-  .whereCondition("status", "IN", ["active", "pending"])
-  .whereCondition("userType", "=", "premium")
-  .whereCondition("createdDate", ">", "2023-01-01")
-  .orderBy("_ts", "DESC");
+const query = buildQuery({
+  top: 100,
+  where: [
+    Where.any([
+      ["status", "=", "active"],
+      ["status", "=", "pending"],
+    ]),
+    ["userType", "=", "premium"],
+    ["createdDate", ">", "2023-01-01"],
+  ],
+  orderBy: [["_ts", "DESC"]],
+});
 
-// Execute the query
-const results = await container.query(query.top(100).build());
+const results = await container.query(query);
 ```
+
+Separate entries in `where` are combined with `AND`. Use `Where.any` for `OR` groups and `Where.all` to nest an explicit `AND` group. Both group helpers accept structured conditions, `Where.raw(...)` predicates, and other groups. `Where.raw` renames declared parameters when the query is built, so raw predicates can be nested without parameter collisions.
 
 ### Spatial Point Queries
 
-Use `Query.whereDistance` to find Points within a radius:
+Use a parameterized raw predicate to find Points within a radius:
 
 ```typescript
-import { Query } from "dry-utils-cosmosdb";
+import { buildQuery, Where } from "dry-utils-cosmosdb";
 
 const origin = {
   type: "Point",
@@ -110,24 +117,24 @@ const origin = {
 };
 
 const nearbyJobs = await jobsContainer.query(
-  new Query().whereDistance("primaryLocation.point", origin, "<=", 25_000),
+  buildQuery({
+    where: [Where.distance("primaryLocation.point", origin, "<=", 25_000)],
+  }),
 );
 ```
 
-GeoJSON Point coordinates use `[longitude, latitude]` order. With CosmosDB's default geography coordinate system, `ST_DISTANCE` returns meters. `whereDistance` accepts `<=` or `>=` and generates parameters for the origin and radius.
+GeoJSON Point coordinates use `[longitude, latitude]` order. With CosmosDB's default geography coordinate system, `ST_DISTANCE` returns meters.
 
 ### Full-Text Queries
 
-Use `Query.whereCondition` for parameterized full-text filters:
+Use `Where.is` for parameterized full-text filters:
 
 ```typescript
-import { Query } from "dry-utils-cosmosdb";
+import { buildQuery, Where } from "dry-utils-cosmosdb";
 
-const search = new Query().whereCondition(
-  "description",
-  "FULLTEXTCONTAINSALL",
-  ["red", "bicycle"],
-);
+const search = buildQuery({
+  where: [Where.is("description", "FULLTEXTCONTAINSALL", ["red", "bicycle"])],
+});
 
 const matchingProducts = await productsContainer.query(search);
 ```
@@ -155,9 +162,9 @@ const db = await connectDB({
   mockDBFilters: {
     users: [
       {
-        matcher: /c\.status = @status/,
+        matcher: /c\.status = @p0/,
         fn: ({ items, params }) => {
-          const status = params["@status"];
+          const status = params["@p0"];
           return items.filter((item) => item.status === status);
         },
       },
@@ -168,7 +175,7 @@ const db = await connectDB({
 
 The `mockDBFilters` matchers let you intercept WHERE clauses and return custom filtered results from fixture data. Use `mockDBProjects` the same way to intercept SELECT projections.
 
-The built-in mock query processor supports Point-to-Point `whereDistance` filters that use `<=`. It uses a Haversine approximation for tests; it is not a CosmosDB geospatial parity layer. Other spatial types, argument orders, and comparison operators remain unsupported in the mock.
+The built-in mock query processor supports Point-to-Point `distance` filters that use `<=`. It uses a Haversine approximation for tests; it is not a CosmosDB geospatial parity layer. Other spatial types, argument orders, and comparison operators remain unsupported in the mock.
 
 The mock also supports parameterized `FULLTEXTCONTAINS`, `FULLTEXTCONTAINSALL`, and `FULLTEXTCONTAINSANY` filters on nested string fields. Matching uses case-insensitive, contiguous substring checks with `en-US` casing. It does not reproduce Cosmos DB tokenization, stemming, stopword removal, fuzzy search, BM25 scoring, or ranking. Check behavior that depends on those details against Cosmos DB.
 
