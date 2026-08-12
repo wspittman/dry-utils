@@ -178,7 +178,7 @@ export class Where {
    * @param clauses Predicates to combine with OR
    * @returns The grouped predicate
    */
-  static any(clauses: readonly WhereInput[]): Where {
+  static any(...clauses: readonly WhereInput[]): Where {
     return Where.#group("OR", "any", clauses);
   }
 
@@ -187,7 +187,7 @@ export class Where {
    * @param clauses Predicates to combine with AND
    * @returns The grouped predicate
    */
-  static all(clauses: readonly WhereInput[]): Where {
+  static all(...clauses: readonly WhereInput[]): Where {
     return Where.#group("AND", "all", clauses);
   }
 

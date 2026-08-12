@@ -18,10 +18,7 @@ describe("DB: Query", () => {
       top: 24,
       where: [
         ["status", "=", "active"],
-        Where.any([
-          ["type", "=", "article"],
-          ["type", "=", "video"],
-        ]),
+        Where.any(["type", "=", "article"], ["type", "=", "video"]),
       ],
       orderBy: [["status"], ["_ts", "DESC"]],
     });

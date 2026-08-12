@@ -150,33 +150,27 @@ describe("DB: Where", () => {
       Where.is("visibility", "=", "public"),
     ] satisfies WhereInput[];
 
-    assert.deepEqual(Where.any(inputs).build(), [
+    assert.deepEqual(Where.any(...inputs).build(), [
       "(c.status = @p0) OR (ARRAY_CONTAINS(c.tags, @p1)) OR (c.visibility = @p2)",
       { "@p0": "active", "@p1": "featured", "@p2": "public" },
     ]);
   });
 
   test("all: allocates parameters depth-first through nested groups", () => {
-    const where = Where.all([
+    const where = Where.all(
       ["tenantId", "=", "tenant-1"],
-      Where.any([
-        ["status", "=", "active"],
-        ["status", "=", "pending"],
-      ]),
-      Where.any([
-        Where.all([
-          ["type", "=", "article"],
-          ["published", "=", true],
-        ]),
-        Where.all([
+      Where.any(["status", "=", "active"], ["status", "=", "pending"]),
+      Where.any(
+        Where.all(["type", "=", "article"], ["published", "=", true]),
+        Where.all(
           ["type", "=", "video"],
-          Where.any([
+          Where.any(
             ["visibility", "=", "public"],
             ["visibility", "=", "shared"],
-          ]),
-        ]),
-      ]),
-    ]);
+          ),
+        ),
+      ),
+    );
 
     assert.deepEqual(where.build(), [
       "(c.tenantId = @p0) AND ((c.status = @p1) OR (c.status = @p2)) AND (((c.type = @p3) AND (c.published = @p4)) OR ((c.type = @p5) AND ((c.visibility = @p6) OR (c.visibility = @p7))))",
@@ -195,13 +189,13 @@ describe("DB: Where", () => {
 
   (["any", "all"] as const).forEach((operator) => {
     test(`${operator}: rejects an empty group`, () => {
-      assert.throws(() => Where[operator]([]), {
+      assert.throws(() => Where[operator](), {
         message: `Where.${operator} requires at least one clause`,
       });
     });
 
     test(`${operator}: permits a single clause`, () => {
-      assert.deepEqual(Where[operator]([["status", "=", "active"]]).build(), [
+      assert.deepEqual(Where[operator](["status", "=", "active"]).build(), [
         "c.status = @p0",
         { "@p0": "active" },
       ]);
@@ -209,10 +203,10 @@ describe("DB: Where", () => {
   });
 
   test("build: is deterministic and does not mutate the expression", () => {
-    const where = Where.any([
+    const where = Where.any(
       ["status", "=", "active"],
       ["status", "=", "pending"],
-    ]);
+    );
 
     assert.deepEqual(where.build(), where.build());
   });

@@ -471,10 +471,7 @@ describe("DB: Container", () => {
           buildQuery({
             where: [
               ["pkey", "=", "item"],
-              Where.any([
-                ["val", "=", 123],
-                ["val", ">", 789],
-              ]),
+              Where.any(["val", "=", 123], ["val", ">", 789]),
             ],
           }),
         ),

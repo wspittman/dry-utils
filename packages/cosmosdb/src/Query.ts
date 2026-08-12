@@ -34,7 +34,7 @@ export function buildQuery({
   const topStr = top != null ? ` TOP ${top}` : "";
 
   const [whereClause, parameters] = where.length
-    ? Where.all(where).build()
+    ? Where.all(...where).build()
     : ["", undefined];
   const whereStr = whereClause ? ` WHERE ${whereClause}` : "";
   const paramStr = toSQLParameters(parameters);

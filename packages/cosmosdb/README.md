@@ -89,10 +89,7 @@ import { buildQuery, Where } from "dry-utils-cosmosdb";
 const query = buildQuery({
   top: 100,
   where: [
-    Where.any([
-      ["status", "=", "active"],
-      ["status", "=", "pending"],
-    ]),
+    Where.any(["status", "=", "active"], ["status", "=", "pending"]),
     ["userType", "=", "premium"],
     ["createdDate", ">", "2023-01-01"],
   ],
