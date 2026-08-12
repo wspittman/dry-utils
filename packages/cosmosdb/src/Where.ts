@@ -132,7 +132,7 @@ export class Where {
    * @param raw SQL clause and optional parameter values
    * @returns A predicate for the raw clause
    */
-  static raw([clause, parameters = {}]: RawWhere): Where {
+  static raw(...[clause, parameters = {}]: RawWhere): Where {
     for (const name of Object.keys(parameters)) {
       if (!name.startsWith("@")) {
         throw new Error(`Where: Parameter "${name}" must start with @`);
@@ -167,10 +167,10 @@ export class Where {
     const paramOrigin = `${param}_origin`;
     const paramMeters = `${param}_meters`;
 
-    return Where.raw([
+    return Where.raw(
       `ST_DISTANCE(${prop}, ${paramOrigin}) ${op} ${paramMeters}`,
       { [paramOrigin]: origin, [paramMeters]: meters },
-    ]);
+    );
   }
 
   /**
@@ -237,7 +237,7 @@ export class Where {
 
 function toWhere(input: WhereInput): Where {
   if (input instanceof Where) return input;
-  return input.length === 3 ? Where.is(...input) : Where.raw(input);
+  return input.length === 3 ? Where.is(...input) : Where.raw(...input);
 }
 
 function renderCondition(

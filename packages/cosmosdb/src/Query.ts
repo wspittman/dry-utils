@@ -64,7 +64,7 @@ function getSelectorString(select: Selector): string {
 
 function toWhere(input: WhereInput): Where {
   if (input instanceof Where) return input;
-  return input.length === 3 ? Where.is(...input) : Where.raw(input);
+  return input.length === 3 ? Where.is(...input) : Where.raw(...input);
 }
 
 function toOrderStr([field, direction = "ASC"]: OrderBy) {

@@ -100,15 +100,14 @@ describe("DB: Where", () => {
 
   rawCases.forEach(([name, raw, expected]) => {
     test(`raw: ${name}`, () => {
-      assert.deepEqual(Where.raw(raw).build(), expected);
+      assert.deepEqual(Where.raw(...raw).build(), expected);
     });
   });
 
   test("raw: rejects a declared parameter without @", () => {
-    assert.throws(
-      () => Where.raw(["c.status = @status", { status: "active" }]),
-      { message: 'Where: Parameter "status" must start with @' },
-    );
+    assert.throws(() => Where.raw("c.status = @status", { status: "active" }), {
+      message: 'Where: Parameter "status" must start with @',
+    });
   });
 
   const originPoint = {

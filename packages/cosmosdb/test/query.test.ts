@@ -69,10 +69,10 @@ describe("DB: Query", () => {
     const result = buildQuery({
       where: [
         ["status", "=", "active"],
-        Where.raw([
-          "ST_DISTANCE(c.location, @origin) <= @distance",
-          { "@origin": origin, "@distance": 25_000 },
-        ]),
+        Where.raw("ST_DISTANCE(c.location, @origin) <= @distance", {
+          "@origin": origin,
+          "@distance": 25_000,
+        }),
         ["status", "=", "pending"],
       ],
     });

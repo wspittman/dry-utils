@@ -644,10 +644,10 @@ describe("DB: Container", () => {
     test(`query: rejects unsupported spatial clause ${clause}`, async () => {
       const c = await getSpatialContainer();
 
-      const [builtClause] = Where.raw([
-        clause,
-        { "@origin": originPoint, "@radiusMeters": 75_000 },
-      ]).build();
+      const [builtClause] = Where.raw(clause, {
+        "@origin": originPoint,
+        "@radiusMeters": 75_000,
+      }).build();
       await assert.rejects(
         c.query(
           buildQuery({
@@ -820,7 +820,7 @@ describe("DB: Container", () => {
         "@first": "red",
         "@second": "bicycle",
       };
-      const [builtClause] = Where.raw([clause, parameters]).build();
+      const [builtClause] = Where.raw(clause, parameters).build();
       await assert.rejects(
         c.query(
           buildQuery({
