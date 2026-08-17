@@ -6,6 +6,7 @@ import {
   CosmosClient,
   Database,
   Databases,
+  SpatialType,
 } from "@azure/cosmos";
 import assert from "node:assert/strict";
 import { beforeEach, describe, mock, test } from "node:test";
@@ -28,15 +29,13 @@ mock.method(Databases.prototype, "createIfNotExists", function () {
 });
 
 let retryMap: Record<string, boolean> = {};
+let containerRequests: ContainerRequest[] = [];
 mock.method(
   Containers.prototype,
   "createIfNotExists",
-  function ({
-    id = "oops",
-    partitionKey,
-    indexingPolicy,
-    defaultTtl,
-  }: ContainerRequest) {
+  function (request: ContainerRequest) {
+    containerRequests.push(structuredClone(request));
+    const { id = "oops", partitionKey, indexingPolicy, defaultTtl } = request;
     if (id === "err") throw new Error("Error Time");
 
     if (id.startsWith("retry") && !retryMap[id]) {
@@ -82,6 +81,7 @@ describe("DB: DBInit", () => {
     logFn.mock.resetCalls();
     errorFn.mock.resetCalls();
     retryMap = {};
+    containerRequests = [];
   });
 
   const containerCases: [string, string[], number, number, boolean][] = [
@@ -142,6 +142,232 @@ describe("DB: DBInit", () => {
       assert.equal(result["id"]?.container.id, expected, "Container ID");
     });
   });
+
+  const emptySpatialIndexCases: Partial<ContainerOptions>[] = [
+    {},
+    { spatialIndexes: [] },
+  ];
+
+  emptySpatialIndexCases.forEach((testOpts) => {
+    test(`ConnectDB w/ no spatial policy ${JSON.stringify(testOpts)}`, async () => {
+      await connectDB({
+        ...connectOptions,
+        containers: [{ name: "id", partitionKey: "pkey", ...testOpts }],
+      });
+
+      assert.equal(containerRequests.length, 1);
+      assert.equal(containerRequests[0]?.indexingPolicy, undefined);
+    });
+  });
+
+  const spatialIndexCases: [
+    Partial<ContainerOptions>,
+    NonNullable<ContainerRequest["indexingPolicy"]>,
+  ][] = [
+    [
+      {
+        indexExclusions: "none",
+        spatialIndexes: ["/primaryLocation/point/*"],
+      },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+        ],
+      },
+    ],
+    [
+      { spatialIndexes: ["/primaryLocation/point/*", "/office/point/*"] },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+          { path: "/office/point/*", types: [SpatialType.Point] },
+        ],
+      },
+    ],
+    [
+      {
+        indexExclusions: ["/largePayload/*"],
+        spatialIndexes: ["/primaryLocation/point/*"],
+      },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }, { path: "/largePayload/*" }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+        ],
+      },
+    ],
+    [
+      {
+        indexExclusions: "all",
+        spatialIndexes: ["/primaryLocation/point/*"],
+      },
+      {
+        excludedPaths: [{ path: "/*" }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+        ],
+      },
+    ],
+  ];
+
+  spatialIndexCases.forEach(([testOpts, expected]) => {
+    test(`ConnectDB w/ spatial policy ${JSON.stringify(testOpts)}`, async () => {
+      const originalOptions = structuredClone(testOpts);
+
+      await connectDB({
+        ...connectOptions,
+        containers: [{ name: "id", partitionKey: "pkey", ...testOpts }],
+      });
+
+      assert.equal(containerRequests.length, 1);
+      assert.deepEqual(containerRequests[0]?.indexingPolicy, expected);
+      assert.deepEqual(testOpts, originalOptions);
+    });
+  });
+
+  const emptyFullTextIndexCases: Partial<ContainerOptions>[] = [
+    {},
+    { fullTextIndexes: [] },
+  ];
+
+  emptyFullTextIndexCases.forEach((testOpts) => {
+    test(`ConnectDB w/ no full-text policy ${JSON.stringify(testOpts)}`, async () => {
+      await connectDB({
+        ...connectOptions,
+        containers: [{ name: "id", partitionKey: "pkey", ...testOpts }],
+      });
+
+      assert.equal(containerRequests.length, 1);
+      assert.equal(containerRequests[0]?.indexingPolicy, undefined);
+      assert.equal(containerRequests[0]?.fullTextPolicy, undefined);
+    });
+  });
+
+  const fullTextIndexCases: [
+    Partial<ContainerOptions>,
+    NonNullable<ContainerRequest["indexingPolicy"]>,
+    NonNullable<ContainerRequest["fullTextPolicy"]>,
+  ][] = [
+    [
+      { fullTextIndexes: ["/description"] },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }],
+        fullTextIndexes: [{ path: "/description" }],
+      },
+      {
+        defaultLanguage: "en-US",
+        fullTextPaths: [{ path: "/description", language: "en-US" }],
+      },
+    ],
+    [
+      { fullTextIndexes: ["/title", "/description"] },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }],
+        fullTextIndexes: [{ path: "/title" }, { path: "/description" }],
+      },
+      {
+        defaultLanguage: "en-US",
+        fullTextPaths: [
+          { path: "/title", language: "en-US" },
+          { path: "/description", language: "en-US" },
+        ],
+      },
+    ],
+    [
+      {
+        indexExclusions: ["/raw/*"],
+        fullTextIndexes: ["/description"],
+      },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }, { path: "/raw/*" }],
+        fullTextIndexes: [{ path: "/description" }],
+      },
+      {
+        defaultLanguage: "en-US",
+        fullTextPaths: [{ path: "/description", language: "en-US" }],
+      },
+    ],
+    [
+      {
+        indexExclusions: "all",
+        fullTextIndexes: ["/description"],
+      },
+      {
+        excludedPaths: [{ path: "/*" }],
+        fullTextIndexes: [{ path: "/description" }],
+      },
+      {
+        defaultLanguage: "en-US",
+        fullTextPaths: [{ path: "/description", language: "en-US" }],
+      },
+    ],
+    [
+      {
+        indexExclusions: ["/raw/*"],
+        spatialIndexes: ["/primaryLocation/point/*"],
+        fullTextIndexes: ["/description"],
+      },
+      {
+        includedPaths: [{ path: "/*" }],
+        excludedPaths: [{ path: '/"_etag"/?' }, { path: "/raw/*" }],
+        spatialIndexes: [
+          {
+            path: "/primaryLocation/point/*",
+            types: [SpatialType.Point],
+          },
+        ],
+        fullTextIndexes: [{ path: "/description" }],
+      },
+      {
+        defaultLanguage: "en-US",
+        fullTextPaths: [{ path: "/description", language: "en-US" }],
+      },
+    ],
+  ];
+
+  fullTextIndexCases.forEach(
+    ([testOpts, expectedIndexingPolicy, expectedFullTextPolicy]) => {
+      test(`ConnectDB w/ full-text policy ${JSON.stringify(testOpts)}`, async () => {
+        const originalOptions = structuredClone(testOpts);
+
+        await connectDB({
+          ...connectOptions,
+          containers: [{ name: "id", partitionKey: "pkey", ...testOpts }],
+        });
+
+        assert.equal(containerRequests.length, 1);
+        assert.deepEqual(
+          containerRequests[0]?.indexingPolicy,
+          expectedIndexingPolicy,
+        );
+        assert.deepEqual(
+          containerRequests[0]?.fullTextPolicy,
+          expectedFullTextPolicy,
+        );
+        assert.deepEqual(testOpts, originalOptions);
+      });
+    },
+  );
 
   const ttlInvalidCases: number[] = [0, -2, 1.5];
 

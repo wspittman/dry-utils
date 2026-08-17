@@ -9,8 +9,11 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 import { diag } from "./diagnostics.ts";
-import { Query, type Condition } from "./Query.ts";
+import { buildQuery } from "./Query.ts";
 import { validateItemId, validatePropPath } from "./utils.ts";
+import type { Condition } from "./Where.ts";
+
+export type DBItem<T> = T & Resource;
 
 interface CountBy {
   name: unknown;
@@ -39,7 +42,7 @@ export class Container<Item extends ItemDefinition> {
   async getItem(
     id: string,
     partitionKey: string,
-  ): Promise<(Item & Resource) | undefined> {
+  ): Promise<DBItem<Item> | undefined> {
     validateItemId(id);
     try {
       const response = await this.container.item(id, partitionKey).read<Item>();
@@ -56,12 +59,10 @@ export class Container<Item extends ItemDefinition> {
    * @param partitionKey The partition key to query
    * @returns Array of items in the partition
    */
-  async getItemsByPartitionKey(
-    partitionKey: string,
-  ): Promise<(Item & Resource)[]> {
+  async getItemsByPartitionKey(partitionKey: string): Promise<DBItem<Item>[]> {
     try {
       const response = await this.container.items
-        .readAll<Item & Resource>({ partitionKey })
+        .readAll<DBItem<Item>>({ partitionKey })
         .fetchAll();
       logDBAction("READ_ALL", this.name, response, partitionKey);
       return response.resources;
@@ -77,9 +78,12 @@ export class Container<Item extends ItemDefinition> {
    * @returns Array of item IDs in the partition
    */
   async getIdsByPartitionKey(partitionKey: string): Promise<string[]> {
-    const result = await this.query<{ id: string }>(new Query("ID"), {
-      partitionKey,
-    });
+    const result = await this.query<{ id: string }>(
+      buildQuery({ select: "ID" }),
+      {
+        partitionKey,
+      },
+    );
     return result.map((entry) => entry.id);
   }
 
@@ -94,7 +98,7 @@ export class Container<Item extends ItemDefinition> {
     partitionKey?: string,
   ): Promise<number> {
     const response = await this.query<number>(
-      new Query("COUNT", condition),
+      buildQuery({ select: "COUNT", where: condition ? [condition] : [] }),
       partitionKey ? { partitionKey } : undefined,
     );
     return response[0] ?? 0;
@@ -120,13 +124,9 @@ export class Container<Item extends ItemDefinition> {
    * @returns Query results
    */
   async query<T>(
-    query: string | SqlQuerySpec | Query,
+    query: string | SqlQuerySpec,
     options?: FeedOptions,
   ): Promise<T[]> {
-    if (query instanceof Query) {
-      query = query.build();
-    }
-
     try {
       const response = await this.container.items
         .query<T>(query, options)
@@ -144,14 +144,14 @@ export class Container<Item extends ItemDefinition> {
    * @param item The item to upsert
    * @returns The item as stored, including system properties (`_ts`, `_etag`, etc.)
    */
-  async upsertItem(item: Item): Promise<Item & Resource> {
+  async upsertItem(item: Item): Promise<DBItem<Item>> {
     if (item.id !== undefined) {
       validateItemId(item.id);
     }
     try {
       const response = await this.container.items.upsert(item);
       logDBAction("UPSERT", this.name, response);
-      return response.resource as Item & Resource;
+      return response.resource as DBItem<Item>;
     } catch (error) {
       diag.error("UpsertItem", error);
       throw error;

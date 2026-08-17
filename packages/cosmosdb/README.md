@@ -42,6 +42,8 @@ npm install dry-utils-cosmosdb
 Connect to your database and initialize containers
 
 - Use `indexExclusions` to specify paths to exclude from indexing for performance optimization. Set it to `"none"` to include all paths (default).
+- Use `spatialIndexes` to create Point spatial indexes for GeoJSON properties. Each value is a Cosmos indexing-policy path.
+- Use `fullTextIndexes` to create English (`en-US`) full-text policies and indexes. Each value must be an explicit property path; `*` and `[]` are not supported.
 - Use `ttlSeconds` to configure a container-wide TTL for all items (in seconds). Set it to `-1` to disable expiration while still enabling the TTL system for per-item overrides.
 
 ```typescript
@@ -56,6 +58,8 @@ const db = await connectDB({
       name: "users",
       partitionKey: "userId",
       indexExclusions: ["paths", "to", "exclude"],
+      spatialIndexes: ["/primaryLocation/point/*"],
+      fullTextIndexes: ["/description"],
     },
     {
       name: "products",
@@ -71,23 +75,68 @@ const usersContainer = db.users;
 const productsContainer = db.products;
 ```
 
+`connectDB` uses `createIfNotExists`, so these options apply only when a container is created. Startup does not migrate an existing container. Update existing containers separately by following Microsoft's [indexing-policy update guidance](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-manage-indexing-policy).
+
+Full-text search requires the Cosmos DB Full Text & Hybrid Search feature. `fullTextIndexes` adds both the container-level full-text policy and the matching full-text index using `en-US`. Existing containers need both policies updated separately. See Microsoft's [full-text indexing guide](https://learn.microsoft.com/en-us/cosmos-db/full-text-indexing) for the account and policy setup.
+
 ### Query Builder
 
-Build SQL queries with best practices for performance:
+Build SQL queries:
 
 ```typescript
-import { Query } from "dry-utils-cosmosdb";
+import { buildQuery, Where } from "dry-utils-cosmosdb";
 
-// Create a query to find active/pending premium users, sorted by most recent first
-const query = new Query()
-  .whereCondition("status", "IN", ["active", "pending"])
-  .whereCondition("userType", "=", "premium")
-  .whereCondition("createdDate", ">", "2023-01-01")
-  .orderBy("_ts", "DESC");
+const query = buildQuery({
+  top: 100,
+  where: [
+    Where.any(["status", "=", "active"], ["status", "=", "pending"]),
+    ["userType", "=", "premium"],
+    ["createdDate", ">", "2023-01-01"],
+  ],
+  orderBy: [["_ts", "DESC"]],
+});
 
-// Execute the query
-const results = await container.query(query.top(100).build());
+const results = await container.query(query);
 ```
+
+Separate entries in `where` are combined with `AND`. Use `Where.any` for `OR` groups and `Where.all` to nest an explicit `AND` group. Both group helpers accept structured conditions, `Where.raw(...)` predicates, and other groups. `Where.raw` renames declared parameters when the query is built, so raw predicates can be nested without parameter collisions.
+
+### Spatial Point Queries
+
+Use a parameterized raw predicate to find Points within a radius:
+
+```typescript
+import { buildQuery, Where } from "dry-utils-cosmosdb";
+
+const origin = {
+  type: "Point",
+  coordinates: [-122.335167, 47.608013],
+};
+
+const nearbyJobs = await jobsContainer.query(
+  buildQuery({
+    where: [Where.distance("primaryLocation.point", origin, "<=", 25_000)],
+  }),
+);
+```
+
+GeoJSON Point coordinates use `[longitude, latitude]` order. With CosmosDB's default geography coordinate system, `ST_DISTANCE` returns meters.
+
+### Full-Text Queries
+
+Use `Where.is` for parameterized full-text filters:
+
+```typescript
+import { buildQuery, Where } from "dry-utils-cosmosdb";
+
+const search = buildQuery({
+  where: [Where.is("description", "FULLTEXTCONTAINSALL", ["red", "bicycle"])],
+});
+
+const matchingProducts = await productsContainer.query(search);
+```
+
+`FULLTEXTCONTAINS` accepts one term or phrase. Pass an array to `FULLTEXTCONTAINSALL` or `FULLTEXTCONTAINSANY` to generate one query parameter per term. `ALL` requires every supplied term, while `ANY` requires at least one.
 
 ### Mock Database (Testing)
 
@@ -110,9 +159,9 @@ const db = await connectDB({
   mockDBFilters: {
     users: [
       {
-        matcher: /c\.status = @status/,
+        matcher: /c\.status = @p0/,
         fn: ({ items, params }) => {
-          const status = params["@status"];
+          const status = params["@p0"];
           return items.filter((item) => item.status === status);
         },
       },
@@ -122,6 +171,10 @@ const db = await connectDB({
 ```
 
 The `mockDBFilters` matchers let you intercept WHERE clauses and return custom filtered results from fixture data. Use `mockDBProjects` the same way to intercept SELECT projections.
+
+The built-in mock query processor supports Point-to-Point `distance` filters that use `<=`. It uses a Haversine approximation for tests; it is not a CosmosDB geospatial parity layer. Other spatial types, argument orders, and comparison operators remain unsupported in the mock.
+
+The mock also supports parameterized `FULLTEXTCONTAINS`, `FULLTEXTCONTAINSALL`, and `FULLTEXTCONTAINSANY` filters on nested string fields. Matching uses case-insensitive, contiguous substring checks with `en-US` casing. It does not reproduce Cosmos DB tokenization, stemming, stopword removal, fuzzy search, BM25 scoring, or ranking. Check behavior that depends on those details against Cosmos DB.
 
 ### Loading Mock Data from JSON
 

@@ -4,7 +4,7 @@ import type {
   SqlQuerySpec,
 } from "@azure/cosmos";
 
-// Split into SELECT, FROM, WHERE, ORDER BY components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and Query.build()).
+// Split into SELECT, FROM, WHERE, ORDER BY components, supporting optional TOP and GROUP BY (ignored in processing but allows matching queries from Container and buildQuery()).
 const querySplitter = new RegExp(
   /^\s*SELECT\s+(?:TOP\s+(?<top>\d+)\s+)?(?<select>.+?)\s+FROM\s+c(?:\s+WHERE\s+(?<where>.+?))?(?:\s+ORDER\s+BY\s+(?<orderby>.+?))?(?:\s+GROUP\s+BY\s+.+)?\s*$/i,
 );
@@ -14,12 +14,23 @@ const cond_is_defined = new RegExp(
 const cond_contains = new RegExp(
   /^CONTAINS\(c\.(?<field>[A-Za-z0-9_.]+),\s*(?<param>@[A-Za-z0-9_]+),\s*true\)$/i,
 );
+const cond_full_text = new RegExp(
+  /^FULLTEXTCONTAINS(?<mode>ALL|ANY)?\s*\(\s*c\.(?<field>[A-Za-z0-9_.]+)\s*,\s*(?<params>@[A-Za-z0-9_]+(?:\s*,\s*@[A-Za-z0-9_]+)*)\s*\)$/i,
+);
 const cond_compare = new RegExp(
   /^c\.(?<field>[A-Za-z0-9_.]+)\s*(?<op><=|>=|<|>|=)\s*(?<param>@[A-Za-z0-9_]+)$/i,
 );
 const cond_in = new RegExp(
   /^c\.(?<field>[A-Za-z0-9_.]+)\s+IN\s+\((?<params>(?:@[A-Za-z0-9_]+)(?:\s*,\s*@[A-Za-z0-9_]+)*)\)$/i,
 );
+const cond_st_distance = new RegExp(
+  /^ST_DISTANCE\s*\(\s*c\.(?<field>[A-Za-z0-9_.]+)\s*,\s*(?<origin>@[A-Za-z0-9_]+)\s*\)\s*<=\s*(?<radius>@[A-Za-z0-9_]+)$/i,
+);
+
+type PointCoordinates = [longitude: number, latitude: number];
+
+const MEAN_EARTH_RADIUS_METERS = 6_371_008.8;
+const FULL_TEXT_LOCALE = "en-US";
 
 /**
  * Arguments passed to a {@link MockQueryDef} handler during query processing.
@@ -102,7 +113,7 @@ const builtInFilters: MockQueryDef[] = [
 
 /**
  * Processes a SQL query spec against an in-memory item set.
- * Handles the query patterns produced by `Container` and `Query.build()`.
+ * Handles the query patterns produced by `Container` and `buildQuery()`.
  * Provided filters and projects are checked before built-in processing, allowing for custom query extensions.
  * @param items The items to query against.
  * @param query The SQL query spec with parameterized values.
@@ -243,7 +254,7 @@ function getFieldValue(item: Item, fieldPath: string): unknown {
 
 /**
  * Evaluates a single condition against an item and query parameters.
- * Supports: c.field op @param (=, <, <=, >, >=) and CONTAINS(c.field, @param, true)
+ * Supports scalar comparisons, string/full-text contains functions, IN, IS_DEFINED, and Point-to-Point ST_DISTANCE radius filters.
  */
 function evaluateCondition(
   condition: string,
@@ -265,6 +276,19 @@ function evaluateCondition(
       return false;
     }
     return itemValue.toLowerCase().includes(paramValue.toLowerCase());
+  }
+
+  const fullTextMatch = condition.match(cond_full_text);
+  if (fullTextMatch) {
+    const { field, mode, params: paramsStr } = fullTextMatch.groups!;
+    return evaluateFullTextCondition(
+      condition,
+      field!,
+      mode,
+      paramsStr!.split(",").map((param) => param.trim()),
+      params,
+      item,
+    );
   }
 
   const compareMatch = condition.match(cond_compare);
@@ -296,28 +320,206 @@ function evaluateCondition(
     return values.includes(itemValue as JSONValue);
   }
 
+  const distanceMatch = condition.match(cond_st_distance);
+  if (distanceMatch) {
+    const { field, origin, radius } = distanceMatch.groups!;
+    const originCoordinates = getPointCoordinates(params[origin!]);
+    if (!originCoordinates) {
+      throw new Error(
+        `Invalid ST_DISTANCE origin parameter ${origin}: expected a GeoJSON Point with finite longitude [-180, 180] and latitude [-90, 90]`,
+      );
+    }
+
+    const radiusMeters = params[radius!];
+    if (typeof radiusMeters !== "number" || !Number.isFinite(radiusMeters)) {
+      throw new Error(
+        `Invalid ST_DISTANCE radius parameter ${radius}: expected a finite number`,
+      );
+    }
+
+    const itemCoordinates = getPointCoordinates(getFieldValue(item, field!));
+    return (
+      itemCoordinates !== undefined &&
+      getPointDistanceMeters(itemCoordinates, originCoordinates) <= radiusMeters
+    );
+  }
+
   throw new Error(`Unsupported WHERE condition in mock: ${condition}`);
 }
 
 /**
+ * Approximates Cosmos boolean full-text predicates with case-insensitive
+ * substring matching. Cosmos remains authoritative for language analysis.
+ */
+function evaluateFullTextCondition(
+  condition: string,
+  field: string,
+  mode: string | undefined,
+  parameterNames: string[],
+  params: Record<string, JSONValue>,
+  item: Item,
+): boolean {
+  const normalizedMode = mode?.toUpperCase();
+  if (normalizedMode === undefined && parameterNames.length !== 1) {
+    throw new Error(`Unsupported WHERE condition in mock: ${condition}`);
+  }
+
+  const functionName = `FULLTEXTCONTAINS${normalizedMode ?? ""}`;
+  const terms = parameterNames.map((parameterName) => {
+    const value = params[parameterName];
+    if (typeof value !== "string") {
+      throw new Error(
+        `Invalid ${functionName} parameter ${parameterName}: expected a string`,
+      );
+    }
+    return value.toLocaleLowerCase(FULL_TEXT_LOCALE);
+  });
+
+  const itemValue = getFieldValue(item, field);
+  if (typeof itemValue !== "string") return false;
+
+  const normalizedItemValue = itemValue.toLocaleLowerCase(FULL_TEXT_LOCALE);
+  const matches = terms.map((term) => normalizedItemValue.includes(term));
+  if (normalizedMode === "ALL") return matches.every(Boolean);
+  if (normalizedMode === "ANY") return matches.some(Boolean);
+  return matches[0] ?? false;
+}
+
+/**
+ * Returns validated longitude/latitude coordinates for a narrow GeoJSON Point.
+ */
+function getPointCoordinates(value: unknown): PointCoordinates | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return;
+  }
+
+  const point = value as Record<string, unknown>;
+  const coordinates = point["coordinates"];
+  if (
+    point["type"] !== "Point" ||
+    !Array.isArray(coordinates) ||
+    coordinates.length !== 2
+  ) {
+    return;
+  }
+
+  const longitude: unknown = coordinates[0];
+  const latitude: unknown = coordinates[1];
+  if (
+    typeof longitude !== "number" ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180 ||
+    typeof latitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90
+  ) {
+    return;
+  }
+
+  return [longitude, latitude];
+}
+
+/**
+ * Approximates Point-to-Point distance in meters with the Haversine formula.
+ * Cosmos remains authoritative for exact geospatial calculations and edge cases.
+ */
+function getPointDistanceMeters(
+  [longitudeA, latitudeA]: PointCoordinates,
+  [longitudeB, latitudeB]: PointCoordinates,
+): number {
+  const latitudeARadians = toRadians(latitudeA);
+  const latitudeBRadians = toRadians(latitudeB);
+  const latitudeDelta = latitudeBRadians - latitudeARadians;
+  const longitudeDelta = toRadians(longitudeB - longitudeA);
+  const sinLatitude = Math.sin(latitudeDelta / 2);
+  const sinLongitude = Math.sin(longitudeDelta / 2);
+  const haversine =
+    sinLatitude * sinLatitude +
+    Math.cos(latitudeARadians) *
+      Math.cos(latitudeBRadians) *
+      sinLongitude *
+      sinLongitude;
+  const boundedHaversine = Math.min(1, Math.max(0, haversine));
+  const angularDistance =
+    2 *
+    Math.atan2(Math.sqrt(boundedHaversine), Math.sqrt(1 - boundedHaversine));
+  return MEAN_EARTH_RADIUS_METERS * angularDistance;
+}
+
+function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
+/**
  * Evaluates a WHERE clause string against an item and query parameters.
- * Expects the parenthesized AND-joined format produced by Query.build():
- * e.g. "(c.val > @val) AND (c.status = @status)"
+ * Supports the parenthesized AND/OR expression format produced by buildQuery().
  */
 function evaluateWhere(
   whereClause: string,
   params: Record<string, JSONValue>,
   item: Item,
 ): boolean {
-  // Split AND-joined parenthesized conditions: "(cond1) AND (cond2)"
-  // Stripping outer parens handles CONTAINS which has its own inner parens.
-  for (const part of whereClause.split(/ AND /i)) {
-    const trimmed = part.trim();
-    const inner =
-      trimmed.startsWith("(") && trimmed.endsWith(")")
-        ? trimmed.slice(1, -1).trim()
-        : trimmed;
-    if (!evaluateCondition(inner, params, item)) return false;
+  const expression = stripOuterParentheses(whereClause.trim());
+  const alternatives = splitBooleanExpression(expression, "OR");
+  if (alternatives.length > 1) {
+    return alternatives.some((part) => evaluateWhere(part, params, item));
   }
-  return true;
+
+  const requirements = splitBooleanExpression(expression, "AND");
+  if (requirements.length > 1) {
+    return requirements.every((part) => evaluateWhere(part, params, item));
+  }
+
+  return evaluateCondition(expression, params, item);
+}
+
+/** Removes only parentheses that enclose the complete Boolean expression. */
+function stripOuterParentheses(expression: string): string {
+  while (expression.startsWith("(") && expression.endsWith(")")) {
+    let depth = 0;
+    let enclosesExpression = true;
+    for (let index = 0; index < expression.length; index++) {
+      const character = expression[index];
+      if (character === "(") depth++;
+      if (character === ")") depth--;
+      if (depth === 0 && index < expression.length - 1) {
+        enclosesExpression = false;
+        break;
+      }
+    }
+    if (!enclosesExpression) break;
+    expression = expression.slice(1, -1).trim();
+  }
+  return expression;
+}
+
+/** Splits a Boolean expression on an operator found outside nested groups. */
+function splitBooleanExpression(
+  expression: string,
+  operator: "AND" | "OR",
+): string[] {
+  const parts: string[] = [];
+  const separator = ` ${operator} `;
+  let depth = 0;
+  let start = 0;
+
+  for (let index = 0; index <= expression.length - separator.length; index++) {
+    const character = expression[index];
+    if (character === "(") depth++;
+    if (character === ")") depth--;
+    if (
+      depth === 0 &&
+      expression.slice(index, index + separator.length).toUpperCase() ===
+        separator
+    ) {
+      parts.push(expression.slice(start, index).trim());
+      index += separator.length - 1;
+      start = index + 1;
+    }
+  }
+
+  parts.push(expression.slice(start).trim());
+  return parts;
 }

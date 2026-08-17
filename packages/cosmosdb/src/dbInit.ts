@@ -3,8 +3,9 @@ import type {
   ContainerRequest,
   Database,
   ItemDefinition,
+  SpatialIndex,
 } from "@azure/cosmos";
-import { CosmosClient } from "@azure/cosmos";
+import { CosmosClient, SpatialType } from "@azure/cosmos";
 import fs from "node:fs";
 import https from "node:https";
 import { Container } from "./container.ts";
@@ -21,6 +22,10 @@ export interface ContainerOptions {
   name: string;
   partitionKey: string;
   indexExclusions?: "none" | "all" | string[];
+  /** Cosmos indexing-policy paths to configure as Point spatial indexes when creating the container. */
+  spatialIndexes?: string[];
+  /** Cosmos full-text policy paths to configure using American English when creating the container. */
+  fullTextIndexes?: string[];
   ttlSeconds?: number;
 }
 
@@ -36,6 +41,7 @@ export interface DBOptions {
 }
 
 const MAX_CREATE_ATTEMPTS = 3;
+const FULL_TEXT_LANGUAGE = "en-US";
 
 /**
  * Establishes connection to Cosmos DB and initializes containers
@@ -92,15 +98,40 @@ async function createContainer(
   options: ContainerOptions,
   attempt = 1,
 ): Promise<Container<ItemDefinition> | undefined> {
-  const { name, partitionKey, indexExclusions = "none", ttlSeconds } = options;
+  const {
+    name,
+    partitionKey,
+    indexExclusions = "none",
+    spatialIndexes = [],
+    fullTextIndexes = [],
+    ttlSeconds,
+  } = options;
   try {
     const details: ContainerRequest = {
       id: name,
       partitionKey: { paths: [`/${partitionKey}`] },
     };
 
-    if (indexExclusions !== "none") {
-      details.indexingPolicy = getIndexingPolicy(indexExclusions);
+    if (
+      indexExclusions !== "none" ||
+      spatialIndexes.length ||
+      fullTextIndexes.length
+    ) {
+      details.indexingPolicy = getIndexingPolicy(
+        indexExclusions,
+        spatialIndexes,
+        fullTextIndexes,
+      );
+    }
+
+    if (fullTextIndexes.length) {
+      details.fullTextPolicy = {
+        defaultLanguage: FULL_TEXT_LANGUAGE,
+        fullTextPaths: fullTextIndexes.map((path) => ({
+          path,
+          language: FULL_TEXT_LANGUAGE,
+        })),
+      };
     }
 
     if (ttlSeconds !== undefined) {
@@ -132,16 +163,30 @@ function validateTtl(name: string, value?: number) {
   }
 }
 
-function getIndexingPolicy(exclusions: "all" | string[]) {
+function getIndexingPolicy(
+  exclusions: "none" | "all" | string[],
+  spatialPaths: string[],
+  fullTextPaths: string[],
+) {
   const all = [{ path: "/*" }];
+  const spatialIndexes: SpatialIndex[] = spatialPaths.map((path) => ({
+    path,
+    types: [SpatialType.Point],
+  }));
+  const spatialPolicy = spatialIndexes.length ? { spatialIndexes } : {};
+  const fullTextIndexes = fullTextPaths.map((path) => ({ path }));
+  const fullTextIndexPolicy = fullTextIndexes.length ? { fullTextIndexes } : {};
 
   if (exclusions === "all") {
-    return { excludedPaths: all };
+    return { excludedPaths: all, ...spatialPolicy, ...fullTextIndexPolicy };
   }
 
+  const excludedPaths = exclusions === "none" ? [] : exclusions;
   return {
     includedPaths: all,
-    excludedPaths: ['/"_etag"/?', ...exclusions].map((path) => ({ path })),
+    excludedPaths: ['/"_etag"/?', ...excludedPaths].map((path) => ({ path })),
+    ...spatialPolicy,
+    ...fullTextIndexPolicy,
   };
 }
 
