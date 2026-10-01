@@ -11,7 +11,7 @@ This repository is structured as a monorepo containing several packages:
 - [dry-utils-async](#dry-utils-async) - Utilities for handling common asynchronous programming patterns
 - [dry-utils-cosmosdb](#dry-utils-cosmosdb) - CosmosDB abstractions for simplified database interactions
 - [dry-utils-gemini](#dry-utils-gemini) - Utilities for working with the Gemini API
-- [dry-utils-logger](#dry-utils-logger) - Winston wrapper logger with simplified configuration
+- [dry-utils-logger](#dry-utils-logger) - TSLog wrapper logger with simplified configuration
 - [dry-utils-openai](#dry-utils-openai) - Utilities for working with the OpenAI API
 - [dry-utils-text](#dry-utils-text) - HTML and Markdown conversion utilities with sanitization
 
@@ -99,14 +99,14 @@ Utilities for working with the Gemini API, focusing on structured responses, err
 
 ### dry-utils-logger
 
-A Winston wrapper logger for Node.js applications with simplified configuration.
+A TSLog wrapper logger for Node.js applications with simplified configuration.
 
 **Features:**
 
-- Simplified API: Easy-to-use wrapper around Winston
-- Dual Output: Console-friendly simplified output and detailed file logging
-- Smart Formatting: Automatically simplifies complex objects for console output
-- Configurable: Customize log levels for different transport methods
+- Simplified API: Global logger and custom TSLog logger instances
+- Dual Output: Pretty console output and detailed file logging
+- Formatting: Limits console arrays to 10 items and preserves error details in file output
+- Configurable: Separate minimum log levels for the logger, console, and file output
 
 [View dry-utils-logger documentation](./packages/logger/README.md)
 

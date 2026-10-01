@@ -1,7 +1,7 @@
 {
   "name": "dry-utils-logger",
   "version": "0.2.0",
-  "description": "Personal, hyper-specific Winston wrapper logger",
+  "description": "Personal, hyper-specific TSLog wrapper logger",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -44,7 +44,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "winston": "^3.17.0"
+    "tslog": "^5.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -17,7 +17,7 @@ This is a TypeScript monorepo containing a collection of independent utility pac
 - `packages/async`: Utilities for handling common asynchronous programming patterns.
 - `packages/cosmosdb`: Abstractions for simplified CosmosDB interactions.
 - `packages/gemini`: Utilities for working with the Gemini API.
-- `packages/logger`: A Winston wrapper for simplified logging.
+- `packages/logger`: A TSLog wrapper for simplified logging.
 - `packages/openai`: Utilities for working with the OpenAI API.
 - `packages/text`: HTML and Markdown conversion utilities with sanitization.
 

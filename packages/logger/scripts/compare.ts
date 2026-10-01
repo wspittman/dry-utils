@@ -1,35 +1,35 @@
 import { createCustomLogger } from "../src/index.ts";
 
-const log = createCustomLogger({ consoleLevel: "debug" }, true);
+const log = createCustomLogger({ consoleLevel: "DEBUG" }, true);
 
 const section = (title: string) => {
   const bar = "-".repeat(40);
   console.log(`\n${bar}\n  ${title}\n${bar}`);
-  log.info(`--- ${title} ---`);
+};
+
+const info = (msg: string, arg: unknown) => {
+  console.log(msg, arg);
+  log.info(msg, arg);
+  //logNew.info(msg, arg);
+};
+
+const error = (msg: string, arg?: unknown) => {
+  console.error(msg, arg);
+  log.error(msg, arg);
+  //logNew.error(msg, arg);
 };
 
 // Primitives
 section("Primitives");
-console.log("string:", "hello world");
-log.info("string", "hello world");
-
-console.log("number:", 42);
-log.info("number", 42);
-
-console.log("boolean:", true);
-log.info("boolean", true);
-
-console.log("null:", null);
-log.info("null", null);
-
-console.log("undefined:", undefined);
-log.info("undefined", undefined);
+info("string", "hello world");
+info("number", 42);
+info("boolean", true);
+info("null", null);
+info("undefined", undefined);
 
 // Simple object
 section("Simple Object");
-const obj = { name: "Alice", age: 30, active: true };
-console.log("object:", obj);
-log.info("object", obj);
+info("object", { name: "Alice", age: 30, active: true });
 
 // Nested object
 section("Nested Object");
@@ -37,22 +37,18 @@ const nested = {
   user: { name: "Bob", address: { city: "Seattle", zip: "98101" } },
   tags: ["admin", "user"],
 };
-console.log("nested:", nested);
-log.info("nested", nested);
+info("nested", nested);
 
 // Deep object (truncation test)
 section("Deep Object (truncation)");
 const deep = {
   level1: { level2: { level3: { level4: { deepValue: "buried" } } } },
 };
-console.log("deep:", deep);
-log.info("deep", deep);
+info("deep", deep);
 
 // Arrays
 section("Simple Array");
-const arr = [1, 2, 3, 4, 5];
-console.log("array:", arr);
-log.info("array", arr);
+info("array", [1, 2, 3, 4, 5]);
 
 section("Array of Objects");
 const people = [
@@ -60,25 +56,19 @@ const people = [
   { name: "Bob", age: 25 },
   { name: "Carol", age: 35 },
 ];
-console.log("people:", people);
-log.info("people", people);
+info("people", people);
 
 section("Long Array (truncation)");
 const long = Array.from({ length: 25 }, (_, i) => i);
-console.log("long:", long);
-log.info("long", long);
+info("long", long);
 
 // Date
 section("Date");
-const date = new Date("2024-06-15T12:30:00Z");
-console.log("date:", date);
-log.info("date", date);
+info("date", new Date("2024-06-15T12:30:00Z"));
 
 // Error
 section("Error");
-const err = new Error("something went wrong");
-console.log("error:", err);
-log.info("error", err);
+info("error", new Error("something went wrong"));
 
 // Mixed / realistic payload
 section("Realistic Log Payload");
@@ -88,23 +78,18 @@ const payload = {
   duration: 238,
   status: 200,
 };
-console.log("payload:", payload);
-log.info("payload", payload);
+info("payload", payload);
 
 // Error comparisons
 section("error: string message");
-console.error("something went wrong");
-log.error("something went wrong");
+error("something went wrong");
 
 section("error: Error object");
-const errObj = new Error("database connection failed");
-console.error("error:", errObj);
-log.error("error", errObj);
+error("error", new Error("database connection failed"));
 
 section("error: object with details");
 const errDetails = { code: 500, message: "internal error", path: "/api/users" };
-console.error("error details:", errDetails);
-log.error("error details", errDetails);
+error("error details", errDetails);
 
 section("error: nested context");
 const errContext = {
@@ -112,5 +97,4 @@ const errContext = {
   error: { code: "TIMEOUT", retries: 3 },
   user: { id: 99 },
 };
-console.error("error context:", errContext);
-log.error("error context", errContext);
+error("error context", errContext);

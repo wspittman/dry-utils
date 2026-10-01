@@ -1,38 +1,105 @@
-import type { TransformableInfo } from "logform";
 import { inspect } from "node:util";
-import { createLogger, format, type Logger, transports } from "winston";
+import {
+  Logger,
+  LogLevel,
+  type IErrorObject,
+  type ILogObj,
+  type ILogObjMeta,
+  type ISettings,
+} from "tslog";
+import { fileTransport } from "tslog/transports/file";
 
-/**
- * Extended interface for logger info objects with additional splat properties
- */
-interface LoggerInfo extends TransformableInfo {
-  timestamp?: string;
-  splat?: unknown;
-}
+type LogLevelName = keyof typeof LogLevel;
+type LogFnName = Lowercase<LogLevelName>;
+type ApiFn = (msg: string, ...args: unknown[]) => void;
 
-/**
- * Configuration interface for the logger
- */
+/** Configuration interface for the logger */
 export interface LoggerConfig {
   /** Log level for the logger instance */
-  level?: string;
+  level?: LogLevelName;
   /** Path to the log file */
   filename?: string;
   /** Log level for console output */
-  consoleLevel?: string;
+  consoleLevel?: LogLevelName;
   /** Log level for file output */
-  fileLevel?: string;
+  fileLevel?: LogLevelName;
 }
 
-/**
- * Default configuration for the logger
- */
-const DEFAULT_LOGGER_CONFIG: LoggerConfig = {
-  level: "info",
+/** Default configuration for the logger */
+const defaults: Required<LoggerConfig> = {
+  level: "SILLY",
   filename: "logs/app.log",
-  consoleLevel: "info",
-  fileLevel: "debug",
+  consoleLevel: "INFO",
+  fileLevel: "DEBUG",
 };
+
+/**
+ * Creates a custom logger instance with the specified configuration
+ *
+ * @param options Configuration options for the logger
+ * @param omitInitMsg Whether to omit the initialization message
+ * @returns A configured TSLog logger instance
+ */
+export function createCustomLogger(
+  options: LoggerConfig = {},
+  omitInitMsg = false,
+): Logger<ILogObj> {
+  const config = { ...defaults, ...options };
+  const log = new Logger<ILogObj>({
+    type: "hidden",
+    minLevel: config.level,
+    pretty: {
+      template:
+        "{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}}.{{ms}} {{logLevelName}} ",
+      inspectOptions: { maxArrayLength: 10 },
+    },
+  });
+
+  log.attachTransport({
+    name: "console",
+    minLevel: config.consoleLevel,
+    format: "pretty",
+    write: (_record, line) => console.log(line),
+  });
+  log.attachTransport(
+    fileTransport({
+      path: config.filename,
+      minLevel: config.fileLevel,
+      format: formatFile,
+    }),
+  );
+
+  if (!omitInitMsg) {
+    log.info(`Logger initialized @ ${new Date().toISOString()}`);
+  }
+
+  return log;
+}
+
+function formatFile(
+  record: ILogObj & ILogObjMeta,
+  settings: ISettings<ILogObj>,
+): string {
+  if (!record) return "";
+  const { [settings.meta.property]: meta, ...rest } = record;
+  if (!meta) return "";
+  const values = Object.values(rest);
+
+  let splatString = "";
+  for (const value of values) {
+    const isCollapse = Array.isArray(value) && typeof value[0] !== "object";
+    const expandVal = isCollapse ? undefined : 2;
+    try {
+      splatString += `: ${JSON.stringify(value, errorReplacer, expandVal)}`;
+    } catch {
+      // Fallback if circular references or other serialization issues
+      splatString +=
+        ": " + inspect(value, { colors: true, maxArrayLength: 10 });
+    }
+  }
+
+  return `${meta.date.toISOString()} ${meta.logLevelName}${splatString}`;
+}
 
 const errorReplacer = (_key: string, value: unknown): unknown => {
   if (value instanceof Error) {
@@ -43,79 +110,39 @@ const errorReplacer = (_key: string, value: unknown): unknown => {
       ...Object.fromEntries(Object.entries(value)),
     };
   }
+  if (isErrorObject(value)) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack.map((x) => x.filePathWithLine),
+    };
+  }
   return value;
 };
 
-const addSplat = format((info: LoggerInfo) => {
-  const splat = (info as Record<symbol, unknown>)[Symbol.for("splat")];
-  const val = Array.isArray(splat) ? (splat as unknown[])[0] : splat;
-  info.splat = val;
-  return info;
-})();
-
-const formatPrint = (isConsole: boolean) =>
-  format.printf((info: LoggerInfo) => {
-    const { timestamp = "", level, message, splat } = info;
-
-    let splatString = "";
-
-    if (splat != null && !isConsole) {
-      try {
-        const isCollapse = Array.isArray(splat) && typeof splat[0] !== "object";
-        const expandVal = isCollapse ? undefined : 2;
-        splatString = `: ${JSON.stringify(splat, errorReplacer, expandVal) ?? ""}`;
-      } catch {
-        // Fallback below if circular references or other serialization issues
-      }
-    }
-
-    if (splat != null && !splatString) {
-      splatString = ": " + inspect(splat, { colors: true, maxArrayLength: 10 });
-    }
-
-    return `${timestamp} [${level.toUpperCase()}]: ${String(message)}${splatString}`;
-  });
-
-/**
- * Creates a custom logger instance with the specified configuration
- *
- * @param options - Configuration options for the logger
- * @param omitInitMsg - Whether to omit the initialization message
- * @returns A configured Winston logger instance
- */
-export function createCustomLogger(
-  options: LoggerConfig = {},
-  omitInitMsg = false,
-): Logger {
-  const config = { ...DEFAULT_LOGGER_CONFIG, ...options };
-  const start = new Date();
-  const startTime = start.getTime();
-
-  const addTimestamp = format.timestamp({
-    format: () => new Date(Date.now() - startTime).toISOString().slice(14, 23),
-  });
-
-  const logger = createLogger({
-    level: config.level,
-    format: format.combine(addTimestamp, addSplat),
-    transports: [
-      new transports.Console({
-        level: config.consoleLevel,
-        format: formatPrint(true),
-      }),
-      new transports.File({
-        filename: config.filename,
-        level: config.fileLevel,
-        format: formatPrint(false),
-      }),
-    ],
-  });
-
-  if (!omitInitMsg) {
-    logger.info(`Logger initialized @ ${start.toISOString()}`);
+function isErrorObject(value: unknown): value is IErrorObject {
+  if (typeof value !== "object" || value === null) {
+    return false;
   }
 
-  return logger;
+  const obj = value as Record<string, unknown>;
+
+  return (
+    typeof obj["name"] === "string" &&
+    typeof obj["message"] === "string" &&
+    obj["nativeError"] instanceof Error &&
+    Array.isArray(obj["stack"])
+  );
+}
+
+let current: Logger<ILogObj> | undefined;
+let globalConfig: LoggerConfig = {};
+
+function apiFn(str: LogFnName): ApiFn {
+  return (msg: string, ...args: unknown[]): void => {
+    current ??= createCustomLogger(globalConfig);
+    current[str](msg, ...args);
+  };
 }
 
 /**
@@ -124,10 +151,17 @@ export function createCustomLogger(
  * @param options Configuration options for the logger
  */
 export function configureGlobal(options: LoggerConfig): void {
-  logger = createCustomLogger(options);
+  globalConfig = options;
+  current = undefined;
 }
 
-/**
- * The global logger instance
- */
-export let logger: Logger = createCustomLogger();
+/** The global logger instance */
+export const logger: Record<LogFnName, ApiFn> = {
+  silly: apiFn("silly"),
+  trace: apiFn("trace"),
+  debug: apiFn("debug"),
+  info: apiFn("info"),
+  warn: apiFn("warn"),
+  error: apiFn("error"),
+  fatal: apiFn("fatal"),
+};
