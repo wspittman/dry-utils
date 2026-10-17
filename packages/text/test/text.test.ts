@@ -2,6 +2,7 @@ import { encode } from "html-entities";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  htmlToMarkdown,
   markdownToHtml,
   sanitizeHtmlContent,
   standardizeUntrustedHtml,
@@ -70,6 +71,47 @@ describe("HtmlDown: sanitizeHtmlContent", () => {
       const result = sanitizeHtmlContent(html[name]);
       assert.equal(result, expected);
     });
+  });
+});
+
+describe("HtmlDown: htmlToMarkdown", () => {
+  const cases: [string, string][] = [
+    ["", ""],
+    [html.text, markdown.text],
+    [html.p, markdown.text],
+    [html.bold, markdown.bold],
+    [html.headers, "Header 1\n========\n\nHeader 2\n--------"],
+    [html.list, "*   Item 1\n*   Item 2"],
+    [html.codeBlock, "    code block"],
+    [html.codeInline, markdown.codeInline],
+    [html.linkEmpty, markdown.text],
+    [html.linkHref, markdown.link],
+    [html.script, markdown.text],
+    [html.disallowedAttributes, markdown.text],
+    [html.disallowedTags, markdown.text],
+    ['<a href="javascript:alert(1)">Text</a>', markdown.text],
+  ];
+
+  cases.forEach(([input, expected]) => {
+    test(`htmlToMarkdown: ${JSON.stringify(input)}`, () => {
+      assert.equal(htmlToMarkdown(input), expected);
+      assert.equal(htmlToMarkdown(encode(input)), expected);
+    });
+  });
+
+  test("htmlToMarkdown: turndown options applied", () => {
+    assert.equal(
+      htmlToMarkdown(html.headers, { headingStyle: "atx" }),
+      "# Header 1\n\n## Header 2",
+    );
+    assert.equal(
+      htmlToMarkdown(html.codeBlock, { codeBlockStyle: "fenced" }),
+      markdown.codeBlock,
+    );
+    assert.equal(
+      htmlToMarkdown("<p></p>", { blankReplacement: () => "BLANK" }),
+      "BLANK",
+    );
   });
 });
 

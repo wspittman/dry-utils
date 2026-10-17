@@ -18,12 +18,27 @@ npm install dry-utils-text
 
 ## Features
 
+- **HTML to Markdown**: Decode and sanitize untrusted HTML, then convert it to Markdown using Turndown.
 - **Markdown to HTML**: Convert Markdown content to sanitized HTML using Showdown with sensible defaults (tables, GitHub-style headers, and indented sublist fixes).
 - **HTML Sanitization**: Clean and sanitize HTML content for secure rendering while automatically locking down external links.
 - **HTML Standardization**: Normalize untrusted HTML through a Markdown conversion cycle for consistent downstream rendering.
 - **Configurable Pipelines**: Override Showdown or Turndown options when you need bespoke Markdown or HTML output.
 
 ## Usage
+
+### Convert HTML to Markdown
+
+`htmlToMarkdown(html, turndownOptions?)` decodes HTML entities and sanitizes the HTML before conversion. Pass Turndown options to customize the Markdown output:
+
+```typescript
+import { htmlToMarkdown } from "dry-utils-text";
+
+const html = "<h1>Hello World</h1><p>This is <strong>bold</strong>.</p>";
+const markdown = htmlToMarkdown(html, { headingStyle: "atx" });
+// Results in: "# Hello World\n\nThis is **bold**."
+```
+
+Entity-encoded HTML is also accepted. By default, Turndown uses Setext headings and indented code blocks; use `headingStyle: "atx"` or `codeBlockStyle: "fenced"` to change these styles.
 
 ### Convert Markdown to HTML
 
@@ -51,7 +66,7 @@ const safeHtml = sanitizeHtmlContent(unsafeHtml);
 
 ### Standardize Untrusted HTML
 
-Process untrusted HTML by converting it to Markdown and back to sanitized HTML. You can override the Showdown or Turndown options used during the conversion cycle:
+Process untrusted HTML with `htmlToMarkdown`, then convert the result back to sanitized HTML with `markdownToHtml`. You can pass Showdown options as the second argument and Turndown options as the third argument:
 
 ```typescript
 import { standardizeUntrustedHtml } from "dry-utils-text";

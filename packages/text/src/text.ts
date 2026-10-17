@@ -21,13 +21,25 @@ export function standardizeUntrustedHtml(
   converterOptions?: Showdown.ConverterOptions,
   turndownOptions?: TurndownService.Options,
 ): string {
+  const markdown = htmlToMarkdown(html, turndownOptions);
+  return markdownToHtml(markdown, converterOptions);
+}
+
+/**
+ * Converts untrusted HTML content to markdown.
+ * @param html The untrusted HTML content
+ * @param turndownOptions Optional Turndown options to configure markdown conversion
+ * @returns The markdown content
+ */
+export function htmlToMarkdown(
+  html: string,
+  turndownOptions?: TurndownService.Options,
+): string {
   const decoded = decode(html);
   const sanitized = sanitizeHtmlContent(decoded);
 
   const turndownService = new TurndownService(turndownOptions);
-  const markdown = turndownService.turndown(sanitized);
-
-  return markdownToHtml(markdown, converterOptions);
+  return turndownService.turndown(sanitized);
 }
 
 /**

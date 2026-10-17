@@ -129,6 +129,7 @@ HTML and Markdown conversion utilities with sanitization for safe rendering.
 
 **Features:**
 
+- HTML to Markdown: Decode and sanitize untrusted HTML, then convert it to Markdown
 - Markdown to HTML: Convert Markdown content to sanitized HTML
 - HTML Sanitization: Clean and sanitize HTML content for secure rendering
 - HTML Standardization: Normalize untrusted HTML through a Markdown conversion cycle
