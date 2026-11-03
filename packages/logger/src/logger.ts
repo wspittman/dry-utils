@@ -70,7 +70,7 @@ export function createCustomLogger(
   );
 
   if (!omitInitMsg) {
-    log.info(`Logger initialized @ ${new Date().toISOString()}`);
+    log.info("Logger initialized");
   }
 
   return log;

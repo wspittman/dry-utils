@@ -282,7 +282,7 @@ describe("TSLog/Logger: globals", () => {
         assert.match(lines[0]!, / WARN warn$/);
       } else {
         assert.equal(lines.length, 3);
-        assert.match(lines[0]!, / INFO Logger initialized @ /);
+        assert.match(lines[0]!, / INFO Logger initialized/);
         assert.match(lines[1]!, / INFO info$/);
         assert.match(lines[2]!, / WARN warn$/);
       }
