@@ -10,8 +10,6 @@ import {
 import { fileTransport } from "tslog/transports/file";
 
 type LogLevelName = keyof typeof LogLevel;
-type LogFnName = Lowercase<LogLevelName>;
-type ApiFn = (msg: string, ...args: unknown[]) => void;
 
 /** Configuration interface for the logger */
 export interface LoggerConfig {
@@ -138,13 +136,6 @@ function isErrorObject(value: unknown): value is IErrorObject {
 let current: Logger<ILogObj> | undefined;
 let globalConfig: LoggerConfig = {};
 
-function apiFn(str: LogFnName): ApiFn {
-  return (msg: string, ...args: unknown[]): void => {
-    current ??= createCustomLogger(globalConfig);
-    current[str](msg, ...args);
-  };
-}
-
 /**
  * Configures the global logger singleton
  *
@@ -155,13 +146,32 @@ export function configureGlobal(options: LoggerConfig): void {
   current = undefined;
 }
 
+function getCurrent(): Logger<ILogObj> {
+  current ??= createCustomLogger(globalConfig);
+  return current;
+}
+
 /** The global logger instance */
-export const logger: Record<LogFnName, ApiFn> = {
-  silly: apiFn("silly"),
-  trace: apiFn("trace"),
-  debug: apiFn("debug"),
-  info: apiFn("info"),
-  warn: apiFn("warn"),
-  error: apiFn("error"),
-  fatal: apiFn("fatal"),
-};
+export const logger = {
+  silly: (msg: string, ...args: unknown[]): void => {
+    getCurrent().silly(msg, ...args);
+  },
+  trace: (msg: string, ...args: unknown[]): void => {
+    getCurrent().trace(msg, ...args);
+  },
+  debug: (msg: string, ...args: unknown[]): void => {
+    getCurrent().debug(msg, ...args);
+  },
+  info: (msg: string, ...args: unknown[]): void => {
+    getCurrent().info(msg, ...args);
+  },
+  warn: (msg: string, ...args: unknown[]): void => {
+    getCurrent().warn(msg, ...args);
+  },
+  error: (msg: string, ...args: unknown[]): void => {
+    getCurrent().error(msg, ...args);
+  },
+  fatal: (msg: string, ...args: unknown[]): void => {
+    getCurrent().fatal(msg, ...args);
+  },
+} as const;
