@@ -11,7 +11,6 @@ This repository is structured as a monorepo containing several packages:
 - [dry-utils-async](#dry-utils-async) - Utilities for handling common asynchronous programming patterns
 - [dry-utils-cosmosdb](#dry-utils-cosmosdb) - CosmosDB abstractions for simplified database interactions
 - [dry-utils-gemini](#dry-utils-gemini) - Utilities for working with the Gemini API
-- [dry-utils-logger](#dry-utils-logger) - Winston wrapper logger with simplified configuration
 - [dry-utils-openai](#dry-utils-openai) - Utilities for working with the OpenAI API
 - [dry-utils-text](#dry-utils-text) - HTML and Markdown conversion utilities with sanitization
 
@@ -53,7 +52,6 @@ dry-utils packages are available on npm.
 npm install dry-utils-async
 npm install dry-utils-cosmosdb
 npm install dry-utils-gemini
-npm install dry-utils-logger
 npm install dry-utils-openai
 npm install dry-utils-text
 ```
@@ -97,19 +95,6 @@ Utilities for working with the Gemini API, focusing on structured responses, err
 
 [View dry-utils-gemini documentation](./packages/gemini/README.md)
 
-### dry-utils-logger
-
-A Winston wrapper logger for Node.js applications with simplified configuration.
-
-**Features:**
-
-- Simplified API: Easy-to-use wrapper around Winston
-- Dual Output: Console-friendly simplified output and detailed file logging
-- Smart Formatting: Automatically simplifies complex objects for console output
-- Configurable: Customize log levels for different transport methods
-
-[View dry-utils-logger documentation](./packages/logger/README.md)
-
 ### dry-utils-openai
 
 Utilities for working with the OpenAI API, focusing on structured responses, error handling, and logging.
@@ -129,6 +114,7 @@ HTML and Markdown conversion utilities with sanitization for safe rendering.
 
 **Features:**
 
+- HTML to Markdown: Decode and sanitize untrusted HTML, then convert it to Markdown
 - Markdown to HTML: Convert Markdown content to sanitized HTML
 - HTML Sanitization: Clean and sanitize HTML content for secure rendering
 - HTML Standardization: Normalize untrusted HTML through a Markdown conversion cycle
